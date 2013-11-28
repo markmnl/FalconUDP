@@ -52,6 +52,7 @@
     <Compile Include="EmitDiscoverySignalTask.cs" />
     <Compile Include="Enums.cs" />
     <Compile Include="FalconHelper.cs" />
+    <Compile Include="FalconOperationResult.cs" />
     <Compile Include="FalconPeer.cs" />
     <Compile Include="PacketPool.cs" />
     <Compile Include="PingDetail.cs" />
@@ -65,7 +66,6 @@
     <Compile Include="Settings.cs" />
     <Compile Include="SingleRandom.cs" />
     <Compile Include="Statistics.cs" />
-    <Compile Include="TryResult.cs" />
     <Compile Include="ConcurrentGenericObjectPool.cs" />
     <Compile Include="SocketAsyncEventArgsPool.cs" />
   </ItemGroup>
