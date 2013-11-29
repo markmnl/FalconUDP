@@ -38,32 +38,44 @@ namespace FalconUDP
 
         internal void Reset()
         {
-            Interlocked.Exchange(ref ellapsedMillisecondsSinceSecondStart, 0);
-            Interlocked.Exchange(ref bytesSentInLastSecound, 0);
-            Interlocked.Exchange(ref bytesReceivedInLastSecound, 0);
-            Interlocked.Exchange(ref bytesSentPerSecound, 0);
-            Interlocked.Exchange(ref bytesRecievedPerSecound, 0);
+            lock (updatingLock)
+            {
+                ellapsedMillisecondsSinceSecondStart = 0;
+                bytesSentInLastSecound = 0;
+                bytesReceivedInLastSecound = 0;
+                bytesSentPerSecound = 0;
+                bytesRecievedPerSecound = 0;
+            }
         }
 
         internal void AddBytesSent(int falconPacketSize)
         {
-            Interlocked.Add(ref bytesSentInLastSecound, (falconPacketSize + Const.CARRIER_PROTOCOL_HEADER_SIZE));
+            lock (updatingLock)
+            {
+                bytesSentInLastSecound += (falconPacketSize + Const.CARRIER_PROTOCOL_HEADER_SIZE);
+            }
         }
 
         internal void AddBytesReceived(int falconPacketSize)
         {
-            Interlocked.Add(ref bytesReceivedInLastSecound, (falconPacketSize + Const.CARRIER_PROTOCOL_HEADER_SIZE));
+            lock (updatingLock)
+            {
+                bytesReceivedInLastSecound += (falconPacketSize + Const.CARRIER_PROTOCOL_HEADER_SIZE);
+            }
         }
 
         internal void Tick(long totalElapsedMilliseconds)
         {
             if (totalElapsedMilliseconds - ellapsedMillisecondsSinceSecondStart >= 1000) // NOTE: error margin of one tick
             {
-                Interlocked.Exchange(ref bytesRecievedPerSecound, bytesReceivedInLastSecound);
-                Interlocked.Exchange(ref bytesReceivedInLastSecound, 0);
-                Interlocked.Exchange(ref bytesSentPerSecound, bytesSentInLastSecound);
-                Interlocked.Exchange(ref bytesSentInLastSecound, 0);
-                Interlocked.Exchange(ref ellapsedMillisecondsSinceSecondStart, totalElapsedMilliseconds);
+                lock (updatingLock)
+                {
+                    bytesRecievedPerSecound = bytesReceivedInLastSecound;
+                    bytesReceivedInLastSecound = 0;
+                    bytesSentPerSecound = bytesSentInLastSecound;
+                    bytesSentInLastSecound = 0;
+                    ellapsedMillisecondsSinceSecondStart = totalElapsedMilliseconds;
+                }
             }
         }
     }

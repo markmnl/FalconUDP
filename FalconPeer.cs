@@ -63,7 +63,7 @@ namespace FalconUDP
         internal int SimulateDelayJitter { get; set; }
         internal double SimulatePacketLossChance { get; private set; }
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
-        internal bool HasPingsAwaitingPong { get; private set; }
+        internal bool HasPingsAwaitingPong { get { return hasPingsAwaitingPong; } }
  
         internal Socket             Socket;
         internal Stopwatch          Stopwatch;
@@ -79,17 +79,18 @@ namespace FalconUDP
         private Dictionary<int, RemotePeer> peersById;          // same RemotePeers as peersByIp
         private object              tickLock;                   // used to serialize calls in processing the timer's callback
         private object              peersLockObject;            // used to lock on when using above peer collections
-        private bool                stop;
+        private volatile bool       stop;
         private LogLevel            logLvl; 
         private int                 peerIdCount;
         private LogCallback         logger;
         private List<AwaitingAcceptDetail> awaitingAcceptDetails;
-        private bool                acceptJoinRequests;
+        private volatile bool       acceptJoinRequests;
         private string              joinPass;
         private PunchThroughCallback punchThroughCallback;
-        private bool                replyToAnonymousPings;
+        private volatile bool       replyToAnonymousPings;
+        private volatile bool       hasPingsAwaitingPong;
         
-        private bool hasRemotePeersAdded, hasRemotePeersDropped;
+        private volatile bool hasRemotePeersAdded, hasRemotePeersDropped;
         private Queue<RemotePeer>   remotePeersAdded;           // stash for PeerAdded event which is raised when reading
         private Queue<RemotePeer>   remotePeersDropped;         // stash for PeerDropped event which is raised when reading
         
@@ -177,9 +178,8 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Cleans up resources.
+        /// If socket is bound, says bye to any connected remote peers then closes socket.
         /// </summary>
-        /// <remarks>If socket is bound, says bye to any connected remote peers and closes socket.</remarks>
         ~FalconPeer()
         {
             if (Socket != null && Socket.IsBound)
@@ -202,7 +202,7 @@ namespace FalconUDP
                     return;
 
                 // pings awaiting pong
-                if (HasPingsAwaitingPong)
+                if (hasPingsAwaitingPong)
                 {
                     long ellapsed = Stopwatch.ElapsedMilliseconds;
                     lock (PingsAwaitingPong)
@@ -217,7 +217,7 @@ namespace FalconUDP
                                 pingPool.Return(detail);
                             }
                         }
-                        HasPingsAwaitingPong = PingsAwaitingPong.Count > 0;
+                        hasPingsAwaitingPong = PingsAwaitingPong.Count > 0;
                     }
                 }
 
@@ -860,7 +860,7 @@ namespace FalconUDP
             {
                 PingsAwaitingPong.Remove(pingDetail);
                 pingPool.Return(pingDetail);
-                HasPingsAwaitingPong = PingsAwaitingPong.Count > 0;
+                hasPingsAwaitingPong = PingsAwaitingPong.Count > 0;
             }
         }
 
@@ -1222,7 +1222,7 @@ namespace FalconUDP
                 lock (PingsAwaitingPong)
                 {
                     PingsAwaitingPong.Add(detail);
-                    HasPingsAwaitingPong = true;
+                    hasPingsAwaitingPong = true;
                 }
                 return true;
             }
@@ -1241,7 +1241,7 @@ namespace FalconUDP
             lock (PingsAwaitingPong)
             {
                 PingsAwaitingPong.Add(detail);
-                HasPingsAwaitingPong = true;
+                hasPingsAwaitingPong = true;
             }
         }
         
