@@ -8,7 +8,6 @@ namespace FalconUDP
         internal ushort Sequence;   
         internal byte[] Bytes;
         internal int    Count;
-        internal byte   ACKTicks;
         internal byte   ResentCount;
         internal long   ElapsedTimeAtSend;
         internal SendOptions ChannelType;

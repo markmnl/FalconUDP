@@ -34,9 +34,9 @@ namespace FalconUDP
             }
 
 #if DEBUG
-                if(leased.Contains(item))
-                    throw new InvalidOperationException("item already leased");
-                leased.Add(item);
+            if(leased.Contains(item))
+                throw new InvalidOperationException("item already leased");
+            leased.Add(item);
 #endif
             return item;
         }

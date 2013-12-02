@@ -12,14 +12,14 @@ namespace FalconUDP
         private List<IPEndPoint> endPointsReceivedReplyFrom;
         private bool listenForReply; // it is possible to emit discovery signals without bothering about a reply, e.g. to aid another peer joining us in an attempt to traverse NAT 
         private DiscoveryCallback callback;
-        private int ticksBetweenEmits;
+        private int millisecondsBetweenEmits;
         private int totalEmits;
         private int maxNumberPeersToDiscover;
         private FalconPeer falconPeer;
-        private int tickCount;
         private int emitCount;
         private Guid? token;
         private byte[] tokenBytes;
+        private long ellapsedMillisecondsWhenStarted;
 
         private static SocketAsyncEventArgsPool sendArgsPool;
 
@@ -33,7 +33,7 @@ namespace FalconUDP
 
             if (sendArgsPool == null)
             {
-                sendArgsPool = new SocketAsyncEventArgsPool(Const.DISCOVER_PACKET.Length + Const.DISCOVERY_TOKEN_SIZE, Settings.InitalNumDiscoverySendArgsToPool, GetNewSendArgs);
+                sendArgsPool = new SocketAsyncEventArgsPool(Const.DISCOVER_PACKET_WITH_TOKEN_HEADER.Length, Settings.InitalNumDiscoverySendArgsToPool, GetNewSendArgs);
             }
         }
 
@@ -73,7 +73,7 @@ namespace FalconUDP
                 else
                 {
                     Buffer.BlockCopy(Const.DISCOVER_PACKET, 0, args.Buffer, args.Offset, Const.DISCOVER_PACKET.Length);
-                    args.SetBuffer(args.Offset, Const.DISCOVER_PACKET.Length); // buffer segmant will be reset to original size in pool once used
+                    args.SetBuffer(args.Offset, Const.DISCOVER_PACKET.Length); // buffer segmant will be reset to original size in pool when returned
                 }
                 args.RemoteEndPoint = ep;
 
@@ -86,17 +86,17 @@ namespace FalconUDP
             }
         }
         
-        internal void Tick()
+        internal void Tick(long totalEllapsedMilliseconds)
         {
             if (TaskEnded)
                 return;
 
-            ++tickCount;
-            if (tickCount == ticksBetweenEmits)
+            int ellapsedSinceStarted = (int)(totalEllapsedMilliseconds - ellapsedMillisecondsWhenStarted);
+
+            if (ellapsedMillisecondsWhenStarted / millisecondsBetweenEmits > emitCount)
             {
-                tickCount = 0;
                 ++emitCount;
-                if (emitCount == totalEmits) // an emit is sent at 0 ticks so time is now up
+                if (emitCount == totalEmits) // an emit is sent when started
                 {
                     lock (endPointsReceivedReplyFrom)
                     {
@@ -121,7 +121,8 @@ namespace FalconUDP
             int maxNumOfPeersToDiscover,
             IEnumerable<IPEndPoint> endPointsToSendTo,
             Guid? token,
-            DiscoveryCallback callback)
+            DiscoveryCallback callback,
+            long ellapsedMillisecondsAtStart)
         {
             // NOTE: This class is re-used from a pool so this method needs to fully reset 
             //       the class.
@@ -134,14 +135,14 @@ namespace FalconUDP
 
             this.TaskEnded                  = false;
             this.falconPeer                 = falconPeer;
-            this.tickCount                  = 0;
             this.emitCount                  = 0;
             this.listenForReply             = listenForReply;
             this.callback                   = callback;
-            this.ticksBetweenEmits          = (duration / numOfSignalsToEmit) / Settings.TickTime;
+            this.millisecondsBetweenEmits   = (duration / numOfSignalsToEmit);
             this.totalEmits                 = numOfSignalsToEmit;
             this.maxNumberPeersToDiscover   = maxNumOfPeersToDiscover;
             this.token                      = token;
+            this.ellapsedMillisecondsWhenStarted = ellapsedMillisecondsAtStart;
 
             if(token.HasValue)
                 this.tokenBytes = token.Value.ToByteArray();

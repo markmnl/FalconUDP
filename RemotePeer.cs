@@ -17,22 +17,22 @@ namespace FalconUDP
     {
         internal int Id { get; private set; }
         internal IPEndPoint EndPoint { get { return endPoint; } }
-        internal int UnreadPacketCount { get { return unreadPacketCount; } }      // number of received packets not yet read by application
-        internal string PeerName { get; private set; }          // e.g. IP end point, used for logging
+        internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application ASSUMPTION lock on ReceiveLock obtained
+        internal string PeerName { get; private set; }                          // e.g. IP end point, used for logging
         internal object ReceiveLock { get; private set; }
         internal int Latency { get; private set; }
 
         internal bool IsKeepAliveMaster;                        // i.e. this remote peer is the master so it will send the KeepAlives, not us!
 
         private volatile int unreadPacketCount;
-        private bool keepAlive;
+        private readonly bool keepAliveAntAutoFlush;
         private IPEndPoint endPoint;
         private FalconPeer localPeer;                           // local peer this remote peer has joined
         private ConcurrentGenericObjectPool<PacketDetail> packetDetailPool;
         private List<PacketDetail> sentPacketsAwaitingACK;
-        private int ticksSinceLastReliablePacket;               // if this remote peer is the keep alive master; this is since last reliable packet sent to it, otherwise since the last reliable received from it
+        private long ellpasedMilliseondsAtLastRealiablePacket;  // if this remote peer is the keep alive master; this is since last reliable packet sent to it, otherwise since the last reliable received from it
+        private long ellapsedMillisecondsSendQueuesLastFlushed;
         private bool hasEndPointChanged;
-        private int ticksSinceSendQueuesLastFlushed;
         private List<DelayedDatagram> delayedDatagrams;
         private Queue<AckDetail> enqueudAcks;
         private List<Packet> allUnreadPackets;
@@ -52,7 +52,7 @@ namespace FalconUDP
         private ReceiveChannel inOrderReceiveChannel;
         private ReceiveChannel reliableInOrderReceiveChannel;
              
-        internal RemotePeer(FalconPeer localPeer, IPEndPoint endPoint, int peerId, bool keepAlive = true)
+        internal RemotePeer(FalconPeer localPeer, IPEndPoint endPoint, int peerId, bool keepAliveAndAutoFlush = true)
         {
             this.Id                     = peerId;
             this.localPeer              = localPeer;
@@ -63,7 +63,7 @@ namespace FalconUDP
             this.roundTripTimes         = new int[Settings.LatencySampleSize];
             this.ReceiveLock            = new object();
             this.delayedDatagrams       = new List<DelayedDatagram>();
-            this.keepAlive              = keepAlive;
+            this.keepAliveAntAutoFlush  = keepAliveAndAutoFlush;
             this.allUnreadPackets       = new List<Packet>();
             this.enqueudAcks            = new Queue<AckDetail>();
 
@@ -150,25 +150,32 @@ namespace FalconUDP
 
             // return args and it's token to pools
             if (token != null)
-            {
-                args.UserToken = null;
                 tokenPool.Return(token);
-            }
             sendArgsPool.Return(args);
         }
 
         private void SendDatagram(SocketAsyncEventArgs args, bool hasAlreadyBeenDelayed = false)
         {
+            // simulate packet loss
+            if (localPeer.SimulatePacketLossChance > 0)
+            {
+                if (SingleRandom.NextDouble() < localPeer.SimulatePacketLossChance)
+                {
+                    localPeer.Log(LogLevel.Info, String.Format("Dropped packet to send - simulate packet loss set at: {0}", localPeer.SimulatePacketLossChance));
+                    return;
+                }
+            }
+
             // simulate delay
             if (localPeer.SimulateDelayMilliseconds > 0 && !hasAlreadyBeenDelayed)
             {
                 int delay = localPeer.SimulateDelayMilliseconds;
                 if (localPeer.SimulateDelayJitter > 0)
-                    delay += SingleRandom.Rand.Next(0, localPeer.SimulateDelayJitter * 2) - localPeer.SimulateDelayJitter;
+                    delay += SingleRandom.Next(0, localPeer.SimulateDelayJitter * 2) - localPeer.SimulateDelayJitter;
 
                 DelayedDatagram delayedDatagram = new DelayedDatagram
                     {
-                        TicksTillSend = delay / Settings.TickTime,
+                        EllapsedMillisecondsWhenDelayed = localPeer.Stopwatch.ElapsedMilliseconds,
                         Datagram = args
                     };
 
@@ -191,8 +198,7 @@ namespace FalconUDP
         // writes as many enqued as as can fit into datagram ASSUMPTION lock on enquedAcks obtained
         private void WriteEnquedAcksToDatagram(SocketAsyncEventArgs args, int index, long totalEllapsedMillisecondsNow)
         {
-            while (enqueudAcks.Count > 0 
-                && (Const.MAX_PACKET_SIZE - (index - args.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
+            while (enqueudAcks.Count > 0 && (Const.MAX_PACKET_SIZE - (index - args.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
             {
                 AckDetail ack = enqueudAcks.Dequeue();
                 FalconHelper.WriteAck(ack, args.Buffer, index, totalEllapsedMillisecondsNow);
@@ -211,17 +217,20 @@ namespace FalconUDP
                 {
                     SocketAsyncEventArgs args = queue.Dequeue();
                     SendToken token = (SendToken)args.UserToken;
+                    long ellapsed = -1;
 
                     if (channel.IsReliable && token != null) // we know only ACKs do not have a token
                     {
+                        ellapsed = localPeer.Stopwatch.ElapsedMilliseconds;
+
                         if (!token.IsReSend)
                         {
-                            // Save detail of this reliable send for to measure ACK response time or 
+                            // Save detail of this reliable send to measure ACK response time and
                             // in case needs re-sending.
 
                             PacketDetail detail         = packetDetailPool.Borrow();
                             detail.ChannelType          = token.SendOptions;
-                            detail.ElapsedTimeAtSend    = localPeer.Stopwatch.ElapsedMilliseconds;
+                            detail.ElapsedTimeAtSend    = ellapsed;
                             detail.Sequence             = BitConverter.ToUInt16(args.Buffer, args.Offset + 1);
                             detail.CopyBytes(args.Buffer, args.Offset, args.Count);
 
@@ -243,17 +252,19 @@ namespace FalconUDP
 
                             if (detail != null)
                             {
-                                detail.ElapsedTimeAtSend = localPeer.Stopwatch.ElapsedMilliseconds;
+                                detail.ElapsedTimeAtSend = ellapsed;
                             }
                         }
                     }
 
                     // If we are the keep alive master (i.e. this remote peer is not) and this 
-                    // packet is reliable: reset ticksSinceLastReliablePacket[Sent]
+                    // packet is reliable: update ellpasedMilliseondsAtLastRealiablePacket[Sent]
 
                     if (!IsKeepAliveMaster && channel.IsReliable)
                     {
-                        Interlocked.Exchange(ref ticksSinceLastReliablePacket, 0);
+                        if(ellapsed == -1)
+                            ellapsed = localPeer.Stopwatch.ElapsedMilliseconds;
+                        Interlocked.Exchange(ref ellpasedMilliseondsAtLastRealiablePacket, ellapsed);
                     }
 
                     // Update the RemoteEndPoint if it has changed (possible when for unknown peer)
@@ -265,17 +276,9 @@ namespace FalconUDP
                     // append any ACKs awaiting to be sent that will fit in datagram
                     if (enqueudAcks.Count > 0)
                     {
-                        WriteEnquedAcksToDatagram(args, args.Offset + args.Count, localPeer.Stopwatch.ElapsedMilliseconds);
-                    }
-
-                    // simulate packet loss
-                    if (localPeer.SimulatePacketLossChance > 0)
-                    {
-                        if (SingleRandom.Rand.NextDouble() < localPeer.SimulatePacketLossChance)
-                        {
-                            localPeer.Log(LogLevel.Info, String.Format("Dropped packet to send - simulate packet loss set at: {0}", localPeer.SimulatePacketLossChance));
-                            continue;
-                        }
+                        if (ellapsed == -1)
+                            ellapsed = localPeer.Stopwatch.ElapsedMilliseconds;
+                        WriteEnquedAcksToDatagram(args, args.Offset + args.Count, ellapsed);
                     }
 
                     SendDatagram(args);
@@ -318,7 +321,7 @@ namespace FalconUDP
             }
         }
 
-        internal void Tick()
+        internal void Tick(long totalEllapsedMilliseconds)
         {
             // NOTE: This method is called by some arbitary thread in the ThreadPool by 
             //       FalconPeer's Timer.
@@ -331,10 +334,9 @@ namespace FalconUDP
                 for (int i = 0; i < sentPacketsAwaitingACK.Count; i++)
                 {
                     PacketDetail pd = sentPacketsAwaitingACK[i];
-                    pd.ACKTicks++;
-                    if (pd.ACKTicks == Settings.ACKTimeoutTicks)
+                    int ellapsed = (int)(totalEllapsedMilliseconds - pd.ElapsedTimeAtSend);
+                    if (ellapsed >= Settings.ACKTimeout)
                     {
-                        pd.ACKTicks = 0;
                         pd.ResentCount++;
                         if (pd.ResentCount > Settings.ACKRetryAttempts)
                         {
@@ -354,6 +356,7 @@ namespace FalconUDP
                         else
                         {
                             // try again..
+                            pd.ElapsedTimeAtSend = totalEllapsedMilliseconds;
                             ReSend(pd);
                             localPeer.Log(LogLevel.Info, String.Format("Packet to: {0} re-sent as not ACKnowledged in time.", PeerName));
                         }
@@ -363,35 +366,35 @@ namespace FalconUDP
             //
             // KeepAlives 
             //
-            if (keepAlive)
+            if (keepAliveAntAutoFlush)
             {
-                int elapsed = Interlocked.Increment(ref ticksSinceLastReliablePacket);
+                int ellapsed = (int)(totalEllapsedMilliseconds - Interlocked.Read(ref ellpasedMilliseondsAtLastRealiablePacket));
                 if (IsKeepAliveMaster) // i.e. this remote peer is the keep alive master, not us
                 {
-                    if (elapsed >= Settings.KeepAliveIfNoKeepAliveTicks)
+                    if (ellapsed >= Settings.KeepAliveIfNoKeepAliveReceived)
                     {
                         // This remote peer has not sent a KeepAlive for too long, send a KeepAlive to 
                         // them to see if they are alive!
 
                         reliableSendChannel.EnqueueSend(PacketType.KeepAlive, null);
-                        Interlocked.Exchange(ref ticksSinceLastReliablePacket, 0);
+                        Interlocked.Exchange(ref ellpasedMilliseondsAtLastRealiablePacket, totalEllapsedMilliseconds);
                     }
                 }
-                else if (elapsed >= Settings.KeepAliveIfInactiveForTicks)
+                else if (ellapsed >= Settings.KeepAliveIfInterval)
                 {
                     reliableSendChannel.EnqueueSend(PacketType.KeepAlive, null);
-                    Interlocked.Exchange(ref ticksSinceLastReliablePacket, 0); // NOTE: this is reset again when packet actually sent but another tick may occur before then
+                    Interlocked.Exchange(ref ellpasedMilliseondsAtLastRealiablePacket, totalEllapsedMilliseconds); // NOTE: this is reset again when packet actually sent but another tick may occur before then
                 }
                 //
                 // AutoFlush
                 //
-                if (Settings.FlushSendQueuesIfNotFlushedForTicks > 0)
+                if (Settings.AutoFlushInterval > 0)
                 {
-                    elapsed = Interlocked.Increment(ref ticksSinceSendQueuesLastFlushed);
-                    if (elapsed >= Settings.FlushSendQueuesIfNotFlushedForTicks)
+                    ellapsed = (int)(totalEllapsedMilliseconds - Interlocked.Read(ref ellapsedMillisecondsSendQueuesLastFlushed));
+                    if (ellapsed >= Settings.AutoFlushInterval)
                     {
                         localPeer.Log(LogLevel.Info, "AutoFlush");
-                        FlushSendQueues();
+                        FlushSendQueues(totalEllapsedMilliseconds);
                     }
                 }
             }
@@ -400,12 +403,11 @@ namespace FalconUDP
             // 
             lock (delayedDatagrams)
             {
-
                 for(int i = 0; i < delayedDatagrams.Count; i++)
                 {
                     DelayedDatagram delayedDatagram = delayedDatagrams[i];
-                    delayedDatagram.TicksTillSend--;
-                    if (delayedDatagram.TicksTillSend == 0)
+                    int ellapsed = (int)(totalEllapsedMilliseconds - Interlocked.Read(ref delayedDatagram.EllapsedMillisecondsWhenDelayed));
+                    if (ellapsed >= localPeer.SimulateDelayMilliseconds)
                     {
                         SendDatagram(delayedDatagram.Datagram, true);
                         delayedDatagrams.RemoveAt(i);
@@ -457,6 +459,7 @@ namespace FalconUDP
         internal void Accept()
         {
             EnqueueSend(PacketType.AcceptJoin, SendOptions.Reliable, null);
+            FlushSendChannel(SendOptions.Reliable);
         }
 
         internal void Ping()
@@ -487,7 +490,7 @@ namespace FalconUDP
             }
         }
 
-        internal void FlushSendQueues()
+        internal void FlushSendQueues(long totalEllapsedMilliseconds)
         {
             try
             {
@@ -517,7 +520,7 @@ namespace FalconUDP
                 localPeer.RemovePeer(this, false);
             }
 
-            Interlocked.Exchange(ref ticksSinceSendQueuesLastFlushed, 0);
+            Interlocked.Exchange(ref ellapsedMillisecondsSendQueuesLastFlushed, totalEllapsedMilliseconds);
         }
 
         // returns true if caller should continue adding any additional packets in datagram
@@ -529,10 +532,12 @@ namespace FalconUDP
             int payloadSize,
             bool isFirstPacketInDatagram)
         {
-            // if we are not the keep alive master and this packet was sent reliably reset ticksSinceLastReliablePacket[Received]
+            // If we are not the keep alive master, i.e. this remote peer is, and this packet was 
+            // sent reliably reset ellpasedMilliseondsAtLastRealiablePacket[Received].
+
             if (IsKeepAliveMaster && opts.HasFlag(SendOptions.Reliable))
             {
-                Interlocked.Exchange(ref ticksSinceLastReliablePacket, 0);
+                Interlocked.Exchange(ref ellpasedMilliseondsAtLastRealiablePacket, localPeer.Stopwatch.ElapsedMilliseconds);
             }
 
             switch (type)
@@ -651,7 +656,7 @@ namespace FalconUDP
                                 // incrementing resent count, we are resetting it, because the remote
                                 // peer must be alive to have sent the AntiACK.
 
-                                detail.ACKTicks = 0;
+                                detail.ElapsedTimeAtSend = localPeer.Stopwatch.ElapsedMilliseconds;
                                 detail.ResentCount = 0;
                                 ReSend(detail);
                             }

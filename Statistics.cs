@@ -20,7 +20,7 @@ namespace FalconUDP
         /// </summary>
         public int BytesSentPerSecound 
         {
-            get { return bytesSentPerSecound; } 
+            get { lock(updatingLock) return bytesSentPerSecound; } 
         }
 
         /// <summary>
@@ -28,7 +28,7 @@ namespace FalconUDP
         /// </summary>
         public int BytesReceivedPerSecound 
         {
-            get { return bytesRecievedPerSecound; }
+            get { lock (updatingLock) return bytesRecievedPerSecound; }
         }
 
         internal Statistics()

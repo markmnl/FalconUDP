@@ -50,6 +50,7 @@
     </CodeAnalysisDependentAssemblyPaths>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ConcurrentGenericObjectPoolTests.cs" />
     <Compile Include="FalconPeerTests.cs" />
     <Compile Include="PacketPoolTests.cs" />
     <Compile Include="PacketTests.cs" />
