@@ -8,7 +8,7 @@ namespace FalconUDP
         internal static Encoding TextEncoding                   = Encoding.UTF8;                    // encoding to use on system messages
 
         internal const int SocketCloseTimeout                   = 6;                                // milliseconds
-        internal const int TickTime                             = 20;                               // milliseconds (NOTE: timer could tick just after packet sent so this also defines the error margin)
+        internal const int TickTime                             = 100;                              // milliseconds (NOTE: timer could tick just after packet sent so this also defines the error margin)
         internal const int TicksPerSecound                      = 1000 / TickTime;
         internal const int ACKTimeout                           = 1020;                             // milliseconds (should be multiple of ACK_TICK_TIME)
         internal const int ACKTimeoutTicks                      = ACKTimeout / TickTime;            // timeout in ticks 

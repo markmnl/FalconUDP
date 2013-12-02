@@ -45,7 +45,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Ack.cs" />
+    <Compile Include="AckDetail.cs" />
     <Compile Include="Const.cs" />
     <Compile Include="DelayedDatagram.cs" />
     <Compile Include="Delegates.cs" />

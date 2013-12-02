@@ -1,6 +1,6 @@
 ﻿namespace FalconUDP
 {
-    internal class Ack
+    internal class AckDetail
     {
         internal ushort Seq;
         internal SendOptions Channel;

@@ -38,7 +38,7 @@ namespace FalconUDP
             }
         }
 
-        internal static void WriteAck(Ack ack, 
+        internal static void WriteAck(AckDetail ack, 
             byte[] dstBuffer, 
             int dstIndex, 
             long ellapsedMillisecondsNow)

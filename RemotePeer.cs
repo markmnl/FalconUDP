@@ -17,13 +17,14 @@ namespace FalconUDP
     {
         internal int Id { get; private set; }
         internal IPEndPoint EndPoint { get { return endPoint; } }
-        internal int UnreadPacketCount {get; private set;}      // number of received packets not yet read by application
+        internal int UnreadPacketCount { get { return unreadPacketCount; } }      // number of received packets not yet read by application
         internal string PeerName { get; private set; }          // e.g. IP end point, used for logging
         internal object ReceiveLock { get; private set; }
         internal int Latency { get; private set; }
 
         internal bool IsKeepAliveMaster;                        // i.e. this remote peer is the master so it will send the KeepAlives, not us!
 
+        private volatile int unreadPacketCount;
         private bool keepAlive;
         private IPEndPoint endPoint;
         private FalconPeer localPeer;                           // local peer this remote peer has joined
@@ -33,13 +34,13 @@ namespace FalconUDP
         private bool hasEndPointChanged;
         private int ticksSinceSendQueuesLastFlushed;
         private List<DelayedDatagram> delayedDatagrams;
-        private Queue<Ack> enqueudAcks;
+        private Queue<AckDetail> enqueudAcks;
         private List<Packet> allUnreadPackets;
 
         // pools
         private SocketAsyncEventArgsPool sendArgsPool;
         private ConcurrentGenericObjectPool<SendToken> tokenPool;
-        private ConcurrentGenericObjectPool<Ack> ackPool;
+        private ConcurrentGenericObjectPool<AckDetail> ackPool;
         
         // channels
         private SendChannel noneSendChannel;
@@ -56,7 +57,7 @@ namespace FalconUDP
             this.Id                     = peerId;
             this.localPeer              = localPeer;
             this.endPoint               = endPoint;
-            this.UnreadPacketCount      = 0;
+            this.unreadPacketCount      = 0;
             this.sentPacketsAwaitingACK = new List<PacketDetail>();
             this.PeerName               = endPoint.ToString();
             this.roundTripTimes         = new int[Settings.LatencySampleSize];
@@ -64,13 +65,13 @@ namespace FalconUDP
             this.delayedDatagrams       = new List<DelayedDatagram>();
             this.keepAlive              = keepAlive;
             this.allUnreadPackets       = new List<Packet>();
-            this.enqueudAcks            = new Queue<Ack>();
+            this.enqueudAcks            = new Queue<AckDetail>();
 
             // pools
-            this.packetDetailPool       = new ConcurrentGenericObjectPool<PacketDetail>(Settings.InitalNumPacketDetailPerPeerToPool, true);
+            this.packetDetailPool       = new ConcurrentGenericObjectPool<PacketDetail>(Settings.InitalNumPacketDetailPerPeerToPool);
             this.sendArgsPool           = new SocketAsyncEventArgsPool(Const.MAX_PACKET_SIZE, Settings.InitalNumSendArgsToPoolPerPeer, GetNewSendArgs);
-            this.tokenPool              = new ConcurrentGenericObjectPool<SendToken>(Settings.InitalNumSendArgsToPoolPerPeer, true);
-            this.ackPool                = new ConcurrentGenericObjectPool<Ack>(Settings.InitalNumAcksToPoolPerPeer, true);
+            this.tokenPool              = new ConcurrentGenericObjectPool<SendToken>(Settings.InitalNumSendArgsToPoolPerPeer);
+            this.ackPool                = new ConcurrentGenericObjectPool<AckDetail>(Settings.InitalNumAcksToPoolPerPeer);
 
             // channels
             this.noneSendChannel            = new SendChannel(SendOptions.None, this.sendArgsPool, this.tokenPool, this.localPeer);
@@ -193,7 +194,7 @@ namespace FalconUDP
             while (enqueudAcks.Count > 0 
                 && (Const.MAX_PACKET_SIZE - (index - args.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
             {
-                Ack ack = enqueudAcks.Dequeue();
+                AckDetail ack = enqueudAcks.Dequeue();
                 FalconHelper.WriteAck(ack, args.Buffer, index, totalEllapsedMillisecondsNow);
                 ackPool.Return(ack);
                 index += Const.FALCON_PACKET_HEADER_SIZE;
@@ -445,7 +446,7 @@ namespace FalconUDP
 
         internal void ACK(ushort seq, PacketType type, SendOptions channelType)
         {
-            Ack ack = ackPool.Borrow();
+            AckDetail ack = ackPool.Borrow();
             ack.Init(seq, channelType, type, localPeer.Stopwatch.ElapsedMilliseconds);
             lock (enqueudAcks)
             {
@@ -555,7 +556,7 @@ namespace FalconUDP
                                 return false;
 
                             if (wasAppPacketAdded)
-                                UnreadPacketCount++;
+                                unreadPacketCount++;
 
                             return true;
                         }
@@ -682,7 +683,7 @@ namespace FalconUDP
             if (reliableInOrderReceiveChannel.Count > 0)
                 allUnreadPackets.AddRange(reliableInOrderReceiveChannel.Read());
 
-            UnreadPacketCount = 0;
+            unreadPacketCount = 0;
             
             return allUnreadPackets;
         }
