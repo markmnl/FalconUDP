@@ -20,7 +20,7 @@ namespace FalconUDPTests
         [TestMethod]
         public void StressTestConcurrentGenericObjectPoolTests()
         {
-            var num = 1000000;
+            var num = 100;
             var returned = 0;
             var pool = new ConcurrentGenericObjectPool<PunyClass>(32);
             BlockingCollection<PunyClass> borrowed = new BlockingCollection<PunyClass>();

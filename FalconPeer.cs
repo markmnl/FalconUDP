@@ -182,16 +182,16 @@ namespace FalconUDP
 #endif
         }
 
-        /// <summary>
-        /// If socket is bound, says bye to any connected remote peers then closes socket.
-        /// </summary>
-        ~FalconPeer()
-        {
-            if (Socket != null && Socket.IsBound)
-            {
-                CloseSocket(true);
-            }
-        }
+        ///// <summary>
+        ///// If socket is bound, says bye to any connected remote peers then closes socket.
+        ///// </summary>
+        //~FalconPeer()
+        //{
+        //    if (Socket != null && Socket.IsBound)
+        //    {
+        //        CloseSocket(true);
+        //    }
+        //}
 
         private void Tick(object dummy)
         {
@@ -748,9 +748,9 @@ namespace FalconUDP
                 punchThroughCallback(true, endPoints[0]);
             }
             else
-	        {
+            {
                 punchThroughCallback(false, null);
-	        }
+            }
         }
 
         private void CloseSocket(bool sayBye)
