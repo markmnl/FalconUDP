@@ -8,74 +8,58 @@ namespace FalconUDP
     /// <remarks>Statistics are only collected when <see cref="FalconPeer.StartCollectingStatistics()"/> is called.</remarks>
     public class Statistics
     {
-        private long ellapsedMillisecondsSinceSecondStart;
-        private object updatingLock;
+        private float ellapsedMillisecondsSinceSecondStart;
         private int bytesSentInLastSecound;
         private int bytesReceivedInLastSecound;
         private int bytesSentPerSecound;
         private int bytesRecievedPerSecound;
-        
+
         /// <summary>
         /// Total number of bytes sent in the last secound (including IP, UDP and FalconUDP header bytes).
         /// </summary>
-        public int BytesSentPerSecound 
+        public int BytesSentPerSecound
         {
-            get { lock(updatingLock) return bytesSentPerSecound; } 
+            get { return bytesSentPerSecound; }
         }
 
         /// <summary>
         /// Total number of bytes received in the last secound (including IP, UDP and FalconUDP header bytes).
         /// </summary>
-        public int BytesReceivedPerSecound 
+        public int BytesReceivedPerSecound
         {
-            get { lock (updatingLock) return bytesRecievedPerSecound; }
+            get { return bytesRecievedPerSecound; }
         }
 
         internal Statistics()
         {
-            updatingLock = new object();
         }
 
         internal void Reset()
         {
-            lock (updatingLock)
-            {
-                ellapsedMillisecondsSinceSecondStart = 0;
-                bytesSentInLastSecound = 0;
-                bytesReceivedInLastSecound = 0;
-                bytesSentPerSecound = 0;
-                bytesRecievedPerSecound = 0;
-            }
+            ellapsedMillisecondsSinceSecondStart = 0;
+            bytesSentInLastSecound = 0;
+            bytesReceivedInLastSecound = 0;
+            bytesSentPerSecound = 0;
+            bytesRecievedPerSecound = 0;
         }
 
         internal void AddBytesSent(int falconPacketSize)
         {
-            lock (updatingLock)
-            {
-                bytesSentInLastSecound += (falconPacketSize + Const.CARRIER_PROTOCOL_HEADER_SIZE);
-            }
+            bytesSentInLastSecound += (falconPacketSize + Const.CARRIER_PROTOCOL_HEADER_SIZE);
         }
 
         internal void AddBytesReceived(int falconPacketSize)
         {
-            lock (updatingLock)
-            {
-                bytesReceivedInLastSecound += (falconPacketSize + Const.CARRIER_PROTOCOL_HEADER_SIZE);
-            }
+            bytesReceivedInLastSecound += (falconPacketSize + Const.CARRIER_PROTOCOL_HEADER_SIZE);
         }
 
-        internal void Tick(long totalElapsedMilliseconds)
+        internal void Update(float dt)
         {
-            if (totalElapsedMilliseconds - ellapsedMillisecondsSinceSecondStart >= 1000) // NOTE: error margin of one tick
+            ellapsedMillisecondsSinceSecondStart += dt;
+            if (ellapsedMillisecondsSinceSecondStart >= 1000) // NOTE: error margin of one update
             {
-                lock (updatingLock)
-                {
-                    bytesRecievedPerSecound = bytesReceivedInLastSecound;
-                    bytesReceivedInLastSecound = 0;
-                    bytesSentPerSecound = bytesSentInLastSecound;
-                    bytesSentInLastSecound = 0;
-                    ellapsedMillisecondsSinceSecondStart = totalElapsedMilliseconds;
-                }
+                bytesRecievedPerSecound = bytesReceivedInLastSecound;
+                Reset();
             }
         }
     }

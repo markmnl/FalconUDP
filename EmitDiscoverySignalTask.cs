@@ -12,14 +12,14 @@ namespace FalconUDP
         private List<IPEndPoint> endPointsReceivedReplyFrom;
         private bool listenForReply; // it is possible to emit discovery signals without bothering about a reply, e.g. to aid another peer joining us in an attempt to traverse NAT 
         private DiscoveryCallback callback;
-        private int millisecondsBetweenEmits;
+        private float millisecondsBetweenEmits;
         private int totalEmits;
         private int maxNumberPeersToDiscover;
         private FalconPeer falconPeer;
         private int emitCount;
         private Guid? token;
         private byte[] tokenBytes;
-        private long ellapsedMillisecondsWhenStarted;
+        private float ellapsedMillisecondsSinceLastEmit;
 
         private static SocketAsyncEventArgsPool sendArgsPool;
 
@@ -85,25 +85,21 @@ namespace FalconUDP
                 }
             }
         }
-        
-        internal void Tick(long totalEllapsedMilliseconds)
+
+        internal void Update(float dt)
         {
-            if (TaskEnded)
-                return;
+            ellapsedMillisecondsSinceLastEmit += dt;
 
-            int ellapsedSinceStarted = (int)(totalEllapsedMilliseconds - ellapsedMillisecondsWhenStarted);
-
-            if (ellapsedMillisecondsWhenStarted / millisecondsBetweenEmits > emitCount)
+            if (ellapsedMillisecondsSinceLastEmit >= millisecondsBetweenEmits)
             {
                 ++emitCount;
+                ellapsedMillisecondsSinceLastEmit = 0;
+
                 if (emitCount == totalEmits) // an emit is sent when started
                 {
-                    lock (endPointsReceivedReplyFrom)
+                    if (callback != null)
                     {
-                        if (callback != null)
-                        {
-                            callback(endPointsReceivedReplyFrom.ToArray());
-                        }
+                        callback(endPointsReceivedReplyFrom.ToArray());
                     }
                     this.TaskEnded = true;
                 }
@@ -127,28 +123,28 @@ namespace FalconUDP
             // NOTE: This class is re-used from a pool so this method needs to fully reset 
             //       the class.
 
-            if(listenForReply)
+            if (listenForReply)
                 Debug.Assert(callback != null, "callback required if listening for a reply");
             else
                 Debug.Assert(callback == null, "callback must be null if not listening for a reply");
             Debug.Assert(maxNumOfPeersToDiscover > 0, "max no. of peers to receive a reply must be greater than 0");
 
-            this.TaskEnded                  = false;
-            this.falconPeer                 = falconPeer;
-            this.emitCount                  = 0;
-            this.listenForReply             = listenForReply;
-            this.callback                   = callback;
-            this.millisecondsBetweenEmits   = (duration / numOfSignalsToEmit);
-            this.totalEmits                 = numOfSignalsToEmit;
-            this.maxNumberPeersToDiscover   = maxNumOfPeersToDiscover;
-            this.token                      = token;
-            this.ellapsedMillisecondsWhenStarted = ellapsedMillisecondsAtStart;
+            this.TaskEnded = false;
+            this.falconPeer = falconPeer;
+            this.emitCount = 0;
+            this.listenForReply = listenForReply;
+            this.callback = callback;
+            this.millisecondsBetweenEmits = (duration / numOfSignalsToEmit);
+            this.totalEmits = numOfSignalsToEmit;
+            this.maxNumberPeersToDiscover = maxNumOfPeersToDiscover;
+            this.token = token;
+            this.ellapsedMillisecondsSinceLastEmit = ellapsedMillisecondsAtStart;
 
-            if(token.HasValue)
+            if (token.HasValue)
                 this.tokenBytes = token.Value.ToByteArray();
             else
                 this.tokenBytes = null;
-            
+
             this.endPointsToSendTo.Clear();
             this.endPointsToSendTo.AddRange(endPointsToSendTo);
             this.endPointsReceivedReplyFrom.Clear();
@@ -164,7 +160,7 @@ namespace FalconUDP
 
                 // raise PeerDiscovered event
                 falconPeer.RaisePeerDiscovered(endPointReceivedFrom);
-                
+
                 // add to list of end points received reply from
                 endPointsReceivedReplyFrom.Add(endPointReceivedFrom);
                 if (endPointsReceivedReplyFrom.Count == maxNumberPeersToDiscover)
@@ -175,7 +171,7 @@ namespace FalconUDP
                 }
             }
         }
-        
+
         internal bool IsForDiscoveryReply(IPEndPoint endPointDiscoveryReplyReceivedFrom)
         {
             // ASSUMPTION: There can only be one EmitDiscoverySignalTask at any one time that 
@@ -200,7 +196,7 @@ namespace FalconUDP
                         && (bytesTo[2] == 255 || bytesFrom[2] == bytesTo[2])
                         && (bytesTo[3] == 255 || bytesFrom[3] == bytesTo[3]));
 
-                    if(matches)
+                    if (matches)
                         return true;
                 }
             }

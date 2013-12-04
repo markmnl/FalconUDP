@@ -70,7 +70,6 @@ namespace FalconUDP
         internal Stopwatch          Stopwatch;
         internal PacketPool         PacketPool;
         internal HashSet<IPAddress> LocalAddresses;             // TODO is it possible to have the same addr on diff interface? even so does it matter?
-        internal List<RemotePeer>   RemotePeersToDrop;
         internal List<PingDetail>   PingsAwaitingPong;
 
         private ProcessReceivedPacket processReceivedPacketDelegate;
@@ -90,11 +89,11 @@ namespace FalconUDP
         private string              joinPass; // TODO volitile?
         private PunchThroughCallback punchThroughCallback; // TODO prevent unsetting?
 
-        private volatile bool       stop;
-        private volatile bool       acceptJoinRequests;
-        private volatile bool       replyToAnonymousPings;
-        private volatile bool       hasPingsAwaitingPong;
-        private volatile bool       isCollectingStatistics;
+        private  bool       stop;
+        private  bool       acceptJoinRequests;
+        private  bool       replyToAnonymousPings;
+        private  bool       hasPingsAwaitingPong;
+        private  bool       isCollectingStatistics;
 
         private ConcurrentQueue<RemotePeer> remotePeersAdded;           // stash for PeerAdded event which is raised when reading
         private ConcurrentQueue<RemotePeer> remotePeersDropped;         // stash for PeerDropped event which is raised when reading
@@ -193,122 +192,7 @@ namespace FalconUDP
         //    }
         //}
 
-        private void Tick(object dummy)
-        {
-            // NOTE: This callback is run on some arbitary thread in the ThreadPool and it is
-            //       possible calls will overlap if processing one call takes longer than a tick.
-            //       Therefore serialize calls as we don't support concurrency in a tick!
-            //       (Though this should never happen - the tick time is either too small or the 
-            //       processing too long, if it does).
 
-            lock (tickLock)
-            {
-                if (stop)
-                    return;
-
-                // get ellapsed once - it is a pinvoke each time - this ASSUMES there is no processing that will take more than 1ms!
-                long ellapsed = Stopwatch.ElapsedMilliseconds;
-
-                // pings awaiting pong
-                if (hasPingsAwaitingPong)
-                {
-                    lock (PingsAwaitingPong)
-                    {
-                        for (int i = 0; i < PingsAwaitingPong.Count; i++)
-                        {
-                            PingDetail detail = PingsAwaitingPong[i];
-                            if (ellapsed - detail.EllapsedMillisecondsAtSend > Settings.PingTimeout)
-                            {
-                                PingsAwaitingPong.RemoveAt(i);
-                                --i;
-                                pingPool.Return(detail);
-                            }
-                        }
-                        hasPingsAwaitingPong = PingsAwaitingPong.Count > 0;
-                    }
-                }
-
-                // stats
-                if (isCollectingStatistics)
-                {
-                    Statistics.Tick(ellapsed);
-                }
-
-                // discovery
-                lock (discoveryTasks)
-                {
-                    if (discoveryTasks.Count > 0)
-                    {
-                        for (int i = 0; i < discoveryTasks.Count; i++)
-                        {
-                            EmitDiscoverySignalTask task = discoveryTasks[i];
-                            task.Tick(ellapsed);
-                            if (task.TaskEnded)
-                            {
-                                discoveryTasks.RemoveAt(i);
-                                i--;
-                                emitDiscoverySignalTaskPool.Return(task);
-                            }
-                        }
-                    }
-                }
-
-                // unknown peer
-                lock (unknownPeer)
-                {
-                    unknownPeer.Tick(ellapsed);
-                }
-
-                // remote peers
-                lock (peersLockObject)
-                {
-                    foreach (KeyValuePair<int, RemotePeer> kv in peersById)
-                    {
-                        kv.Value.Tick(ellapsed);
-                    }
-                }
-
-                // remote peers to remove
-                lock (RemotePeersToDrop)
-                {
-                    if (RemotePeersToDrop.Count > 0)
-                    {
-                        for(int i = 0; i < RemotePeersToDrop.Count; i++)
-                        {
-                            RemovePeer(RemotePeersToDrop[i], false);
-                        }
-                        RemotePeersToDrop.Clear();
-                    }
-                }
-
-                // awaiting accept details
-                lock (awaitingAcceptDetails)
-                {
-                    for (int i = 0; i < awaitingAcceptDetails.Count; i++)
-                    {
-                        AwaitingAcceptDetail aad = awaitingAcceptDetails[i];
-                        int dt = (int)(ellapsed - aad.EllapsedMillisecondsAtStart);
-                        if (dt >= Settings.ACKTimeout)
-                        {
-                            aad.EllapsedMillisecondsAtStart = ellapsed;
-                            aad.RetryCount++;
-                            if (aad.RetryCount == Settings.ACKRetryAttempts)
-                            {
-                                // give up, peer has not been added yet so no need to drop
-                                awaitingAcceptDetails.RemoveAt(i);
-                                i--;
-                                aad.Callback(new FalconOperationResult(false, "Remote peer never responded to join request."));
-                            }
-                            else
-                            {
-                                // try again
-                                TryJoinPeerAsync(aad);
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         private bool TryGetPeerById(int id, out RemotePeer rp)
         {
@@ -755,25 +639,7 @@ namespace FalconUDP
 
         private void CloseSocket(bool sayBye)
         {
-            if (sayBye)
-            {
-                lock (peersLockObject)
-                {
-                    // say bye to everyone
-                    foreach (KeyValuePair<int, RemotePeer> kv in peersById)
-                    {
-                        kv.Value.EnqueueSend(PacketType.Bye, SendOptions.None, null);
-                    }
-                    SendEnquedPackets();
-                }
-            }
 
-            try
-            {
-                // TODO anyway to end receive operation?
-                Socket.Close(Settings.SocketCloseTimeout);
-            }
-            catch { }
         }
 
         internal RemotePeer AddPeer(IPEndPoint ip)
@@ -785,7 +651,7 @@ namespace FalconUDP
                 peersById.Add(peerIdCount, rp);
                 peersByIp.Add(ip, rp);
 
-                // save for PeerAdded event raised when ProcessReceivedPackets() called
+                // save for PeerAdded event raised when ProcessReceivedPackets() called TODO
                 remotePeersAdded.Enqueue(rp);
 
                 return rp;
@@ -794,24 +660,21 @@ namespace FalconUDP
 
         internal void RemovePeer(RemotePeer rp, bool sayBye)
         {
-            lock (peersLockObject)
+            peersById.Remove(rp.Id);
+            peersByIp.Remove(rp.EndPoint);
+
+            if (sayBye)
             {
-                peersById.Remove(rp.Id);
-                peersByIp.Remove(rp.EndPoint);
-
-                if (sayBye)
-                {
-                    SendToUnknownPeer(rp.EndPoint, PacketType.Bye, SendOptions.None, null);
-                    Log(LogLevel.Info, String.Format("Removed and saying bye to: {0}.", rp.EndPoint));
-                }
-                else
-                {
-                    Log(LogLevel.Info, String.Format("Removed: {0}.", rp.EndPoint));
-                }
-
-                // save for PeerRemoved event raised when ProcessReceivedPackets() called
-                remotePeersDropped.Enqueue(rp);
+                SendToUnknownPeer(rp.EndPoint, PacketType.Bye, SendOptions.None, null);
+                Log(LogLevel.Info, String.Format("Removed and saying bye to: {0}.", rp.EndPoint));
             }
+            else
+            {
+                Log(LogLevel.Info, String.Format("Removed: {0}.", rp.EndPoint));
+            }
+
+            // save for PeerRemoved event raised when ProcessReceivedPackets() called TODO
+            remotePeersDropped.Enqueue(rp);
         }
 
         [Conditional("DEBUG")]
@@ -855,12 +718,9 @@ namespace FalconUDP
 
         internal void RemovePingAwaitingPongDetail(PingDetail pingDetail)
         {
-            lock (PingsAwaitingPong)
-            {
-                PingsAwaitingPong.Remove(pingDetail);
-                pingPool.Return(pingDetail);
-                hasPingsAwaitingPong = PingsAwaitingPong.Count > 0;
-            }
+            PingsAwaitingPong.Remove(pingDetail);
+            pingPool.Return(pingDetail);
+            hasPingsAwaitingPong = PingsAwaitingPong.Count > 0;
         }
 
         internal void Stop(bool sayBye)
@@ -869,7 +729,25 @@ namespace FalconUDP
 
             lock (peersLockObject)
             {
-                CloseSocket(sayBye);
+                if (sayBye)
+                {
+                    lock (peersLockObject)
+                    {
+                        // say bye to everyone
+                        foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+                        {
+                            kv.Value.EnqueueSend(PacketType.Bye, SendOptions.None, null);
+                        }
+                        SendEnquedPackets();
+                    }
+                }
+
+                try
+                {
+                    // TODO anyway to end receive operation?
+                    Socket.Close(Settings.SocketCloseTimeout);
+                }
+                catch { }
 
                 Socket = null;
                 peersById.Clear();
@@ -1026,7 +904,7 @@ namespace FalconUDP
         /// <param name="pass">Password remote peer requires, if any.</param>
         public void TryJoinPeerAsync(IPEndPoint endPoint, string pass, FalconOperationCallback callback)
         {
-            AwaitingAcceptDetail detail = new AwaitingAcceptDetail(endPoint, callback, pass, Stopwatch.ElapsedMilliseconds);
+            AwaitingAcceptDetail detail = new AwaitingAcceptDetail(endPoint, callback, pass);
             AddWaitingAcceptDetail(detail);
             TryJoinPeerAsync(detail);
         }
@@ -1065,29 +943,26 @@ namespace FalconUDP
         /// <param name="millisecondsToWait">Time in millisconds to continue operation for.</param>
         /// <param name="numOfRequests">Number of signals to emit.</param>
         /// <param name="replyToDiscoveryRequestsWithToken"><see cref="Guid"/> token required to solicit a response to.</param>
-        public void AssistPunchThroughFromAsync(IPEndPoint publicEndPoint, 
-            int millisecondsToWait, 
+        public void AssistPunchThroughFromAsync(IPEndPoint publicEndPoint,
+            int millisecondsToWait,
             int numOfRequests,
             Guid? replyToDiscoveryRequestsWithToken)
         {
-            lock (processingDiscoveryRequestLock)
+            // TODO after period remove token and set state or leave that up to user-application?
+            if (replyToDiscoveryRequestsWithToken.HasValue)
             {
-                // TODO after period remove token and set state or leave that up to user-application?
-                if (replyToDiscoveryRequestsWithToken.HasValue)
-                {
-                    this.onlyReplyToDiscoveryRequestsWithToken.Add(replyToDiscoveryRequestsWithToken.Value);
-                }
-                else
-                {
-                    replyToDiscoveryRequests = true;
-                }
+                this.onlyReplyToDiscoveryRequestsWithToken.Add(replyToDiscoveryRequestsWithToken.Value);
             }
-                
+            else
+            {
+                replyToDiscoveryRequests = true;
+            }
+
             DiscoverFalconPeersAsync(false,
                 millisecondsToWait,
                 numOfRequests,
                 1,
-                new [] { publicEndPoint },
+                new[] { publicEndPoint },
                 null, // NOTE: we are assisting punch though and are not listening for a reply therefore do not need to include token in our DiscoveryRequests
                 null);
         }
@@ -1129,17 +1004,14 @@ namespace FalconUDP
             if(replyToDiscoveryRequestsWithToken != null && !replyToDiscoveryRequests)
                 throw new ArgumentException("replyToDiscoveryRequestsWithToken must be null if not to reply to discovery requests");
 
-            lock (processingDiscoveryRequestLock)
-            {
-                this.acceptJoinRequests = acceptJoinRequests;
-                this.joinPass = joinPassword;
-                this.replyToDiscoveryRequests = replyToDiscoveryRequests;
-                this.replyToAnonymousPings = replyToAnonymousPings;
+            this.acceptJoinRequests = acceptJoinRequests;
+            this.joinPass = joinPassword;
+            this.replyToDiscoveryRequests = replyToDiscoveryRequests;
+            this.replyToAnonymousPings = replyToAnonymousPings;
 
-                if (replyToDiscoveryRequestsWithToken.HasValue)
-                {
-                    this.onlyReplyToDiscoveryRequestsWithToken.Add(replyToDiscoveryRequestsWithToken.Value);
-                }
+            if (replyToDiscoveryRequestsWithToken.HasValue)
+            {
+                this.onlyReplyToDiscoveryRequestsWithToken.Add(replyToDiscoveryRequestsWithToken.Value);
             }
         }
         
@@ -1151,9 +1023,8 @@ namespace FalconUDP
         /// <param name="packet"><see cref="Packet"/> containing the data to send.</param>
         public void EnqueueSendTo(int peerId, SendOptions opts, Packet packet)
         {
-            // TODO if nothing written throw an exception?
             RemotePeer rp;
-            if (!TryGetPeerById(peerId, out rp))
+            if (!peersById.TryGetValue(peerId, out rp))
             {
                 Log(LogLevel.Error, "Attempt to SendTo unknown Peer ignored: " + peerId.ToString());
                 return;
@@ -1171,12 +1042,9 @@ namespace FalconUDP
         /// <param name="packet"> containing the data to send.</param>
         public void EnqueueSendToAll(SendOptions opts, Packet packet)
         {
-            lock (peersLockObject)
+            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
             {
-                foreach (KeyValuePair<int, RemotePeer> kv in peersById)
-                {
-                    kv.Value.EnqueueSend(PacketType.Application, opts, packet);
-                }
+                kv.Value.EnqueueSend(PacketType.Application, opts, packet);
             }
         }
 
@@ -1188,15 +1056,12 @@ namespace FalconUDP
         /// <param name="packet"> containing the data to send.</param>
         public void EnqueueSendToAllExcept(int peerIdToExclude, SendOptions opts, Packet packet)
         {
-            lock (peersLockObject)
+            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
             {
-                foreach (KeyValuePair<int, RemotePeer> kv in peersById)
-                {
-                    if (kv.Key == peerIdToExclude)
-                        continue;
+                if (kv.Key == peerIdToExclude)
+                    continue;
 
-                    kv.Value.EnqueueSend(PacketType.Application, opts, packet);
-                }
+                kv.Value.EnqueueSend(PacketType.Application, opts, packet);
             }
         }
         
@@ -1218,11 +1083,7 @@ namespace FalconUDP
                 PingDetail detail = pingPool.Borrow();
                 detail.Init(peerId, Stopwatch.ElapsedMilliseconds);
                 rp.Ping();
-                lock (PingsAwaitingPong)
-                {
-                    PingsAwaitingPong.Add(detail);
-                    hasPingsAwaitingPong = true;
-                }
+                PingsAwaitingPong.Add(detail);
                 return true;
             }
         }
@@ -1253,7 +1114,7 @@ namespace FalconUDP
         public bool TryGetPeerIPEndPoint(int peerId, out IPEndPoint ip)
         {
             RemotePeer rp;
-            if (TryGetPeerById(peerId, out rp))
+            if (peersById.TryGetValue(peerId, out rp))
             {
                 ip = rp.EndPoint;
                 return true;
@@ -1272,7 +1133,7 @@ namespace FalconUDP
         public bool TryGetPeerId(IPEndPoint ip, out int peerId)
         {
             RemotePeer rp;
-            if (TryGetPeerByIP(ip, out rp))
+            if (peersByIp.TryGetValue(ip, out rp))
             {
                 peerId = rp.Id;
                 return true;
@@ -1292,7 +1153,7 @@ namespace FalconUDP
         public void TryRemovePeer(int peerId, bool logFailure, bool sayBye)
         {
             RemotePeer rp;
-            if (!TryGetPeerById(peerId, out rp))
+            if (!peersById.TryGetValue(out peerId, out RemovePeer))
             {
                 if (logFailure)
                 {
@@ -1313,14 +1174,11 @@ namespace FalconUDP
         /// of waiting to find out we have disconnected.</param>
         public void RemoveAllPeersExcept(int peerId, bool sayBye)
         {
-            lock (peersLockObject)
+            foreach(KeyValuePair<int, RemotePeer> kv in peersById)
             {
-                foreach(KeyValuePair<int, RemotePeer> kv in peersById)
-                {
-                    if(kv.Key == peerId)
-                        continue;
-                    RemotePeersToDrop.Add(kv.Value);
-                }
+                if(kv.Key == peerId)
+                    continue;
+                RemovePeer(kv.Value);
             }
         }
 
@@ -1330,63 +1188,59 @@ namespace FalconUDP
         /// </summary>
         public void ProcessReceivedPackets()
         {
-            lock (peersLockObject)
+            // process any peers added since last call
+            if (!remotePeersAdded.IsEmpty)
             {
-                // process any peers added since last call
-                if (!remotePeersAdded.IsEmpty)
+                PeerAdded peerAddedHandler = PeerAdded;
+                RemotePeer rp;
+                while (remotePeersAdded.TryDequeue(out rp))
                 {
-                    PeerAdded peerAddedHandler = PeerAdded;
-                    RemotePeer rp;
-                    while (remotePeersAdded.TryDequeue(out rp))
-                    {
-                        if (peerAddedHandler != null)
-                            peerAddedHandler(rp.Id);
-                    }
+                    if (peerAddedHandler != null)
+                        peerAddedHandler(rp.Id);
                 }
+            }
 
-                // clear the list of previously read packets
-                readPacketList.Clear();
+            // clear the list of previously read packets
+            readPacketList.Clear();
 
-                // move received packets ready for reading from remote peers into readPacketList
-                foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+            // move received packets ready for reading from remote peers into readPacketList
+            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+            {
+                RemotePeer peer = kv.Value;
+                if (peer.UnreadPacketCount > 0)
                 {
-                    RemotePeer peer = kv.Value;
-                    lock (peer.ReceiveLock)
-                    {
-                        if (peer.UnreadPacketCount > 0)
-                        {
-                            readPacketList.AddRange(peer.Read());
-                        }
-                    }
+                    readPacketList.AddRange(peer.Read());
                 }
+            }
 
-                // for each packet call the process received packet delegate then return it to the pool
-                foreach (Packet p in readPacketList)
+            // for each packet call the process received packet delegate then return it to the pool
+            foreach (Packet p in readPacketList)
+            {
+                try
                 {
-                    try
-                    {
-                        processReceivedPacketDelegate(p);
-                    }
-                    finally
-                    {
-                        PacketPool.Return(p);
-                    }
+                    //-------------------------------
+                    processReceivedPacketDelegate(p);
+                    //-------------------------------
                 }
-
-                // Process any peers dropped since last call. Do this after processing recieved 
-                // packets in case one of the packets is from the remote peer that was dropped 
-                // - since the user-application would have otherwise quite likely just removed it's 
-                // reference to the peer that was just dropped in it's PeerDropped event handler.
-
-                if (!remotePeersDropped.IsEmpty)
+                finally
                 {
-                    PeerDropped peerDroppedDelegate = PeerDropped;
-                    RemotePeer rp;
-                    while (remotePeersDropped.TryDequeue(out rp))
-                    {
-                        if (peerDroppedDelegate != null)
-                            peerDroppedDelegate(rp.Id);
-                    }
+                    PacketPool.Return(p);
+                }
+            }
+
+            // Process any peers dropped since last call. Do this after processing recieved 
+            // packets in case one of the packets is from the remote peer that was dropped 
+            // - since the user-application would have otherwise quite likely just removed it's 
+            // reference to the peer that was just dropped in it's PeerDropped event handler.
+
+            if (!remotePeersDropped.IsEmpty)
+            {
+                PeerDropped peerDroppedDelegate = PeerDropped;
+                RemotePeer rp;
+                while (remotePeersDropped.TryDequeue(out rp))
+                {
+                    if (peerDroppedDelegate != null)
+                        peerDroppedDelegate(rp.Id);
                 }
             }
         }
@@ -1401,7 +1255,7 @@ namespace FalconUDP
             {
                 foreach (KeyValuePair<int, RemotePeer> kv in peersById)
                 {
-                    kv.Value.FlushSendQueues(ellapsed);
+                    kv.Value.FlushSendQueues();
                 }
             }
         }
@@ -1501,12 +1355,10 @@ namespace FalconUDP
             if (Statistics == null)
             {
                 Statistics = new Statistics();
-                isCollectingStatistics = true;
             }
             else
             {
                 Statistics.Reset();
-                isCollectingStatistics = true;
             }
         }
 
@@ -1515,8 +1367,83 @@ namespace FalconUDP
         /// </summary>
         public void StopCollectingStatistics()
         {
-            isCollectingStatistics = false;
             Statistics = null;
+        }
+
+        public void Update(float dt)
+        {
+            // pings awaiting pong
+            if (PingsAwaitingPong.Count > 0)
+            {
+                for (int i = 0; i < PingsAwaitingPong.Count; i++)
+                {
+                    PingDetail detail = PingsAwaitingPong[i];
+                    detail.EllapsedMillisecondsAtSend += dt;
+                    if (detail.EllapsedMillisecondsAtSend > Settings.PingTimeout)
+                    {
+                        PingsAwaitingPong.RemoveAt(i);
+                        --i;
+                        pingPool.Return(detail);
+                    }
+                }
+            }
+
+            // stats
+            if (isCollectingStatistics)
+            {
+                Statistics.Update(dt);
+            }
+
+            // discovery
+            if (discoveryTasks.Count > 0)
+            {
+                for (int i = 0; i < discoveryTasks.Count; i++)
+                {
+                    EmitDiscoverySignalTask task = discoveryTasks[i];
+                    task.Update(dt);
+                    if (task.TaskEnded)
+                    {
+                        discoveryTasks.RemoveAt(i);
+                        i--;
+                        emitDiscoverySignalTaskPool.Return(task);
+                    }
+                }
+            }
+
+            // unknown peer
+            unknownPeer.Update(dt);
+
+            // remote peers
+            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+            {
+                kv.Value.Update(dt);
+            }
+
+            // awaiting accept details
+            if (awaitingAcceptDetails.Count > 0)
+            {
+                for (int i = 0; i < awaitingAcceptDetails.Count; i++)
+                {
+                    AwaitingAcceptDetail aad = awaitingAcceptDetails[i];
+                    if (aad.EllapsedMillisecondsSinceStart >= Settings.ACKTimeout)
+                    {
+                        aad.EllapsedMillisecondsSinceStart = 0;
+                        aad.RetryCount++;
+                        if (aad.RetryCount == Settings.ACKRetryAttempts)
+                        {
+                            // give up, peer has not been added yet so no need to drop
+                            awaitingAcceptDetails.RemoveAt(i);
+                            i--;
+                            aad.Callback(new FalconOperationResult(false, "Remote peer never responded to join request."));
+                        }
+                        else
+                        {
+                            // try again
+                            TryJoinPeerAsync(aad);
+                        }
+                    }
+                }
+            }
         }
     }
 }

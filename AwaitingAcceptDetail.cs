@@ -6,17 +6,17 @@ namespace FalconUDP
     {
         internal IPEndPoint EndPoint;
         internal FalconOperationCallback Callback;
-        internal long EllapsedMillisecondsAtStart;
+        internal float EllapsedMillisecondsSinceStart;
         internal int RetryCount;
         internal byte[] Pass;
 
-        internal AwaitingAcceptDetail(IPEndPoint ip, FalconOperationCallback callback, string pass, long totalEllapsedMillisecondsNow)
+        internal AwaitingAcceptDetail(IPEndPoint ip, FalconOperationCallback callback, string pass)
         {
             EndPoint = ip;
             Callback = callback;
             if(pass != null)
                 Pass = Settings.TextEncoding.GetBytes(pass);
-            EllapsedMillisecondsAtStart = totalEllapsedMillisecondsNow;
+            EllapsedMillisecondsSinceStart = 0;
             RetryCount = 0;
         }
     }

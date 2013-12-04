@@ -5,7 +5,7 @@ namespace FalconUDP
     // used when simulating delay
     internal class DelayedDatagram
     {
-        internal long EllapsedMillisecondsWhenDelayed;
+        internal float EllapsedMillisecondsSinceDelayed;
         internal SocketAsyncEventArgs Datagram;
     }
 }

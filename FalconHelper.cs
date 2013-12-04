@@ -40,19 +40,16 @@ namespace FalconUDP
 
         internal static void WriteAck(AckDetail ack, 
             byte[] dstBuffer, 
-            int dstIndex, 
-            long ellapsedMillisecondsNow)
+            int dstIndex)
         {
-            long stopoverTime = ellapsedMillisecondsNow - ack.EllapsedTimeAtEnqueud;
-            if (stopoverTime > ushort.MaxValue)
-                stopoverTime = ushort.MaxValue; // TODO log warning?
+            ushort stopoverTime = ack.EllapsedMillisecondsSincetEnqueud > ushort.MaxValue ? ushort.MaxValue : (ushort)ack.EllapsedMillisecondsSincetEnqueud; // TODO log warning if was greater than MaxValue
 
             WriteFalconHeader(dstBuffer,
                 dstIndex,
                 ack.Type,
                 ack.Channel,
                 ack.Seq,
-                (ushort)stopoverTime);
+                stopoverTime);
         }
     }
 }
