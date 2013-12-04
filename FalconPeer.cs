@@ -637,25 +637,17 @@ namespace FalconUDP
             }
         }
 
-        private void CloseSocket(bool sayBye)
-        {
-
-        }
-
         internal RemotePeer AddPeer(IPEndPoint ip)
         {
-            lock (peersLockObject)
-            {
-                peerIdCount++;
-                RemotePeer rp = new RemotePeer(this, ip, peerIdCount);
-                peersById.Add(peerIdCount, rp);
-                peersByIp.Add(ip, rp);
+            peerIdCount++;
+            RemotePeer rp = new RemotePeer(this, ip, peerIdCount);
+            peersById.Add(peerIdCount, rp);
+            peersByIp.Add(ip, rp);
 
-                // save for PeerAdded event raised when ProcessReceivedPackets() called TODO
-                remotePeersAdded.Enqueue(rp);
+            // save for PeerAdded event raised when ProcessReceivedPackets() called TODO
+            remotePeersAdded.Enqueue(rp);
 
-                return rp;
-            }
+            return rp;
         }
 
         internal void RemovePeer(RemotePeer rp, bool sayBye)

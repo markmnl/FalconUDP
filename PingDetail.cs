@@ -9,23 +9,23 @@ namespace FalconUDP
         internal long EllapsedMillisecondsAtSend;
         internal bool IsForConnectedPeer { get { return PeerIdPingSentTo.HasValue; } }
 
-        private void Init()        
+        private void Init(long ellapsedMillisecondsAtSend)        
         { 
-            this.EllapsedMillisecondsAtSend= 0;
+            this.EllapsedMillisecondsAtSend = ellapsedMillisecondsAtSend;
         }
 
-        internal void Init(IPEndPoint ipEndPoint)
+        internal void Init(IPEndPoint ipEndPoint, long ellapsedMillisecondsAtSend)
         {
             IPEndPointPingSentTo = ipEndPoint;
             PeerIdPingSentTo = null;
-            Init();
+            Init(ellapsedMillisecondsAtSend);
         }
 
-        internal void Init(int? peerId)
+        internal void Init(int? peerId, long ellapsedMillisecondsAtSend)
         {
             PeerIdPingSentTo = peerId;
             IPEndPointPingSentTo = null;
-            Init();
+            Init(ellapsedMillisecondsAtSend);
         }
     }
 }
