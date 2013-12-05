@@ -60,11 +60,12 @@ namespace FalconUDP
         /// </summary>
         public Statistics Statistics { get; private set; }
 
-        internal int SimulateDelayMilliseconds { get; private set; }
+        internal Queue<Packet> ReceivedPackets { get; private set; }
+        internal int SimulateDelaySecounds { get; private set; }
         internal int SimulateDelayJitter { get; set; }
         internal double SimulatePacketLossChance { get; private set; }
-        internal bool IsCollectingStatistics { get { return isCollectingStatistics; } }
-        internal bool HasPingsAwaitingPong { get { return hasPingsAwaitingPong; } }
+        internal bool IsCollectingStatistics { get { return Statistics != null; } }
+        internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }
  
         internal Socket             Socket;
         internal Stopwatch          Stopwatch;
@@ -74,32 +75,21 @@ namespace FalconUDP
 
         private ProcessReceivedPacket processReceivedPacketDelegate;
         private IPEndPoint          anyAddrEndPoint;            // end point to receive on (combined with port to create IPEndPoint)
-        
+        private byte[]              receiveBuffer;
         private int                 peerIdCount;
         private Dictionary<IPEndPoint, RemotePeer> peersByIp;   // same RemotePeers as peersById
         private Dictionary<int, RemotePeer> peersById;          // same RemotePeers as peersByIp
-        private object              peersLockObject;            // used to lock on when using above peer collections or accessing peerIdCount
-
-        private Timer               ticker;                     // single ticker used for all periodic processing
-        private object              tickLock;                   // used to serialize calls in processing the timer's callback
-        
         private LogLevel            logLvl;
         private LogCallback         logger;
+        private string              joinPass; 
+        private PunchThroughCallback punchThroughCallback;
+        private  bool               stop;
+        private  bool               acceptJoinRequests;
+        private  bool               replyToAnonymousPings;
         private List<AwaitingAcceptDetail> awaitingAcceptDetails;
-        private string              joinPass; // TODO volitile?
-        private PunchThroughCallback punchThroughCallback; // TODO prevent unsetting?
-
-        private  bool       stop;
-        private  bool       acceptJoinRequests;
-        private  bool       replyToAnonymousPings;
-        private  bool       hasPingsAwaitingPong;
-        private  bool       isCollectingStatistics;
-
-        private ConcurrentQueue<RemotePeer> remotePeersAdded;           // stash for PeerAdded event which is raised when reading
-        private ConcurrentQueue<RemotePeer> remotePeersDropped;         // stash for PeerDropped event which is raised when reading
+        private long                ellapsedTicksAtLastUpdate;
         
         // pools
-        private SocketAsyncEventArgsPool recvArgsPool;
         private ConcurrentGenericObjectPool<EmitDiscoverySignalTask> emitDiscoverySignalTaskPool; 
         private ConcurrentGenericObjectPool<PingDetail> pingPool;
 
@@ -107,12 +97,10 @@ namespace FalconUDP
         private List<EmitDiscoverySignalTask> discoveryTasks;
         private bool                replyToDiscoveryRequests;           // i.e. reply unconditionally without a token
         private List<Guid>          onlyReplyToDiscoveryRequestsWithToken;
-        private object              processingDiscoveryRequestLock;
 
         // helper
         private RemotePeer          unknownPeer;                        // peer re-used to send unsolicited messages to
         private List<IPEndPoint>    broadcastEndPoints;
-        private List<Packet>        readPacketList;
 
         /// <summary>
         /// Creates a new FalconPeer.
@@ -136,30 +124,24 @@ namespace FalconUDP
             this.peersByIp                  = new Dictionary<IPEndPoint, RemotePeer>();
             this.peersById                  = new Dictionary<int, RemotePeer>();
             this.anyAddrEndPoint            = new IPEndPoint(IPAddress.Any, this.Port);
-            this.tickLock                   = new object();
-            this.peersLockObject            = new object();
             this.peerIdCount                = 0;
             this.awaitingAcceptDetails      = new List<AwaitingAcceptDetail>();
             this.acceptJoinRequests         = false;
-            this.RemotePeersToDrop          = new List<RemotePeer>();
-            this.remotePeersAdded           = new ConcurrentQueue<RemotePeer>();
-            this.remotePeersDropped         = new ConcurrentQueue<RemotePeer>();
             this.PingsAwaitingPong          = new List<PingDetail>();
+            this.receiveBuffer              = new byte[Const.MAX_DATAGRAM_SIZE];
+            this.ReceivedPackets       = new Queue<Packet>();
 
             // pools
-            this.recvArgsPool               = new SocketAsyncEventArgsPool(Const.MAX_PACKET_SIZE, Settings.InitalNumRecvArgsToPool, GetNewRecvArgs);
             this.PacketPool                 = new PacketPool(Const.MAX_PAYLOAD_SIZE, Settings.InitalNumPacketsToPool);
             this.emitDiscoverySignalTaskPool= new ConcurrentGenericObjectPool<EmitDiscoverySignalTask>(Settings.InitalNumEmitDiscoverySignalTaskToPool);
             this.pingPool                   = new ConcurrentGenericObjectPool<PingDetail>(Settings.InitalNumPingsToPool);
 
             // discovery
             this.discoveryTasks             = new List<EmitDiscoverySignalTask>();
-            this.processingDiscoveryRequestLock = new object();
             this.onlyReplyToDiscoveryRequestsWithToken = new List<Guid>();
 
             // helper
             this.unknownPeer                = new RemotePeer(this, new IPEndPoint(IPAddress.Broadcast, this.Port), 0, false);
-            this.readPacketList             = new List<Packet>();
             
 #if DEBUG
             // log
@@ -181,75 +163,137 @@ namespace FalconUDP
 #endif
         }
 
-        ///// <summary>
-        ///// If socket is bound, says bye to any connected remote peers then closes socket.
-        ///// </summary>
-        //~FalconPeer()
-        //{
-        //    if (Socket != null && Socket.IsBound)
-        //    {
-        //        CloseSocket(true);
-        //    }
-        //}
-
-
-
-        private bool TryGetPeerById(int id, out RemotePeer rp)
+        private void Update(float dt)
         {
-            lock (peersLockObject)
+            // read received datagrams
+            while (Socket.Available > 0)
             {
-                return peersById.TryGetValue(id, out rp);
+                EndPoint fromIPEndPoint = anyAddrEndPoint;
+                int size = 0;
+
+                try
+                {
+                    size = Socket.ReceiveFrom(receiveBuffer, ref fromIPEndPoint);
+                }
+                catch (SocketException sex)
+                {
+                    Log(LogLevel.Error, String.Format("Socket Exception {0}, {1}, while receiving from {2}.", sex.ErrorCode, sex.Message, (IPEndPoint)fromIPEndPoint));
+                    TryRemovePeer((IPEndPoint)fromIPEndPoint, false, false);
+                }
+
+                Log(LogLevel.Debug, String.Format("Received {0} bytes from: {1}", size, (IPEndPoint)fromIPEndPoint));
+
+                if (size == 0)
+                {
+                    // the connection has closed, if peer joined remove TODO is this possible in UDP?
+                    TryRemovePeer((IPEndPoint)fromIPEndPoint, false, false);
+                }
+                else
+                {
+                    ProcessReceivedDatagram((IPEndPoint)fromIPEndPoint, receiveBuffer, size);
+                }
             }
-        }
 
-        private bool TryGetPeerByIP(IPEndPoint ip, out RemotePeer rp)
-        {
-            lock (peersLockObject)
+            // process received packets
+            ProcessReceivedPackets();
+
+            // pings awaiting pong
+            if (PingsAwaitingPong.Count > 0)
             {
-                return peersByIp.TryGetValue(ip, out rp);
+                for (int i = 0; i < PingsAwaitingPong.Count; i++)
+                {
+                    PingDetail detail = PingsAwaitingPong[i];
+                    if ((Stopwatch.ElapsedMilliseconds - detail.EllapsedMillisecondsAtSend) > Settings.PingTimeout)
+                    {
+                        PingsAwaitingPong.RemoveAt(i);
+                        --i;
+                        pingPool.Return(detail);
+                    }
+                }
+            }
+
+            // stats
+            if (IsCollectingStatistics)
+            {
+                Statistics.Update(dt);
+            }
+
+            // discovery
+            if (discoveryTasks.Count > 0)
+            {
+                for (int i = 0; i < discoveryTasks.Count; i++)
+                {
+                    EmitDiscoverySignalTask task = discoveryTasks[i];
+                    task.Update(dt);
+                    if (task.TaskEnded)
+                    {
+                        discoveryTasks.RemoveAt(i);
+                        i--;
+                        emitDiscoverySignalTaskPool.Return(task);
+                    }
+                }
+            }
+
+            // unknown peer
+            unknownPeer.Update(dt);
+
+            // remote peers
+            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+            {
+                kv.Value.Update(dt);
+            }
+
+            // awaiting accept details
+            if (awaitingAcceptDetails.Count > 0)
+            {
+                for (int i = 0; i < awaitingAcceptDetails.Count; i++)
+                {
+                    AwaitingAcceptDetail aad = awaitingAcceptDetails[i];
+                    if (aad.EllapsedMillisecondsSinceStart >= Settings.ACKTimeout)
+                    {
+                        aad.EllapsedMillisecondsSinceStart = 0;
+                        aad.RetryCount++;
+                        if (aad.RetryCount == Settings.ACKRetryAttempts)
+                        {
+                            // give up, peer has not been added yet so no need to drop
+                            awaitingAcceptDetails.RemoveAt(i);
+                            i--;
+                            aad.Callback(new FalconOperationResult(false, "Remote peer never responded to join request."));
+                        }
+                        else
+                        {
+                            // try again
+                            TryJoinPeerAsync(aad);
+                        }
+                    }
+                }
             }
         }
 
         private void SendToUnknownPeer(IPEndPoint ep, PacketType type, SendOptions opts, byte[] payload)
         {
-            if (opts.HasFlag(SendOptions.Reliable))
-                throw new ArgumentException(opts.ToString());
+            Debug.Assert(!opts.HasFlag(SendOptions.Reliable), "cannot send reliable messages to unknown peer");
 
-            lock (unknownPeer)
-            {
-                Packet p = PacketPool.Borrow();
-                p.WriteBytes(payload);
-                unknownPeer.UpdateEndPoint(ep);
-                unknownPeer.EnqueueSend(type, opts, p);
+            Packet p = PacketPool.Borrow();
+            p.WriteBytes(payload);
+            unknownPeer.UpdateEndPoint(ep);
+            unknownPeer.EnqueueSend(type, opts, p);
 
-                // Flushes queue immediatly in case another packet to send before user-application 
-                // gets around to flushing send queues.
+            // Flushes queue immediatly in case another packet to send before user-application 
+            // gets around to flushing send queues.
 
-                unknownPeer.FlushSendChannel(opts);
-            }
+            unknownPeer.FlushSendChannel(opts);            
         }
         
-        private void AddWaitingAcceptDetail(AwaitingAcceptDetail detail)
-        {
-            lock (awaitingAcceptDetails)
-            {
-                awaitingAcceptDetails.Add(detail);
-            }
-        }
-
         private bool TryGetAndRemoveWaitingAcceptDetail(IPEndPoint ep, out AwaitingAcceptDetail detail)
         {
-            bool found = false;
-            lock (awaitingAcceptDetails)
+            detail = awaitingAcceptDetails.Find(aad => aad.EndPoint.Address.Equals(ep.Address) && aad.EndPoint.Port == ep.Port);
+            if (detail != null)
             {
-                detail = awaitingAcceptDetails.Find(aad => aad.EndPoint.Address.Equals(ep.Address) && aad.EndPoint.Port == ep.Port);
-                if (detail != null)
-                {
-                    found = true;
-                    awaitingAcceptDetails.Remove(detail);
-                }
+                awaitingAcceptDetails.Remove(detail);
+                return true;
             }
-            return found;
+            return false;
         }
         
         private void DiscoverFalconPeersAsync(bool listenForReply,
@@ -272,7 +316,7 @@ namespace FalconUDP
         private void TryRemovePeer(IPEndPoint ip, bool logFailure, bool sayBye) 
         {
             RemotePeer rp;
-            if (!TryGetPeerByIP(ip, out rp))
+            if (!peersByIp.TryGetValue(ip, out rp))
             {
                 if (logFailure)
                 {
@@ -290,23 +334,15 @@ namespace FalconUDP
             SendToUnknownPeer(detail.EndPoint, PacketType.JoinRequest, SendOptions.None, detail.Pass);
         }
 
-        private SocketAsyncEventArgs GetNewRecvArgs()
-        {
-            SocketAsyncEventArgs args   = new SocketAsyncEventArgs();
-            args.RemoteEndPoint         = anyAddrEndPoint;
-            args.Completed              += OnRecvCompleted;
-            return args;
-        }
-
-        private void ProcessReceivedDatagram(IPEndPoint fromIPEndPoint, SocketAsyncEventArgs args)
+        private void ProcessReceivedDatagram(IPEndPoint fromIPEndPoint, byte[] buffer, int size)
         {
             // check size
-            if (args.BytesTransferred < Const.FALCON_PACKET_HEADER_SIZE)
+            if (size < Const.FALCON_PACKET_HEADER_SIZE)
             {
                 Log(LogLevel.Error, String.Format("Datagram dropped from: {0}, smaller than min size.", fromIPEndPoint));
                 return;
             }
-            if (args.BytesTransferred > Const.MAX_PACKET_SIZE)
+            if (size > Const.MAX_DATAGRAM_SIZE)
             {
                 Log(LogLevel.Error, String.Format("Datagram dropped from: {0}, greater than max size.", fromIPEndPoint));
                 return;
@@ -321,12 +357,12 @@ namespace FalconUDP
             }
 
             // parse header
-            byte packetDetail   = args.Buffer[args.Offset];
+            byte packetDetail   = buffer[0];
             SendOptions opts    = (SendOptions)(byte)(packetDetail & Const.SEND_OPTS_MASK);
             PacketType type     = (PacketType)(byte)(packetDetail & Const.PACKET_TYPE_MASK);
             bool isAckPacket    = (type == PacketType.ACK || type == PacketType.AntiACK);
-            ushort seq          = BitConverter.ToUInt16(args.Buffer, args.Offset + 1);
-            ushort payloadSize  = BitConverter.ToUInt16(args.Buffer, args.Offset + 3);
+            ushort seq          = BitConverter.ToUInt16(buffer, 1);
+            ushort payloadSize  = BitConverter.ToUInt16(buffer, 3);
             
             // check the header makes sense (anyone could send us UDP datagrams)
             if (!Enum.IsDefined(Const.SEND_OPTIONS_TYPE, opts) || !Enum.IsDefined(Const.PACKET_TYPE_TYPE, type))
@@ -335,17 +371,17 @@ namespace FalconUDP
                 return;
             }
 
-            if (!isAckPacket && args.BytesTransferred < (payloadSize + Const.FALCON_PACKET_HEADER_SIZE))
+            if (!isAckPacket && size < (payloadSize + Const.FALCON_PACKET_HEADER_SIZE))
             {
                 Log(LogLevel.Warning, String.Format("Datagram dropped from peer: {0}, size: {1}, less than min purported: {2}.",
                     fromIPEndPoint,
-                    args.BytesTransferred,
+                    size,
                     payloadSize + Const.FALCON_PACKET_HEADER_SIZE));
                 return;
             }
 
-            int count = args.BytesTransferred - Const.FALCON_PACKET_HEADER_SIZE;    // num of bytes remaining to be read
-            int index = args.Offset + Const.FALCON_PACKET_HEADER_SIZE;              // index in args.Buffer to read from
+            int count = size - Const.FALCON_PACKET_HEADER_SIZE;    // num of bytes remaining to be read
+            int index = Const.FALCON_PACKET_HEADER_SIZE;           // index in args.Buffer to read from
 
             RemotePeer rp;
             bool isFirstPacketInDatagram = true;
@@ -354,12 +390,12 @@ namespace FalconUDP
             {
                 Log(LogLevel.Debug, String.Format("Processing received packet type: {0}, channel: {1}, seq {2}, payload size: {3}...", type, opts, seq, payloadSize));
 
-                if (TryGetPeerByIP(fromIPEndPoint, out rp))
+                if (peersByIp.TryGetValue(fromIPEndPoint, out rp))
                 {
                     if (!rp.TryAddReceivedPacket(seq,
                         opts,
                         type,
-                        args.Buffer,
+                        buffer,
                         index,
                         payloadSize,
                         isFirstPacketInDatagram))
@@ -383,7 +419,7 @@ namespace FalconUDP
                                 string pass = null;
                                 if (payloadSize > 0)
                                 {
-                                    pass = Settings.TextEncoding.GetString(args.Buffer, index, payloadSize);
+                                    pass = Settings.TextEncoding.GetString(buffer, index, payloadSize);
                                     count -= payloadSize;
                                     index += payloadSize;
                                 }
@@ -432,33 +468,30 @@ namespace FalconUDP
                             break;
                         case PacketType.DiscoverRequest:
                             {
-                                lock (processingDiscoveryRequestLock)
+                                bool reply = false;
+
+                                if (replyToDiscoveryRequests)
                                 {
-                                    bool reply = false;
+                                    reply = true;
+                                }
+                                else if (onlyReplyToDiscoveryRequestsWithToken.Count > 0 && count == Const.DISCOVERY_TOKEN_SIZE)
+                                {
+                                    byte[] tokenBytes = new byte[Const.DISCOVERY_TOKEN_SIZE];
+                                    Buffer.BlockCopy(buffer, index, tokenBytes, 0, Const.DISCOVERY_TOKEN_SIZE);
+                                    Guid token = new Guid(tokenBytes);
 
-                                    if (replyToDiscoveryRequests)
-                                    {
+                                    if (onlyReplyToDiscoveryRequestsWithToken.Contains(token))
                                         reply = true;
-                                    }
-                                    else if (onlyReplyToDiscoveryRequestsWithToken.Count > 0 && count == Const.DISCOVERY_TOKEN_SIZE)
-                                    {
-                                        byte[] tokenBytes = new byte[Const.DISCOVERY_TOKEN_SIZE];
-                                        Buffer.BlockCopy(args.Buffer, index, tokenBytes, 0, Const.DISCOVERY_TOKEN_SIZE);
-                                        Guid token = new Guid(tokenBytes);
+                                }
 
-                                        if (onlyReplyToDiscoveryRequestsWithToken.Contains(token))
-                                            reply = true;
-                                    }
-
-                                    if (reply)
-                                    {
-                                        Log(LogLevel.Info, String.Format("Received Discovery Request from: {0}, sending discovery reply...", fromIPEndPoint));
-                                        SendToUnknownPeer(fromIPEndPoint, PacketType.DiscoverReply, SendOptions.None, null);
-                                    }
-                                    else
-                                    {
-                                        Log(LogLevel.Info, String.Format("Received Discovery Request from: {0}, dropped - invalid token and set to not reply.", fromIPEndPoint));
-                                    }
+                                if (reply)
+                                {
+                                    Log(LogLevel.Info, String.Format("Received Discovery Request from: {0}, sending discovery reply...", fromIPEndPoint));
+                                    SendToUnknownPeer(fromIPEndPoint, PacketType.DiscoverReply, SendOptions.None, null);
+                                }
+                                else
+                                {
+                                    Log(LogLevel.Info, String.Format("Received Discovery Request from: {0}, dropped - invalid token and set to not reply.", fromIPEndPoint));
                                 }
                             }
                             break;
@@ -467,16 +500,13 @@ namespace FalconUDP
                                 // ASSUMPTION: There can only be one EmitDiscoverySignalTask at any one time that 
                                 //             matches (inc. broadcast addresses) any one discovery reply.
 
-                                lock (discoveryTasks)
+                                foreach (EmitDiscoverySignalTask task in discoveryTasks)
                                 {
-                                    foreach (EmitDiscoverySignalTask task in discoveryTasks)
+                                    if (task.IsAwaitingDiscoveryReply && task.IsForDiscoveryReply(fromIPEndPoint))
                                     {
-                                        if (task.IsAwaitingDiscoveryReply && task.IsForDiscoveryReply(fromIPEndPoint))
-                                        {
-                                            task.AddDiscoveryReply(fromIPEndPoint);
-                                            Log(LogLevel.Info, String.Format("Received Discovery Reply from: {0}", fromIPEndPoint));
-                                            break;
-                                        }
+                                        task.AddDiscoveryReply(fromIPEndPoint);
+                                        Log(LogLevel.Info, String.Format("Received Discovery Reply from: {0}", fromIPEndPoint));
+                                        break;
                                     }
                                 }
                             }
@@ -493,17 +523,14 @@ namespace FalconUDP
                             {
                                 if (HasPingsAwaitingPong)
                                 {
-                                    lock (PingsAwaitingPong)
-                                    {
-                                        PingDetail detail = PingsAwaitingPong.Find(pd => pd.IPEndPointPingSentTo != null 
-                                            && pd.IPEndPointPingSentTo.Address.Equals(fromIPEndPoint.Address)
-                                            && pd.IPEndPointPingSentTo.Port == fromIPEndPoint.Port);
+                                    PingDetail detail = PingsAwaitingPong.Find(pd => pd.IPEndPointPingSentTo != null 
+                                        && pd.IPEndPointPingSentTo.Address.Equals(fromIPEndPoint.Address)
+                                        && pd.IPEndPointPingSentTo.Port == fromIPEndPoint.Port);
 
-                                        if (detail != null)
-                                        {
-                                            RaisePongReceived(fromIPEndPoint, (int)(Stopwatch.ElapsedMilliseconds - detail.EllapsedMillisecondsAtSend));
-                                            RemovePingAwaitingPongDetail(detail);
-                                        }
+                                    if (detail != null)
+                                    {
+                                        RaisePongReceived(fromIPEndPoint, (int)(Stopwatch.ElapsedMilliseconds - detail.EllapsedMillisecondsAtSend));
+                                        RemovePingAwaitingPongDetail(detail);
                                     }
                                 }
                             }
@@ -528,19 +555,19 @@ namespace FalconUDP
                 if (count >= Const.ADDITIONAL_PACKET_HEADER_SIZE)
                 {
                     // parse additional packet header
-                    packetDetail    = args.Buffer[index];
+                    packetDetail    = buffer[index];
                     type            = (PacketType)(packetDetail & Const.PACKET_TYPE_MASK);
                     isAckPacket     = (type == PacketType.ACK || type == PacketType.AntiACK);
                     if (isAckPacket)
                     {
-                        seq         = BitConverter.ToUInt16(args.Buffer, index + 1);
-                        payloadSize = BitConverter.ToUInt16(args.Buffer, index + 3);
+                        seq         = BitConverter.ToUInt16(buffer, index + 1);
+                        payloadSize = BitConverter.ToUInt16(buffer, index + 3);
                         index       += Const.FALCON_PACKET_HEADER_SIZE;
                         count       -= Const.FALCON_PACKET_HEADER_SIZE;
                     }
                     else
                     {
-                        payloadSize = BitConverter.ToUInt16(args.Buffer, index + 1);
+                        payloadSize = BitConverter.ToUInt16(buffer, index + 1);
                         index       += Const.ADDITIONAL_PACKET_HEADER_SIZE;
                         count       -= Const.ADDITIONAL_PACKET_HEADER_SIZE;
 
@@ -564,64 +591,7 @@ namespace FalconUDP
 
             } while (true);
         }
-
-        private void OnRecvCompleted(object sender, SocketAsyncEventArgs args)
-        {
-            if (stop)
-            {
-                recvArgsPool.Return(args);
-                return;
-            }
-            
-            if (IsCollectingStatistics)
-            {
-                Statistics.AddBytesReceived(args.BytesTransferred);
-            }
-
-            IPEndPoint fromIPEndPoint = (IPEndPoint)args.RemoteEndPoint;
-
-            if (args.SocketError != SocketError.Success)
-            {
-                Log(LogLevel.Error, String.Format("Socket Error: {0}, while receiving.", args.SocketError));
-                TryRemovePeer(fromIPEndPoint, false, false); // TODO could the error be because of the remote peer with UDP?
-            }
-            else
-            {
-                Log(LogLevel.Debug, String.Format("Received {0} bytes from: {1}", args.BytesTransferred, fromIPEndPoint));
-
-                if (args.BytesTransferred == 0)
-                { 
-                    // the connection has closed, if peer joined remove TODO is this possible in UDP?
-                    TryRemovePeer(fromIPEndPoint, false, false);
-                }
-                else
-                {
-                    ProcessReceivedDatagram(fromIPEndPoint, args);
-                }
-            }
-
-            // Call recieve before returning args to pool to be sure they are not used as that 
-            // would result in an exception.
-
-            Receive();
-
-            recvArgsPool.Return(args);
-        }
-
-        private void Receive()
-        {
-            if(stop)
-                return;
-
-            SocketAsyncEventArgs args = recvArgsPool.Borrow();
-            args.RemoteEndPoint = anyAddrEndPoint;
-
-            if(!Socket.ReceiveFromAsync(args))
-            {
-                OnRecvCompleted(null, args);
-            }
-        }
-
+                
         private void PunchThroughDiscoveryCallback(IPEndPoint[] endPoints)
         {
             if(punchThroughCallback == null)
@@ -644,8 +614,9 @@ namespace FalconUDP
             peersById.Add(peerIdCount, rp);
             peersByIp.Add(ip, rp);
 
-            // save for PeerAdded event raised when ProcessReceivedPackets() called TODO
-            remotePeersAdded.Enqueue(rp);
+            // raise PeerAdded event
+            if (PeerAdded != null)
+                PeerAdded(rp.Id);
 
             return rp;
         }
@@ -665,8 +636,7 @@ namespace FalconUDP
                 Log(LogLevel.Info, String.Format("Removed: {0}.", rp.EndPoint));
             }
 
-            // save for PeerRemoved event raised when ProcessReceivedPackets() called TODO
-            remotePeersDropped.Enqueue(rp);
+            RaisePeerDropped(rp.Id);
         }
 
         [Conditional("DEBUG")]
@@ -685,6 +655,12 @@ namespace FalconUDP
                 else
                     Debug.WriteLine(line);
             }
+        }
+
+        internal void RaisePeerDropped(int peerId)
+        {
+            if (PeerDropped != null)
+                PeerDropped(peerId);
         }
 
         internal void RaisePongReceived(IPEndPoint ipEndPoint, int rtt)
@@ -712,41 +688,32 @@ namespace FalconUDP
         {
             PingsAwaitingPong.Remove(pingDetail);
             pingPool.Return(pingDetail);
-            hasPingsAwaitingPong = PingsAwaitingPong.Count > 0;
         }
 
         internal void Stop(bool sayBye)
         {
             stop = true;
 
-            lock (peersLockObject)
+            if (sayBye)
             {
-                if (sayBye)
+                // say bye to everyone
+                foreach (KeyValuePair<int, RemotePeer> kv in peersById)
                 {
-                    lock (peersLockObject)
-                    {
-                        // say bye to everyone
-                        foreach (KeyValuePair<int, RemotePeer> kv in peersById)
-                        {
-                            kv.Value.EnqueueSend(PacketType.Bye, SendOptions.None, null);
-                        }
-                        SendEnquedPackets();
-                    }
+                    kv.Value.EnqueueSend(PacketType.Bye, SendOptions.None, null);
                 }
-
-                try
-                {
-                    // TODO anyway to end receive operation?
-                    Socket.Close(Settings.SocketCloseTimeout);
-                }
-                catch { }
-
-                Socket = null;
-                peersById.Clear();
-                peersByIp.Clear();
-                ticker.Dispose();
-                Stopwatch.Stop();
+                SendEnquedPackets();
             }
+
+            try
+            {
+                Socket.Close();
+            }
+            catch { }
+
+            Socket = null;
+            peersById.Clear();
+            peersByIp.Clear();
+            Stopwatch.Stop();
 
             Log(LogLevel.Info, "Stopped");
         }
@@ -804,6 +771,7 @@ namespace FalconUDP
                 Socket.SetIPProtectionLevel(IPProtectionLevel.EdgeRestricted);
                 Socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
                 Socket.Bind(anyAddrEndPoint);
+                Socket.Blocking = false;
                 Socket.EnableBroadcast = true;
             }
             catch (SocketException se)
@@ -813,14 +781,8 @@ namespace FalconUDP
             }
 
             // start the Stopwatch
-            Stopwatch = new Stopwatch();
-            Stopwatch.Start();
-
-            // create The Timer which automatically starts it.
-            ticker = new Timer(Tick, null, Settings.TickTime, Settings.TickTime);
-
-            // start listening
-            Receive();
+            //Stopwatch = new Stopwatch();
+            //Stopwatch.Start();
 
             Log(LogLevel.Info, String.Format("Started, listening on port: {0}", this.Port));
 
@@ -897,7 +859,7 @@ namespace FalconUDP
         public void TryJoinPeerAsync(IPEndPoint endPoint, string pass, FalconOperationCallback callback)
         {
             AwaitingAcceptDetail detail = new AwaitingAcceptDetail(endPoint, callback, pass);
-            AddWaitingAcceptDetail(detail);
+            awaitingAcceptDetails.Add(detail);
             TryJoinPeerAsync(detail);
         }
 
@@ -1066,7 +1028,7 @@ namespace FalconUDP
         public bool PingPeer(int peerId) 
         {
             RemotePeer rp;
-            if (!TryGetPeerById(peerId, out rp))
+            if (!peersById.TryGetValue(peerId, out rp))
             {
                 return false;
             }
@@ -1093,7 +1055,6 @@ namespace FalconUDP
             lock (PingsAwaitingPong)
             {
                 PingsAwaitingPong.Add(detail);
-                hasPingsAwaitingPong = true;
             }
         }
         
@@ -1145,7 +1106,7 @@ namespace FalconUDP
         public void TryRemovePeer(int peerId, bool logFailure, bool sayBye)
         {
             RemotePeer rp;
-            if (!peersById.TryGetValue(out peerId, out RemovePeer))
+            if (!peersById.TryGetValue(peerId, out rp))
             {
                 if (logFailure)
                 {
@@ -1170,7 +1131,7 @@ namespace FalconUDP
             {
                 if(kv.Key == peerId)
                     continue;
-                RemovePeer(kv.Value);
+                RemovePeer(kv.Value, sayBye);
             }
         }
 
@@ -1180,61 +1141,33 @@ namespace FalconUDP
         /// </summary>
         public void ProcessReceivedPackets()
         {
-            // process any peers added since last call
-            if (!remotePeersAdded.IsEmpty)
-            {
-                PeerAdded peerAddedHandler = PeerAdded;
-                RemotePeer rp;
-                while (remotePeersAdded.TryDequeue(out rp))
-                {
-                    if (peerAddedHandler != null)
-                        peerAddedHandler(rp.Id);
-                }
-            }
+            //// clear the list of previously read packets
+            //readPacketList.Clear();
 
-            // clear the list of previously read packets
-            readPacketList.Clear();
+            //// move received packets ready for reading from remote peers into readPacketList
+            //foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+            //{
+            //    RemotePeer peer = kv.Value;
+            //    if (peer.UnreadPacketCount > 0)
+            //    {
+            //        readPacketList.AddRange(peer.Read());
+            //    }
+            //}
 
-            // move received packets ready for reading from remote peers into readPacketList
-            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
-            {
-                RemotePeer peer = kv.Value;
-                if (peer.UnreadPacketCount > 0)
-                {
-                    readPacketList.AddRange(peer.Read());
-                }
-            }
-
-            // for each packet call the process received packet delegate then return it to the pool
-            foreach (Packet p in readPacketList)
-            {
-                try
-                {
-                    //-------------------------------
-                    processReceivedPacketDelegate(p);
-                    //-------------------------------
-                }
-                finally
-                {
-                    PacketPool.Return(p);
-                }
-            }
-
-            // Process any peers dropped since last call. Do this after processing recieved 
-            // packets in case one of the packets is from the remote peer that was dropped 
-            // - since the user-application would have otherwise quite likely just removed it's 
-            // reference to the peer that was just dropped in it's PeerDropped event handler.
-
-            if (!remotePeersDropped.IsEmpty)
-            {
-                PeerDropped peerDroppedDelegate = PeerDropped;
-                RemotePeer rp;
-                while (remotePeersDropped.TryDequeue(out rp))
-                {
-                    if (peerDroppedDelegate != null)
-                        peerDroppedDelegate(rp.Id);
-                }
-            }
+            //// for each packet call the process received packet delegate then return it to the pool
+            //foreach (Packet p in readPacketList)
+            //{
+            //    try
+            //    {
+            //        //-------------------------------
+            //        processReceivedPacketDelegate(p);
+            //        //-------------------------------
+            //    }
+            //    finally
+            //    {
+            //        PacketPool.Return(p);
+            //    }
+            //}
         }
 
         /// <summary>
@@ -1242,13 +1175,9 @@ namespace FalconUDP
         /// </summary>
         public void SendEnquedPackets()
         {
-            long ellapsed = Stopwatch.ElapsedMilliseconds;
-            lock (peersLockObject)
+            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
             {
-                foreach (KeyValuePair<int, RemotePeer> kv in peersById)
-                {
-                    kv.Value.FlushSendQueues();
-                }
+                kv.Value.FlushSendQueues();
             }
         }
 
@@ -1259,15 +1188,12 @@ namespace FalconUDP
         /// key is the peer Id and the value is the end point of the remote peer</returns>
         public Dictionary<int, IPEndPoint> GetAllRemotePeers()
         {
-            lock (peersLockObject)
+            Dictionary<int, IPEndPoint> peers = new Dictionary<int, IPEndPoint>(peersById.Count);
+            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
             {
-                Dictionary<int, IPEndPoint> peers = new Dictionary<int,IPEndPoint>(peersById.Count);
-                foreach (KeyValuePair<int, RemotePeer> kv in peersById)
-                {
-                    peers.Add(kv.Key, kv.Value.EndPoint);
-                }
-                return peers;
+                peers.Add(kv.Key, kv.Value.EndPoint);
             }
+            return peers;
         }
 
 #if DEBUG
@@ -1283,10 +1209,11 @@ namespace FalconUDP
 #endif
 
         /// <summary>
-        /// Gets a list of local <see cref="IPEndPoint"/>s.
+        /// Helper method to get all active IPv4 network interfaces.
         /// </summary>
-        /// <returns>Returns end points that are operational, non-loopback, IPv4 and have sent 
-        /// and received at least one byte, with the same port as this FalconPeer.</returns>
+        /// <returns>Returns list of <see cref="IPEndPoint"/> that are operational, non-loopback, 
+        /// IPv4 and have sent and received at least one byte, with the same port as this 
+        /// FalconPeer.</returns>
         public List<IPEndPoint> GetLocalIPEndPoints()
         {
             List<IPEndPoint> ipEndPoints = new List<IPEndPoint>();
@@ -1323,7 +1250,7 @@ namespace FalconUDP
             if(jitterAboveOrBelowDelay < 0 || jitterAboveOrBelowDelay > milliseondsToDelay)
                 throw new ArgumentOutOfRangeException("jitterAboveOrBelowDelay", "cannot be less than 0 or greater than milliseondsToDelay");
 
-            SimulateDelayMilliseconds = milliseondsToDelay;
+            SimulateDelaySecounds = milliseondsToDelay;
             SimulateDelayJitter = jitterAboveOrBelowDelay;
         }
 
@@ -1362,80 +1289,13 @@ namespace FalconUDP
             Statistics = null;
         }
 
-        public void Update(float dt)
+        public void Update()
         {
-            // pings awaiting pong
-            if (PingsAwaitingPong.Count > 0)
-            {
-                for (int i = 0; i < PingsAwaitingPong.Count; i++)
-                {
-                    PingDetail detail = PingsAwaitingPong[i];
-                    detail.EllapsedMillisecondsAtSend += dt;
-                    if (detail.EllapsedMillisecondsAtSend > Settings.PingTimeout)
-                    {
-                        PingsAwaitingPong.RemoveAt(i);
-                        --i;
-                        pingPool.Return(detail);
-                    }
-                }
-            }
-
-            // stats
-            if (isCollectingStatistics)
-            {
-                Statistics.Update(dt);
-            }
-
-            // discovery
-            if (discoveryTasks.Count > 0)
-            {
-                for (int i = 0; i < discoveryTasks.Count; i++)
-                {
-                    EmitDiscoverySignalTask task = discoveryTasks[i];
-                    task.Update(dt);
-                    if (task.TaskEnded)
-                    {
-                        discoveryTasks.RemoveAt(i);
-                        i--;
-                        emitDiscoverySignalTaskPool.Return(task);
-                    }
-                }
-            }
-
-            // unknown peer
-            unknownPeer.Update(dt);
-
-            // remote peers
-            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
-            {
-                kv.Value.Update(dt);
-            }
-
-            // awaiting accept details
-            if (awaitingAcceptDetails.Count > 0)
-            {
-                for (int i = 0; i < awaitingAcceptDetails.Count; i++)
-                {
-                    AwaitingAcceptDetail aad = awaitingAcceptDetails[i];
-                    if (aad.EllapsedMillisecondsSinceStart >= Settings.ACKTimeout)
-                    {
-                        aad.EllapsedMillisecondsSinceStart = 0;
-                        aad.RetryCount++;
-                        if (aad.RetryCount == Settings.ACKRetryAttempts)
-                        {
-                            // give up, peer has not been added yet so no need to drop
-                            awaitingAcceptDetails.RemoveAt(i);
-                            i--;
-                            aad.Callback(new FalconOperationResult(false, "Remote peer never responded to join request."));
-                        }
-                        else
-                        {
-                            // try again
-                            TryJoinPeerAsync(aad);
-                        }
-                    }
-                }
-            }
+            // TODO ellpased ticks overflow prevention
+            long ellapsedTicks = Stopwatch.ElapsedTicks;
+            float ellapsedSeconds = (float)(ellapsedTicks - ellapsedTicksAtLastUpdate) / Stopwatch.Frequency;
+            ellapsedTicksAtLastUpdate = ellapsedTicks;
+            Update(ellapsedSeconds);
         }
     }
 }
