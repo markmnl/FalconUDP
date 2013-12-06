@@ -10,15 +10,13 @@ namespace FalconUDP
     /// 
     /// Uses a single large buffers which can be divided up and assigned to Packets. This 
     /// enables buffers to be easily reused and guards against fragmenting heap memory.
-    /// 
-    /// Using the public API is thread safe.
     /// </remarks>
     internal class PacketPool
     {
         private List<byte[]> bigBackingBuffers;
-        private Queue<Packet> pool;
+        private Stack<Packet> pool;
         private int buffersSize;
-        private int numPerPool;
+        private int packetsPerBigBuffer;
 #if DEBUG
         private List<Packet> leased;
 #endif
@@ -26,9 +24,9 @@ namespace FalconUDP
         internal PacketPool(int buffersSize, int initalNum)
         {
             this.buffersSize        = buffersSize;
-            this.pool               = new Queue<Packet>(initalNum);
+            this.pool               = new Stack<Packet>(initalNum);
             this.bigBackingBuffers  = new List<byte[]>();
-            this.numPerPool         = initalNum;
+            this.packetsPerBigBuffer         = initalNum;
 #if DEBUG
             leased = new List<Packet>();
 #endif      
@@ -37,11 +35,11 @@ namespace FalconUDP
 
         private void GrowPool()
         {
-            byte[] bigBackingBuffer = new byte[buffersSize * numPerPool];
-            for (int i = 0; i < numPerPool; i++)
+            byte[] bigBackingBuffer = new byte[buffersSize * packetsPerBigBuffer];
+            for (int i = 0; i < packetsPerBigBuffer; i++)
             {
                 Packet p = new Packet(bigBackingBuffer, i * buffersSize, buffersSize);
-                this.pool.Enqueue(p);
+                this.pool.Push(p);
             }
             bigBackingBuffers.Add(bigBackingBuffer);
         }
@@ -52,11 +50,11 @@ namespace FalconUDP
             {
                 if (pool.Count == 0)
                 {
-                    Debug.WriteLine("***PacketPool depleted, newing up another pool, each pool is {0}bytes.***", buffersSize * numPerPool);
+                    Debug.WriteLine("***PacketPool depleted, newing up another pool, each pool is {0}bytes.***", buffersSize * packetsPerBigBuffer);
                     GrowPool();
                 }
 
-                Packet p = pool.Dequeue();
+                Packet p = pool.Pop();
                 p.Init();
 #if DEBUG
                 leased.Add(p);
@@ -74,7 +72,7 @@ namespace FalconUDP
                     throw new InvalidOperationException("item not leased");
                 leased.Remove(p);
 #endif
-                pool.Enqueue(p);
+                pool.Push(p);
             }
         }
     }

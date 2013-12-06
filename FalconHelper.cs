@@ -11,9 +11,6 @@ namespace FalconUDP
             ushort seq, 
             ushort payloadSize)
         {
-            if (!BitConverter.IsLittleEndian)
-                throw new NotImplementedException();
-
             fixed (byte* ptr = &dstBuffer[dstIndex])
             {
                 *ptr = (byte)((byte)opts | (byte)type);
@@ -28,9 +25,6 @@ namespace FalconUDP
             SendOptions opts,
             ushort payloadSize)
         {
-            if (!BitConverter.IsLittleEndian)
-                throw new NotImplementedException();
-
             fixed (byte* ptr = &dstBuffer[dstIndex])
             {
                 *ptr = (byte)((byte)opts | (byte)type);
@@ -42,14 +36,17 @@ namespace FalconUDP
             byte[] dstBuffer, 
             int dstIndex)
         {
-            ushort stopoverTime = ack.EllapsedMillisecondsSincetEnqueud > ushort.MaxValue ? ushort.MaxValue : (ushort)ack.EllapsedMillisecondsSincetEnqueud; // TODO log warning if was greater than MaxValue
+            float ellapsedMilliseconds = ack.EllapsedSecondsSinceEnqueud * 1000;
+            ushort stopoverMilliseconds = ellapsedMilliseconds > ushort.MaxValue 
+                ? ushort.MaxValue 
+                : (ushort)ellapsedMilliseconds; // TODO log warning if was greater than MaxValue
 
             WriteFalconHeader(dstBuffer,
                 dstIndex,
                 ack.Type,
                 ack.Channel,
                 ack.Seq,
-                stopoverTime);
+                stopoverMilliseconds);
         }
     }
 }

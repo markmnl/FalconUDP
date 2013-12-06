@@ -16,7 +16,7 @@ namespace FalconUDP
             Callback = callback;
             if(pass != null)
                 Pass = Settings.TextEncoding.GetBytes(pass);
-            EllapsedMillisecondsSinceStart = 0;
+            EllapsedMillisecondsSinceStart = 0.0f;
             RetryCount = 0;
         }
     }

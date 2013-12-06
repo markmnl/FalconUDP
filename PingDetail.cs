@@ -4,8 +4,8 @@ namespace FalconUDP
 {
     internal class PingDetail
     {
-        internal int? PeerIdPingSentTo;
-        internal IPEndPoint IPEndPointPingSentTo;
+        internal int? PeerIdPingSentTo;             //}
+        internal IPEndPoint IPEndPointPingSentTo;   //} only one set
         internal long EllapsedMillisecondsAtSend;
         internal bool IsForConnectedPeer { get { return PeerIdPingSentTo.HasValue; } }
 

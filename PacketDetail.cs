@@ -9,7 +9,7 @@ namespace FalconUDP
         internal byte[] Bytes;
         internal int    Count;
         internal byte   ResentCount;
-        internal float  EllapsedMilliseconds;
+        internal float  EllapsedSecoundsSincePacketSent;
         internal SendOptions ChannelType;
 
         public PacketDetail()

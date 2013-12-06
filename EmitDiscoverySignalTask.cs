@@ -12,16 +12,14 @@ namespace FalconUDP
         private List<IPEndPoint> endPointsReceivedReplyFrom;
         private bool listenForReply; // it is possible to emit discovery signals without bothering about a reply, e.g. to aid another peer joining us in an attempt to traverse NAT 
         private DiscoveryCallback callback;
-        private float millisecondsBetweenEmits;
+        private float secoundsBetweenEmits;
         private int totalEmits;
         private int maxNumberPeersToDiscover;
         private FalconPeer falconPeer;
         private int emitCount;
         private Guid? token;
-        private byte[] tokenBytes;
-        private float ellapsedMillisecondsSinceLastEmit;
-
-        private static SocketAsyncEventArgsPool sendArgsPool;
+        private float ellapsedSecoundsSinceLastEmit;
+        private byte[] signal;
 
         public bool IsAwaitingDiscoveryReply { get { return listenForReply; } }
         public bool TaskEnded { get; private set; }
@@ -30,27 +28,7 @@ namespace FalconUDP
         {
             endPointsToSendTo = new List<IPEndPoint>();
             endPointsReceivedReplyFrom = new List<IPEndPoint>();
-
-            if (sendArgsPool == null)
-            {
-                sendArgsPool = new SocketAsyncEventArgsPool(Const.DISCOVER_PACKET_WITH_TOKEN_HEADER.Length, Settings.InitalNumDiscoverySendArgsToPool, GetNewSendArgs);
-            }
-        }
-
-        private SocketAsyncEventArgs GetNewSendArgs()
-        {
-            SocketAsyncEventArgs args = new SocketAsyncEventArgs();
-            args.Completed += OnSendCompleted;
-            return args;
-        }
-
-        private void OnSendCompleted(object sender, SocketAsyncEventArgs args)
-        {
-            if (falconPeer != null && falconPeer.IsCollectingStatistics) // HERE BE DRAGONS sometimes falonPeer is null?!?!?!
-            {
-                falconPeer.Statistics.AddBytesSent(args.Count);
-            }
-            sendArgsPool.Return(args);
+            signal = new byte[Const.DISCOVER_PACKET_WITH_TOKEN_HEADER.Length];
         }
 
         internal void EmitDiscoverySignal()
@@ -58,42 +36,29 @@ namespace FalconUDP
             foreach (IPEndPoint ep in endPointsToSendTo)
             {
                 // check we haven't already discovered the peer we are about to try discover!
-                lock (endPointsReceivedReplyFrom)
-                {
-                    if (endPointsReceivedReplyFrom.Find(dp => dp.Address.Equals(ep.Address) && dp.Port == ep.Port) != null)
-                        continue;
-                }
-
-                SocketAsyncEventArgs args = sendArgsPool.Borrow();
-                if (token.HasValue)
-                {
-                    Buffer.BlockCopy(Const.DISCOVER_PACKET_WITH_TOKEN_HEADER, 0, args.Buffer, args.Offset, Const.DISCOVER_PACKET_WITH_TOKEN_HEADER.Length);
-                    Buffer.BlockCopy(tokenBytes, 0, args.Buffer, args.Offset + Const.DISCOVER_PACKET_WITH_TOKEN_HEADER.Length, tokenBytes.Length);
-                }
-                else
-                {
-                    Buffer.BlockCopy(Const.DISCOVER_PACKET, 0, args.Buffer, args.Offset, Const.DISCOVER_PACKET.Length);
-                    args.SetBuffer(args.Offset, Const.DISCOVER_PACKET.Length); // buffer segmant will be reset to original size in pool when returned
-                }
-                args.RemoteEndPoint = ep;
+                if (endPointsReceivedReplyFrom.Find(dp => dp.Address.Equals(ep.Address) && dp.Port == ep.Port) != null)
+                    continue;
 
                 falconPeer.Log(LogLevel.Debug, String.Format("Emitting discovery signal to: {0}, with token: {1}.", ep, token.HasValue ? token.Value.ToString() : "None"));
 
-                if (!falconPeer.Socket.SendToAsync(args))
-                {
-                    OnSendCompleted(null, args);
-                }
+                //-----------------------------------------------------------------
+                falconPeer.Socket.SendTo(signal, 
+                    0, 
+                    token.HasValue ? signal.Length : Const.DISCOVER_PACKET.Length, 
+                    SocketFlags.None, 
+                    ep);
+                //-----------------------------------------------------------------
             }
         }
 
         internal void Update(float dt)
         {
-            ellapsedMillisecondsSinceLastEmit += dt;
+            ellapsedSecoundsSinceLastEmit += dt;
 
-            if (ellapsedMillisecondsSinceLastEmit >= millisecondsBetweenEmits)
+            if (ellapsedSecoundsSinceLastEmit >= secoundsBetweenEmits)
             {
                 ++emitCount;
-                ellapsedMillisecondsSinceLastEmit = 0;
+                ellapsedSecoundsSinceLastEmit = 0.0f;
 
                 if (emitCount == totalEmits) // an emit is sent when started
                 {
@@ -112,13 +77,12 @@ namespace FalconUDP
 
         internal void Init(FalconPeer falconPeer,
             bool listenForReply,
-            int duration,
+            int durationSecounds,
             int numOfSignalsToEmit,
             int maxNumOfPeersToDiscover,
             IEnumerable<IPEndPoint> endPointsToSendTo,
             Guid? token,
-            DiscoveryCallback callback,
-            long ellapsedMillisecondsAtStart)
+            DiscoveryCallback callback)
         {
             // NOTE: This class is re-used from a pool so this method needs to fully reset 
             //       the class.
@@ -134,16 +98,21 @@ namespace FalconUDP
             this.emitCount = 0;
             this.listenForReply = listenForReply;
             this.callback = callback;
-            this.millisecondsBetweenEmits = (duration / numOfSignalsToEmit);
+            this.secoundsBetweenEmits = (durationSecounds / numOfSignalsToEmit);
             this.totalEmits = numOfSignalsToEmit;
             this.maxNumberPeersToDiscover = maxNumOfPeersToDiscover;
             this.token = token;
-            this.ellapsedMillisecondsSinceLastEmit = ellapsedMillisecondsAtStart;
+            this.ellapsedSecoundsSinceLastEmit = 0.0f;
 
             if (token.HasValue)
-                this.tokenBytes = token.Value.ToByteArray();
+            {
+                Buffer.BlockCopy(Const.DISCOVER_PACKET_WITH_TOKEN_HEADER, 0, signal, 0, Const.DISCOVER_PACKET_WITH_TOKEN_HEADER.Length);
+                Buffer.BlockCopy(token.Value.ToByteArray(), 0, signal, Const.DISCOVER_PACKET.Length, Const.DISCOVERY_TOKEN_SIZE);
+            }
             else
-                this.tokenBytes = null;
+            {
+                Buffer.BlockCopy(Const.DISCOVER_PACKET, 0, signal, 0, Const.DISCOVER_PACKET.Length);
+            }
 
             this.endPointsToSendTo.Clear();
             this.endPointsToSendTo.AddRange(endPointsToSendTo);

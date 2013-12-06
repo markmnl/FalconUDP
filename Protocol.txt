@@ -6,10 +6,10 @@
        [0]     Packet detail byte (see below).     
 
        [1]     }
-       [2]     } Sequence number as UInt16
+       [2]     } Sequence number as unsigned 16 bit integer
   
        [5]     } 
-       [6]     } Payload Size as UInt16.
+       [6]     } Payload Size as unsigned 16 bit integer
        
        [n]     }
        ...     } Payload (if any, i.e. size > 0)
@@ -20,7 +20,7 @@
        [m+1]   Packet detail byte (see below).
        
        [m+2]   }
-       [m+3]   } Payload Size as UInt16
+       [m+3]   } Payload Size as unsigned 16 bit integer
        
        [m+4]   } 
        ...     } Payload (if any, i.e. size > 0)
@@ -34,32 +34,35 @@
    
        [0]     
        [1]     }
-       [2]     } SendOptions  
+       [2]     } Send Options  
        [3]     } 
        
        [4]     }   
        [5]     }   
-       [6]     } PacketType
+       [6]     } Packet Type
        [7]     }  
  
 
     ACKs and AntiACKs
    -----------------
-   ACKs and AntiACKs are special, they are the same size as a FalonUDP header and have seq and 
-   SendOptions stored at the same place, however the values have different meanings. A FalconUDP
-   packet can start with an ACK or AntiACK or have them after any application packet within.
+   ACKs and AntiACKs are special, they are the same size as a FalonUDP header and have seq,
+   Send Options and Packet Type stored at the same place, however the values have different 
+   meanings. A FalconUDP packet can start with an ACK or AntiACK or have them after any application 
+   packet within.
 
-   What each FalconUDP header value corresponds to in an ACK or AntiACK:
+   What each FalconUDP header value means in an ACK or AntiACK:
    
-   PacketType	= Will always be ACK or AntiACK
+   PacketType   = Will always be ACK or AntiACK
    Sequence No. = Sequence ACK or AntiACK is for
-   SendOptions	= Channel ACK is for (however can be sent on any channel)
+   SendOptions  = Channel ACK is for (however can be sent on any channel)
    Payload size = Milliseconds ACK or AntiACK was held by remote peer (stopover time)
        
 
    NOTE:
    -----
    
+   All numbers in FalconUDP headers are unsigned integers stored in Little-Endian byte order.
+
    Additional packets are only appended in a Falcon packet if they fit wholley within 
    without packet exceeding MAX_PACKET_SIZE.
 

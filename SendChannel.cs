@@ -6,8 +6,8 @@ namespace FalconUDP
 {
     internal class SendChannel
     {
-        internal bool IsReliable { get; private set; }
-        internal object ChannelLock { get; private set; }
+        internal bool IsReliable { get { return IsReliable; } }
+        internal int Count { get { return count; } } // number of packets ready for sending
 
         private Queue<SocketAsyncEventArgs> queue;
         private SendOptions channelType;
@@ -15,21 +15,23 @@ namespace FalconUDP
         private int currentArgsTotalBufferOffset;
         private SocketAsyncEventArgsPool argsPool;
         private ushort seqCount;
-        private ConcurrentGenericObjectPool<SendToken> tokenPool;
+        private GenericObjectPool<SendToken> tokenPool;
         private SendToken currentToken;
         private FalconPeer localPeer;
+        private int count;
+        private bool isReliable;
         
-        public SendChannel(SendOptions channelType, SocketAsyncEventArgsPool argsPool, ConcurrentGenericObjectPool<SendToken> tokenPool, FalconPeer localPeer)
+        public SendChannel(SendOptions channelType, SocketAsyncEventArgsPool argsPool, GenericObjectPool<SendToken> tokenPool, FalconPeer localPeer)
         {
             this.channelType    = channelType;
             this.argsPool       = argsPool;
             this.queue          = new Queue<SocketAsyncEventArgs>();
             this.currentArgs    = argsPool.Borrow();
             this.currentArgsTotalBufferOffset = this.currentArgs.Offset;
-            this.IsReliable     = (channelType & SendOptions.Reliable) == SendOptions.Reliable;
+            this.isReliable     = (channelType & SendOptions.Reliable) == SendOptions.Reliable;
             this.tokenPool      = tokenPool;
             this.localPeer      = localPeer;
-            this.ChannelLock    = new object();
+            this.count          = 0;
 
             SetCurrentArgsToken();
         }
@@ -57,6 +59,11 @@ namespace FalconUDP
             seqCount++;
         }
 
+        internal void ResetCount()
+        {
+            count = 0;
+        }
+
         // used when args already constructed, e.g. re-sending unACKnowledged packet
         internal void EnqueueSend(SocketAsyncEventArgs args)
         {
@@ -66,56 +73,57 @@ namespace FalconUDP
         internal void EnqueueSend(PacketType type, Packet packet)
         {
             // NOTE: packet may be null in the case of Falcon system messages.
-            lock (ChannelLock)
+
+            if (packet != null && packet.BytesWritten > Const.MAX_PAYLOAD_SIZE)
             {
-                if (packet != null && packet.BytesWritten > Const.MAX_PAYLOAD_SIZE)
-                {
-                    throw new InvalidOperationException(String.Format("Packet size: {0}, greater than max: {1}", packet.BytesWritten, Const.MAX_PAYLOAD_SIZE));
-                }
+                throw new InvalidOperationException(String.Format("Packet size: {0}, greater than max: {1}", packet.BytesWritten, Const.MAX_PAYLOAD_SIZE));
+            }
 
-                bool isFalconHeaderWritten = currentArgsTotalBufferOffset > currentArgs.Offset;
+            bool isFalconHeaderWritten = currentArgsTotalBufferOffset > currentArgs.Offset;
 
-                if (isFalconHeaderWritten)
+            if (isFalconHeaderWritten)
+            {
+                if (packet != null && (packet.BytesWritten + Const.ADDITIONAL_PACKET_HEADER_SIZE) > (currentArgs.Count - (currentArgsTotalBufferOffset - currentArgs.Offset))) // i.e. cannot fit
                 {
-                    if (packet != null && (packet.BytesWritten + Const.ADDITIONAL_PACKET_HEADER_SIZE) > (currentArgs.Count - (currentArgsTotalBufferOffset - currentArgs.Offset))) // i.e. cannot fit
-                    {
-                        // enqueue the current args and get a new one
-                        EnqueueCurrentArgs();
-                        isFalconHeaderWritten = false;
-                    }
-                }
-                if (!isFalconHeaderWritten)
-                {
-                    // write the falcon header
-                    FalconHelper.WriteFalconHeader(currentArgs.Buffer,
-                        currentArgs.Offset,
-                        type,
-                        channelType,
-                        seqCount,
-                        packet == null ? (ushort)0 : (ushort)packet.BytesWritten);
-                    currentArgsTotalBufferOffset += Const.FALCON_PACKET_HEADER_SIZE;
-                }
-                else
-                {
-                    // write additional header
-                    FalconHelper.WriteAdditionalFalconHeader(currentArgs.Buffer,
-                        currentArgs.Offset,
-                        type,
-                        channelType,
-                        packet == null ? (ushort)0 : (ushort)packet.BytesWritten);
-                    currentArgsTotalBufferOffset += Const.ADDITIONAL_PACKET_HEADER_SIZE;
-                }
-
-                if (packet != null)
-                {
-                    //----------------------------------------------------------------------------------------
-                    packet.CopyBytes(0, currentArgs.Buffer, currentArgsTotalBufferOffset, packet.BytesWritten);
-                    //----------------------------------------------------------------------------------------
-
-                    currentArgsTotalBufferOffset += packet.BytesWritten;
+                    // enqueue the current args and get a new one
+                    EnqueueCurrentArgs();
+                    isFalconHeaderWritten = false;
                 }
             }
-        } 
+
+            if (!isFalconHeaderWritten)
+            {
+                // write the falcon header
+                FalconHelper.WriteFalconHeader(currentArgs.Buffer,
+                    currentArgs.Offset,
+                    type,
+                    channelType,
+                    seqCount,
+                    packet == null ? (ushort)0 : (ushort)packet.BytesWritten);
+                currentArgsTotalBufferOffset += Const.FALCON_PACKET_HEADER_SIZE;
+            }
+            else
+            {
+                // write additional header
+                FalconHelper.WriteAdditionalFalconHeader(currentArgs.Buffer,
+                    currentArgs.Offset,
+                    type,
+                    channelType,
+                    packet == null ? (ushort)0 : (ushort)packet.BytesWritten);
+                currentArgsTotalBufferOffset += Const.ADDITIONAL_PACKET_HEADER_SIZE;
+            }
+
+            if (packet != null)
+            {
+                //----------------------------------------------------------------------------------------
+                packet.CopyBytes(0, currentArgs.Buffer, currentArgsTotalBufferOffset, packet.BytesWritten);
+                //----------------------------------------------------------------------------------------
+
+                currentArgsTotalBufferOffset += packet.BytesWritten;
+            }
+
+            count++;
+        }
 
         // Get everything inc. current args if anything written to it
         // ASSUMPTION lock on this.ChannelLock held
