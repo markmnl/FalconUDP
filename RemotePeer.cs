@@ -164,7 +164,7 @@ namespace FalconUDP
             catch (SocketException se)
             {
                 localPeer.Log(LogLevel.Error, String.Format("Socket Error: {0} {1}, sending to peer: {2}", se.ErrorCode, se.Message, PeerName));
-                localPeer.RemovePeer(this, false); 
+                localPeer.RemovePeerOnNextUpdate(this); 
             }
 
             if (localPeer.IsCollectingStatistics)
@@ -328,7 +328,7 @@ namespace FalconUDP
                             sentPacketsAwaitingACK.RemoveAt(i);
                             i--;
                             localPeer.Log(LogLevel.Warning, String.Format("Peer failed to ACK {0} re-sends of Reliable packet in time.", Settings.ACKRetryAttempts));
-                            localPeer.RemovePeer(this, false);
+                            localPeer.RemovePeerOnNextUpdate(this);
                             packetDetailPool.Return(pd);
                         }
                         else
@@ -368,7 +368,7 @@ namespace FalconUDP
                     if (ellapsedSecondsSinceSendQueuesLastFlushed >= Settings.AutoFlushInterval)
                     {
                         localPeer.Log(LogLevel.Info, "AutoFlush");
-                        FlushSendQueues();
+                        FlushSendQueues(); // resets ellapsedSecondsSinceSendQueuesLastFlushed
                     }
                 }
             }
@@ -457,7 +457,7 @@ namespace FalconUDP
             catch (SocketException se)
             {
                 localPeer.Log(LogLevel.Error, String.Format("Socket Exception: {0}, sending to peer: {1}", se.Message, PeerName));
-                localPeer.RemovePeer(this, false);
+                localPeer.RemovePeerOnNextUpdate(this);
             }
         }
 
@@ -488,7 +488,7 @@ namespace FalconUDP
             catch (SocketException se)
             {
                 localPeer.Log(LogLevel.Error, String.Format("Socket Exception: {0}, sending to peer: {1}", se.Message, PeerName));
-                localPeer.RemovePeer(this, false);
+                localPeer.RemovePeerOnNextUpdate(this);
             }
 
             ellapsedSecondsSinceSendQueuesLastFlushed = 0.0f;
@@ -572,7 +572,7 @@ namespace FalconUDP
                 case PacketType.Bye:
                     {
                         localPeer.Log(LogLevel.Info, String.Format("Bye received from: {0}.", PeerName));
-                        localPeer.RemovePeer(this, false);
+                        localPeer.RemovePeerOnNextUpdate(this);
                         return false;
                     }
                 case PacketType.ACK:

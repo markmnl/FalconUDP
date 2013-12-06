@@ -60,6 +60,11 @@ namespace FalconUDP
         /// </summary>
         public Statistics Statistics { get; private set; }
 
+        /// <summary>
+        /// Gets whether this <see cref="FalconPeer"/> is started.
+        /// </summary>
+        public bool IsStarted { get { return !stopped; } }
+
         internal float SimulateDelaySecounds { get; private set; }
         internal int SimulateDelayJitterMillisecuonds { get; set; }
         internal double SimulatePacketLossChance { get; private set; }
@@ -88,6 +93,7 @@ namespace FalconUDP
         private List<AwaitingAcceptDetail> awaitingAcceptDetails;
         private long                ellapsedTicksAtLastUpdate;
         private List<Packet>        readPacketsList;
+        private List<RemotePeer>    remotePeersToRemove;
         
         // pools
         private GenericObjectPool<EmitDiscoverySignalTask> emitDiscoverySignalTaskPool; 
@@ -134,6 +140,7 @@ namespace FalconUDP
             this.receiveBuffer              = new byte[Const.MAX_DATAGRAM_SIZE];
             this.readPacketsList            = new List<Packet>();
             this.stopped                    = false;
+            this.remotePeersToRemove        = new List<RemotePeer>();
 
             // pools
             this.PacketPool                 = new PacketPool(Const.MAX_PAYLOAD_SIZE, Settings.InitalNumPacketsToPool);
@@ -206,6 +213,16 @@ namespace FalconUDP
 
         private void Update(float dt)
         {
+            // peers to remove
+            if (remotePeersToRemove.Count > 0)
+            {
+                for (int i = 0; i < remotePeersToRemove.Count; i++)
+                {
+                    RemovePeer(remotePeersToRemove[i], false);
+                }
+                remotePeersToRemove.Clear();
+            }
+
             // read received datagrams
             while (Socket.Available > 0)
             {
@@ -338,7 +355,7 @@ namespace FalconUDP
         }
         
         private void DiscoverFalconPeersAsync(bool listenForReply,
-            int duration,
+            float durationInSecounds,
             int numOfRequests, 
             int maxPeersToDiscover,
             IEnumerable<IPEndPoint> endPoints,
@@ -346,7 +363,7 @@ namespace FalconUDP
             DiscoveryCallback callback)
         {
             EmitDiscoverySignalTask task = emitDiscoverySignalTaskPool.Borrow();
-            task.Init(this, listenForReply, duration, numOfRequests, maxPeersToDiscover, endPoints, token, callback);
+            task.Init(this, listenForReply, durationInSecounds, numOfRequests, maxPeersToDiscover, endPoints, token, callback);
             lock (discoveryTasks)
             {
                 task.EmitDiscoverySignal(); // emit first signal now
@@ -648,21 +665,7 @@ namespace FalconUDP
             }
         }
 
-        internal RemotePeer AddPeer(IPEndPoint ip)
-        {
-            peerIdCount++;
-            RemotePeer rp = new RemotePeer(this, ip, peerIdCount);
-            peersById.Add(peerIdCount, rp);
-            peersByIp.Add(ip, rp);
-
-            // raise PeerAdded event
-            if (PeerAdded != null)
-                PeerAdded(rp.Id);
-
-            return rp;
-        }
-
-        internal void RemovePeer(RemotePeer rp, bool sayBye)
+        private void RemovePeer(RemotePeer rp, bool sayBye)
         {
             peersById.Remove(rp.Id);
             peersByIp.Remove(rp.EndPoint);
@@ -678,6 +681,25 @@ namespace FalconUDP
             }
 
             RaisePeerDropped(rp.Id);
+        }
+
+        internal RemotePeer AddPeer(IPEndPoint ip)
+        {
+            peerIdCount++;
+            RemotePeer rp = new RemotePeer(this, ip, peerIdCount);
+            peersById.Add(peerIdCount, rp);
+            peersByIp.Add(ip, rp);
+
+            // raise PeerAdded event
+            if (PeerAdded != null)
+                PeerAdded(rp.Id);
+
+            return rp;
+        }
+
+        internal void RemovePeerOnNextUpdate(RemotePeer rp)
+        {
+            remotePeersToRemove.Add(rp);
         }
 
         [Conditional("DEBUG")]
@@ -928,7 +950,7 @@ namespace FalconUDP
             }
 
             DiscoverFalconPeersAsync(true,
-                millisecondsToWait,
+                millisecondsToWait / 1000.0f,
                 Settings.DiscoverySignalsToEmit,
                 Settings.MaxNumberPeersToDiscover,
                 endPoints,

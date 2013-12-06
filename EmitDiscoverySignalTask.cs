@@ -28,7 +28,7 @@ namespace FalconUDP
         {
             endPointsToSendTo = new List<IPEndPoint>();
             endPointsReceivedReplyFrom = new List<IPEndPoint>();
-            signal = new byte[Const.DISCOVER_PACKET_WITH_TOKEN_HEADER.Length];
+            signal = new byte[Const.DISCOVER_PACKET_WITH_TOKEN_HEADER.Length + Const.DISCOVERY_TOKEN_SIZE];
         }
 
         internal void EmitDiscoverySignal()
@@ -77,7 +77,7 @@ namespace FalconUDP
 
         internal void Init(FalconPeer falconPeer,
             bool listenForReply,
-            int durationSecounds,
+            float durationSecounds,
             int numOfSignalsToEmit,
             int maxNumOfPeersToDiscover,
             IEnumerable<IPEndPoint> endPointsToSendTo,

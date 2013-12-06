@@ -25,8 +25,8 @@ namespace FalconUDPTests
     public class FalconPeerTests
     {
         private const int START_PORT = 37986;
-        private const int TICK_RATE = 10;
-        private const int MAX_REPLY_WAIT_TIME = 50000; // milliseconds
+        private const int TICK_RATE = 20;
+        private const int MAX_REPLY_WAIT_TIME = 5000; // milliseconds
 
         private static int portCount = START_PORT;
         private static Timer ticker;
@@ -152,11 +152,14 @@ namespace FalconUDPTests
                 foreach (var peer in activePeers)
                 {
                     peerProcessingReceivedPacketsFor = peer;
-                    peer.ProcessReceivedPackets();
-
-                    if (!disableSendFromPeers.Contains(peer))
+                    if (peer.IsStarted)
                     {
-                        peer.SendEnquedPackets();
+                        peer.Update();
+
+                        if (!disableSendFromPeers.Contains(peer))
+                        {
+                            peer.SendEnquedPackets();
+                        }
                     }
                 }
             }
@@ -486,7 +489,7 @@ namespace FalconUDPTests
 
             Thread.Sleep(TIME_TO_WAIT);
 
-            Assert.AreEqual(peer2.GetAllRemotePeers().Count, 0, "Peer 2 was stopped but is still connected!");
+            Assert.AreEqual(peer1.GetAllRemotePeers().Count, 0, "Peer 2 was stopped but is still connected to peer1!");
         }
 
         [TestMethod]

@@ -14,9 +14,9 @@ namespace FalconUDP
         internal const int DiscoverySignalsToEmit               = 3;
         internal const int MaxNumberPeersToDiscover             = 64;     
         internal const int MaxNeccessaryOrdinalSeq              = ushort.MaxValue + OutOfOrderTolerance;
-        internal const float KeepAliveIfInterval                = 10.000f; // seconds
+        internal const float KeepAliveIfInterval                = 10.000f; // secounds
         internal const float KeepAliveIfNoKeepAliveReceived     = KeepAliveIfInterval + ACKTimeout + 1;
-        internal const float AutoFlushInterval                  = ACKTimeout - 1.0f;
+        internal const float AutoFlushInterval                  = ACKTimeout - 0.4f; // secounds
         internal const int PingTimeout                          = 2000; // milliseconds
 
         internal const int InitalNumRecvArgsToPool              = 32;

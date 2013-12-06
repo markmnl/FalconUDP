@@ -6,7 +6,7 @@ namespace FalconUDP
 {
     internal class SendChannel
     {
-        internal bool IsReliable { get { return IsReliable; } }
+        internal bool IsReliable { get { return isReliable; } }
         internal int Count { get { return count; } } // number of packets ready for sending
 
         private Queue<SocketAsyncEventArgs> queue;
