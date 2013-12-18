@@ -199,9 +199,9 @@ namespace FalconUDP
             while (queue.Count > 0)
             {
                 SocketAsyncEventArgs args = queue.Dequeue();
-                SendToken token = (SendToken)args.UserToken;
+                SendToken token = (SendToken)args.UserToken; // NOTE: may be null if only ACKs (which will always be on None channel)
 
-                if (channel.IsReliable && token != null) // we know only ACKs do not have a token
+                if (channel.IsReliable)
                 {
                     if (token.IsReSend)
                     {
