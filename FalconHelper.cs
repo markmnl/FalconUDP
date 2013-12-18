@@ -36,7 +36,7 @@ namespace FalconUDP
             byte[] dstBuffer, 
             int dstIndex)
         {
-            float ellapsedMilliseconds = ack.EllapsedSecondsSinceEnqueud * 1000;
+            float ellapsedMilliseconds = ack.EllapsedSecondsSinceEnqueud * 1000.0f;
             ushort stopoverMilliseconds = ellapsedMilliseconds > ushort.MaxValue 
                 ? ushort.MaxValue 
                 : (ushort)ellapsedMilliseconds; // TODO log warning if was greater than MaxValue
