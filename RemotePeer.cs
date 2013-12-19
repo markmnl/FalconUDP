@@ -609,7 +609,7 @@ namespace FalconUDP
                             sentPacketsAwaitingACK.RemoveAt(detailIndex);
 
                             // update latency estimate (payloadSize is stopover time in on remote peer)
-                            UpdateLantency((int)(detail.EllapsedSecoundsSincePacketSent - (payloadSize / 1000.0f)));
+                            UpdateLantency((int)(detail.EllapsedSecoundsSincePacketSent * 1000 - payloadSize));
                         }
                         else // must be AntiACK
                         {
