@@ -849,7 +849,7 @@ namespace FalconUDP
 
             stopped = false;
 
-            return FalconOperationResult<object>.SuccessResult;
+            return new FalconOperationResult<object>(true, null);
         }
 
         /// <summary>

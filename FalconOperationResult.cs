@@ -14,11 +14,6 @@ namespace FalconUDP
     public class FalconOperationResult<TReturnValue>
     {
         /// <summary>
-        /// TODO
-        /// </summary>
-        public static readonly FalconOperationResult<object> SuccessResult = new FalconOperationResult<object>(true, null);
-
-        /// <summary>
         /// True if the operation was successul, otherwise false.
         /// </summary>
         public bool Success { get; private set; }
