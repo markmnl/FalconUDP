@@ -316,7 +316,7 @@ namespace FalconUDP
                             // give up, peer has not been added yet so no need to drop
                             awaitingAcceptDetails.RemoveAt(i);
                             i--;
-                            aad.Callback(new FalconOperationResult(false, "Remote peer never responded to join request."));
+                            aad.Callback(new FalconOperationResult<int>(false, "Remote peer never responded to join request.", -1));
                         }
                         else
                         {
@@ -519,7 +519,7 @@ namespace FalconUDP
                                     rp = AddPeer(fromIPEndPoint);
                                     rp.ACK(seq, PacketType.ACK, opts);
                                     rp.IsKeepAliveMaster = true; // the acceptor of our join request is the keep-alive-master by default
-                                    FalconOperationResult tr = new FalconOperationResult(true, null, null, rp.Id);
+                                    FalconOperationResult<int> tr = new FalconOperationResult<int>(true, null, null, rp.Id);
                                     detail.Callback(tr);
                                 }
                             }
@@ -784,7 +784,7 @@ namespace FalconUDP
         /// <summary>
         /// Attempts to start this FalconPeer TODO improve
         /// </summary>
-        public FalconOperationResult TryStart()
+        public FalconOperationResult<object> TryStart()
         {
             // Get local IPv4 address and while doing so broadcast addresses to use for discovery.
 
@@ -819,11 +819,11 @@ namespace FalconUDP
             }
             catch (NetworkInformationException niex)
             {
-                return new FalconOperationResult(niex);
+                return new FalconOperationResult<object>(niex, null);
             }
 
             if (LocalAddresses.Count == 0)
-                return new FalconOperationResult(false, "No operational IPv4 network interface found.");
+                return new FalconOperationResult<object>(false, "No operational IPv4 network interface found.", null);
             
             try
             {
@@ -838,7 +838,7 @@ namespace FalconUDP
             catch (SocketException se)
             {
                 // e.g. address already in use
-                return new FalconOperationResult(se);
+                return new FalconOperationResult<object>(se, null);
             }
 
             // start the Stopwatch
@@ -849,7 +849,7 @@ namespace FalconUDP
 
             stopped = false;
 
-            return FalconOperationResult.SuccessResult;
+            return FalconOperationResult<object>.SuccessResult;
         }
 
         /// <summary>
@@ -897,14 +897,14 @@ namespace FalconUDP
         /// <param name="callback"><see cref="FalconOperationCallback"/> callback to call when 
         /// operation completes.</param>
         /// <param name="pass">Password remote peer requires, if any.</param>
-        public void TryJoinPeerAsync(string addr, int port, FalconOperationCallback callback, string pass = null)
+        public void TryJoinPeerAsync(string addr, int port, FalconOperationCallback<int> callback, string pass = null)
         {
             CheckStarted();
 
             IPAddress ip;
             if (!IPAddress.TryParse(addr, out ip))
             {
-                callback(new FalconOperationResult(false, "Invalid IP address supplied."));
+                callback(new FalconOperationResult<int>(false, "Invalid IP address supplied.", -1));
             }
             else
             {
@@ -922,7 +922,7 @@ namespace FalconUDP
         /// <param name="callback"><see cref="FalconOperationCallback"/> callback to call when 
         /// operation completes.</param>
         /// <param name="pass">Password remote peer requires, if any.</param>
-        public void TryJoinPeerAsync(IPEndPoint endPoint, string pass, FalconOperationCallback callback)
+        public void TryJoinPeerAsync(IPEndPoint endPoint, string pass, FalconOperationCallback<int> callback)
         {
             AwaitingAcceptDetail detail = new AwaitingAcceptDetail(endPoint, callback, pass);
             awaitingAcceptDetails.Add(detail);

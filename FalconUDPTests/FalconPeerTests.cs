@@ -21,18 +21,37 @@ namespace FalconUDPTests
 
     public delegate void ReplyReceived(IPEndPoint sender, Packet packet);
 
+    public class PumpTask
+    {
+        private Action action;
+        private ManualResetEventSlim waitHandel;
+
+        public PumpTask(Action action)
+        {
+            this.action = action;
+            this.waitHandel = new ManualResetEventSlim(false);
+        }
+
+        public void Run()
+        {
+            action();
+            waitHandel.Set();
+        }
+    }
+
     [TestClass()]
     public class FalconPeerTests
     {
         private const int START_PORT = 37986;
-        private const int TICK_RATE = 20;
-        private const int MAX_REPLY_WAIT_TIME = 5000; // milliseconds
+        private const int PUMP_RATE = 16;
+        private const int MAX_REPLY_WAIT_TIME = 500; // milliseconds
 
         private static int portCount = START_PORT;
-        private static Timer ticker;
         private static List<FalconPeer> activePeers, disableSendFromPeers;
         private static event ReplyReceived replyReceived;
         private static FalconPeer peerProcessingReceivedPacketsFor;
+        private static Thread pump;
+        private static List<PumpTask> tasks;
 
         #region Additional test attributes
         // 
@@ -68,7 +87,9 @@ namespace FalconUDPTests
         {
             activePeers = new List<FalconPeer>();
             disableSendFromPeers = new List<FalconPeer>();
-            ticker = new Timer(Tick, null, TICK_RATE, TICK_RATE);
+            tasks = new List<PumpTask>();
+            pump = new Thread(Pump);
+            pump.Start();
         }
 
         private static void ProcessReceivedPacket(Packet packet)
@@ -145,24 +166,28 @@ namespace FalconUDPTests
             }
         }
 
-        private void Tick(object state)
+        private void Pump()
         {
-            lock (activePeers)
+            foreach (var peer in activePeers)
             {
-                foreach (var peer in activePeers)
+                peerProcessingReceivedPacketsFor = peer;
+                if (peer.IsStarted)
                 {
-                    peerProcessingReceivedPacketsFor = peer;
-                    if (peer.IsStarted)
-                    {
-                        peer.Update();
+                    peer.Update();
 
-                        if (!disableSendFromPeers.Contains(peer))
-                        {
-                            peer.SendEnquedPackets();
-                        }
+                    if (!disableSendFromPeers.Contains(peer))
+                    {
+                        peer.SendEnquedPackets();
                     }
                 }
             }
+
+            foreach (var task in tasks)
+            {
+                task.Run();
+            }
+            
+            Thread.Sleep(PUMP_RATE);
         }
 
         #region Helper Methods
@@ -195,7 +220,7 @@ namespace FalconUDPTests
         private void ConnectToLocalPeer(FalconPeer peer, FalconPeer remotePeer, string pass)
         {
             var mre = new ManualResetEvent(false);
-            FalconOperationResult result = null;
+            FalconOperationResult<int> result = null;
             peer.TryJoinPeerAsync("127.0.0.1", remotePeer.Port, tr =>
                 {
                     result = tr;
@@ -252,8 +277,6 @@ namespace FalconUDPTests
 
         #endregion
 
-        #region Connecting
-
         [TestMethod]
         public void ConnectToOnePeerTest()
         {
@@ -300,13 +323,6 @@ namespace FalconUDPTests
                 Assert.AreEqual(allPeers.Count - 1, remotePeers.Count, "Failed to connect to all other peers");
             }            
         }
-
-        #endregion
-
-        #region Stopping
-        #endregion
-
-        #region Send and Receive
 
         [TestMethod]
         public void PingPongOnePeer()
@@ -396,62 +412,66 @@ namespace FalconUDPTests
             {
                 for (var i = 0; i < NUM_SENDS_PER_PEER; i++)
                 {
+                    var waitHandel = new AutoResetEvent(false);
                     var repliesLock = new object();
                     var bytesSentCount = 0;
                     var packetsSentCount = 0;
                     var packetsReceivedCount = 0;
                     var totalBytesToSend = rand.Next(1, MAX_PACKET_SIZE + 1);
-                    var waitHandel = new AutoResetEvent(false);
-
-                    var optsRand = (byte)rand.Next(4);
-                    SendOptions opts = SendOptions.None;
-                    switch (optsRand)
-                    {
-                        case 1: opts = SendOptions.InOrder; break;
-                        case 2: opts = SendOptions.Reliable; break;
-                        case 3: opts = SendOptions.ReliableInOrder; break;
-                    }
-
                     var replies = new List<byte[]>();
                     replyReceived = null; // clears any listeners
                     replyReceived += (sender, packetReceived) =>
+                    {
+                        lock (repliesLock)
                         {
-                            lock (repliesLock)
+                            if (replies == null)
+                                return;
+
+                            var size = packetReceived.ReadUInt16();
+                            var receivedBytes = packetReceived.ReadBytes(size);
+                            replies.Add(receivedBytes);
+
+                            packetsReceivedCount++;
+                        }
+
+                        if (packetsReceivedCount == (packetsSentCount * numRemotePeers))
+                            waitHandel.Set();
+                    };
+
+                    Action task = new Action(() =>
+                        {
+                            var optsRand = (byte)rand.Next(4);
+                            SendOptions opts = SendOptions.None;
+                            switch (optsRand)
                             {
-                                if (replies == null)
-                                    return;
-
-                                var size = packetReceived.ReadUInt16();
-                                var receivedBytes = packetReceived.ReadBytes(size);
-                                replies.Add(receivedBytes);
-
-                                packetsReceivedCount++;
+                                case 1: opts = SendOptions.InOrder; break;
+                                case 2: opts = SendOptions.Reliable; break;
+                                case 3: opts = SendOptions.ReliableInOrder; break;
                             }
 
-                            if (packetsReceivedCount == (packetsSentCount * numRemotePeers))
-                                waitHandel.Set();
-                        };
+                            while (bytesSentCount < (totalBytesToSend - 1))
+                            {
+                                var length = rand.Next(1, (totalBytesToSend - bytesSentCount) + 1);
+                                var bytes = new byte[length];
 
-                    while (bytesSentCount < (totalBytesToSend - 1))
-                    {
-                        var length = rand.Next(1, (totalBytesToSend - bytesSentCount) + 1);
-                        var bytes = new byte[length];
+                                rand.NextBytes(bytes);
 
-                        rand.NextBytes(bytes);
+                                var packet = peer.BorrowPacketFromPool();
+                                packet.WriteByte((byte)FalconTestMessageType.RandomBytes);
+                                packet.WriteByte((byte)opts);
+                                packet.WriteUInt16((ushort)length);
+                                packet.WriteBytes(bytes);
 
-                        var packet = peer.BorrowPacketFromPool();
-                        packet.WriteByte((byte)FalconTestMessageType.RandomBytes);
-                        packet.WriteByte((byte)opts);
-                        packet.WriteUInt16((ushort)length);
-                        packet.WriteBytes(bytes);
+                                peer.EnqueueSendToAll(opts, packet);
 
-                        peer.EnqueueSendToAll(opts, packet);
+                                bytesSentCount += length;
+                                packetsSentCount++;
+                            }
 
-                        bytesSentCount += length;
-                        packetsSentCount++;
-                    }
-
-                    peer.SendEnquedPackets();
+                            peer.SendEnquedPackets();
+                        });
+                    
+                    tasks.Add(new PumpTask(task));
 
                     //------------------------------------------------------
                     waitHandel.WaitOne(numRemotePeers * MAX_REPLY_WAIT_TIME);
@@ -466,8 +486,6 @@ namespace FalconUDPTests
                 }
             }
         }
-
-        #endregion
 
         [TestMethod]
         public void KeepAliveTest()
