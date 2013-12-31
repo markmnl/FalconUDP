@@ -755,8 +755,6 @@ namespace FalconUDP
 
         internal void Stop(bool sayBye)
         {
-            stopped = true;
-
             if (sayBye)
             {
                 // say bye to everyone
@@ -773,6 +771,7 @@ namespace FalconUDP
             }
             catch { }
 
+            stopped = true;
             Socket = null;
             peersById.Clear();
             peersByIp.Clear();
