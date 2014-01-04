@@ -84,7 +84,9 @@ namespace FalconUDP
         private Dictionary<IPEndPoint, RemotePeer> peersByIp;   // same RemotePeers as peersById
         private Dictionary<int, RemotePeer> peersById;          // same RemotePeers as peersByIp
         private LogLevel            logLvl;
+#if DEBUG
         private LogCallback         logger;
+#endif
         private string              joinPass; 
         private PunchThroughCallback punchThroughCallback;
         private  bool               stopped;
@@ -712,10 +714,11 @@ namespace FalconUDP
                     Port, 
                     lvl, 
                     msg);
-
+#if DEBUG
                 if (logger != null)
                     logger(lvl, line);
                 else
+#endif
                     Debug.WriteLine(line);
             }
         }
