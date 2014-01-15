@@ -1,6 +1,4 @@
-﻿using System.Threading;
-
-namespace FalconUDP
+﻿namespace FalconUDP
 {
     /// <summary>
     /// Provides total number of bytes sent and recieved in the last secound.
@@ -23,7 +21,7 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Total number of bytes received in the last secound (including IP, UDP and FalconUDP header bytes).
+        /// Total number of bytes received in the last second (including IP, UDP and FalconUDP header bytes).
         /// </summary>
         public int BytesReceivedPerSecound
         {

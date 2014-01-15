@@ -250,6 +250,11 @@ namespace FalconUDP
                 }
                 else
                 {
+                    if (IsCollectingStatistics)
+                    {
+                        Statistics.AddBytesReceived(size);
+                    }
+
                     ProcessReceivedDatagram((IPEndPoint)fromIPEndPoint, receiveBuffer, size);
                 }
             }
