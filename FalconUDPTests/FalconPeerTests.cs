@@ -196,10 +196,10 @@ namespace FalconUDPTests
         private void ConnectToLocalPeer(FalconPeer peer, FalconPeer remotePeer, string pass)
         {
             var mre = new ManualResetEvent(false);
-            FalconOperationResult result = null;
-            peer.TryJoinPeerAsync("127.0.0.1", remotePeer.Port, tr =>
+            FalconOperationResult<int> result = null;
+            peer.TryJoinPeerAsync("127.0.0.1", remotePeer.Port, rv =>
                 {
-                    result = tr;
+                    result = rv;
                     mre.Set();
                 }, pass);
             mre.WaitOne();
