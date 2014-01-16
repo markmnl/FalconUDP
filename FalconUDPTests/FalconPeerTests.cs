@@ -119,7 +119,7 @@ namespace FalconUDPTests
                             Debug.WriteLine("Invalid SendOptions");
                         }
                         var length = packet.ReadUInt16();
-                        Debug.WriteLine("RandomBytes received from: {0}, on channel: {1}, purported length: {2}, actual: {3}", sender, opts, length, packet.BytesRemaining);
+                        Debug.WriteLine(" -> RandomBytes received from: {0}, on channel: {1}, purported length: {2}, actual: {3}", sender, opts, length, packet.BytesRemaining);
                         var bytes = packet.ReadBytes(length);
 
                         var reply = peer.BorrowPacketFromPool();
@@ -132,6 +132,7 @@ namespace FalconUDPTests
                     break;
                 case FalconTestMessageType.RandomBytesReply:
                     {
+                        Debug.WriteLine(" <- RandomBytesReply received from: {0}", sender);
                         if (replyReceived != null)
                             replyReceived(sender, packet);
                     }
@@ -376,9 +377,10 @@ namespace FalconUDPTests
         [TestMethod]
         public void FalconPeerStressTest()
         {
-            const int NUM_OF_PEERS          = 3;
-            const int MAX_PACKET_SIZE       = 20;
-            const int NUM_SENDS_PER_PEER    = 100;
+            const int NUM_OF_PEERS              = 3;
+            const int MAX_PACKET_SIZE           = 20;
+            const int NUM_ITERATIONS_PER_PEER   = 100;
+            const int MAX_NUM_PACKETS_PER_PEER  = 12;
 
             var peer1 = CreateAndStartLocalPeer();
             peer1.SetVisibility(true, null, false);
@@ -394,18 +396,17 @@ namespace FalconUDPTests
 
             foreach (var peer in allPeers)
             {
-                for (var i = 0; i < NUM_SENDS_PER_PEER; i++)
+                for (var i = 0; i < NUM_ITERATIONS_PER_PEER; i++)
                 {
                     var repliesLock = new object();
-                    var bytesSentCount = 0;
                     var packetsSentCount = 0;
                     var packetsReceivedCount = 0;
+                    Debug.WriteLine("---packetsReceivedCount reset---", packetsReceivedCount);
                     var totalBytesToSend = rand.Next(1, MAX_PACKET_SIZE + 1);
                     var waitHandel = new AutoResetEvent(false);
 
-                    var optsRand = (byte)rand.Next(4);
                     SendOptions opts = SendOptions.None;
-                    switch (optsRand)
+                    switch (rand.Next(4))
                     {
                         case 1: opts = SendOptions.InOrder; break;
                         case 2: opts = SendOptions.Reliable; break;
@@ -418,36 +419,30 @@ namespace FalconUDPTests
                         {
                             lock (repliesLock)
                             {
-                                if (replies == null)
-                                    return;
-
                                 var size = packetReceived.ReadUInt16();
                                 var receivedBytes = packetReceived.ReadBytes(size);
                                 replies.Add(receivedBytes);
 
-                                packetsReceivedCount++;
-                            }
+                                ++packetsReceivedCount;
+                                Debug.WriteLine("++packetsReceivedCount now: {0}", packetsReceivedCount);
 
-                            if (packetsReceivedCount == (packetsSentCount * numRemotePeers))
-                                waitHandel.Set();
+                                if (packetsReceivedCount == (numRemotePeers * packetsSentCount))
+                                    waitHandel.Set();
+                            }
                         };
 
-                    while (bytesSentCount < (totalBytesToSend - 1))
+                    var numOfPacketsToSend = rand.Next(MAX_NUM_PACKETS_PER_PEER+1);
+                    for (var j = 0; j < numOfPacketsToSend; j++)
                     {
-                        var length = rand.Next(1, (totalBytesToSend - bytesSentCount) + 1);
+                        var length = rand.Next(1, totalBytesToSend + 1);
                         var bytes = new byte[length];
-
                         rand.NextBytes(bytes);
-
                         var packet = peer.BorrowPacketFromPool();
                         packet.WriteByte((byte)FalconTestMessageType.RandomBytes);
                         packet.WriteByte((byte)opts);
                         packet.WriteUInt16((ushort)length);
                         packet.WriteBytes(bytes);
-
                         peer.EnqueueSendToAll(opts, packet);
-
-                        bytesSentCount += length;
                         packetsSentCount++;
                     }
 
@@ -460,8 +455,7 @@ namespace FalconUDPTests
                     lock (repliesLock)
                     {
                         Assert.AreEqual(packetsSentCount * numRemotePeers, packetsReceivedCount);
-                        replies = null;
-                        replyReceived = null;
+                        replies.Clear();
                     }
                 }
             }

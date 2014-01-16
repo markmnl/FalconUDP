@@ -50,12 +50,9 @@
     </CodeAnalysisDependentAssemblyPaths>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ConcurrentGenericObjectPoolTests.cs" />
     <Compile Include="FalconPeerTests.cs" />
-    <Compile Include="PacketPoolTests.cs" />
     <Compile Include="PacketTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SingleRandomTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FalconUDP.csproj">

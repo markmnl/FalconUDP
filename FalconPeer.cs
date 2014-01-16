@@ -170,7 +170,6 @@ namespace FalconUDP
 #endif
                 }
                 Log(LogLevel.Info, "Initialized");
-                Log(LogLevel.Info, "Stopwatch will loop after " + (new TimeSpan(0, 0, (int)(long.MaxValue / Stopwatch.Frequency))).ToString());
             }
 #endif
         }
