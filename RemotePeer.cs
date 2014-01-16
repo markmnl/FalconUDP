@@ -188,8 +188,8 @@ namespace FalconUDP
                 FalconHelper.WriteAck(ack, args.Buffer, index);
                 ackPool.Return(ack);
                 index += Const.FALCON_PACKET_HEADER_SIZE;
-                args.SetBuffer(args.Offset, index - args.Offset);
             }
+            args.SetBuffer(args.Offset, index - args.Offset);
         }
 
         private void FlushSendChannel(SendChannel channel)
@@ -602,16 +602,14 @@ namespace FalconUDP
                             // 3) ACK was unsolicited (i.e. malicious or buggy peer)
 
                             localPeer.Log(LogLevel.Warning, "Packet for ACK not found - too late?");
-                            return true;
                         }
-
-                        if (type == PacketType.ACK)
+                        else if (type == PacketType.ACK)
                         {
                             // remove packet detail
                             sentPacketsAwaitingACK.RemoveAt(detailIndex);
 
-                            // update latency estimate (payloadSize is stopover time on remote peer)
-                            UpdateLantency((int)(detail.EllapsedSecoundsSincePacketSent - payloadSize));
+                            // update latency estimate (payloadSize is stopover time in on remote peer)
+                            UpdateLantency((int)(detail.EllapsedSecoundsSincePacketSent * 1000 - payloadSize));
                         }
                         else // must be AntiACK
                         {
@@ -629,7 +627,7 @@ namespace FalconUDP
                 default:
                     {
                         localPeer.Log(LogLevel.Warning, String.Format("Packet dropped - unexpected type: {0}, received from authenticated peer: {1}.", type, PeerName));
-                        return true; // the packet is valid just unexpected..
+                        return true; // the packet is valid just unexpected (we already know type is defined a PacketType value).
                     }
             }
         }

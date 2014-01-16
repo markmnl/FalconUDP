@@ -5,12 +5,12 @@ namespace FalconUDP
     class AwaitingAcceptDetail
     {
         internal IPEndPoint EndPoint;
-        internal FalconOperationCallback Callback;
+        internal FalconOperationCallback<int> Callback;
         internal float EllapsedMillisecondsSinceStart;
         internal int RetryCount;
         internal byte[] Pass;
 
-        internal AwaitingAcceptDetail(IPEndPoint ip, FalconOperationCallback callback, string pass)
+        internal AwaitingAcceptDetail(IPEndPoint ip, FalconOperationCallback<int> callback, string pass)
         {
             EndPoint = ip;
             Callback = callback;

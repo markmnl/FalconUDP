@@ -6,18 +6,13 @@ namespace FalconUDP
     /// Delegate used as callback once a Falcon operation completes.
     /// </summary>
     /// <param name="result"><see cref="FalconOperationResult"/> with the result of the operation.</param>
-    public delegate void FalconOperationCallback(FalconOperationResult result);
+    public delegate void FalconOperationCallback<T>(FalconOperationResult<T> result);
 
     /// <summary>
     /// Result of a Falcon operation, successful or not.
     /// </summary>
-    public class FalconOperationResult
+    public class FalconOperationResult<TReturnValue>
     {
-        /// <summary>
-        /// Successul operation.
-        /// </summary>
-        public static readonly FalconOperationResult SuccessResult = new FalconOperationResult(true, null);
-        
         /// <summary>
         /// True if the operation was successul, otherwise false.
         /// </summary>
@@ -34,30 +29,30 @@ namespace FalconUDP
         public Exception Exception { get; private set; }
 
         /// <summary>
-        /// A user token set depending on the operation.
+        /// Return value from the operation.
         /// </summary>
-        public object Tag { get; private set; }
+        public TReturnValue ReturnValue { get; private set; }
 
-        internal FalconOperationResult(bool success, string nonSuccessMessage, Exception ex, object tag)
+        internal FalconOperationResult(bool success, string nonSuccessMessage, Exception ex, TReturnValue returnValue)
         {
             this.Success = success;
             this.NonSuccessMessage = nonSuccessMessage;
             this.Exception = ex;
-            this.Tag = tag;
+            this.ReturnValue = returnValue;
         }
 
-        internal FalconOperationResult(bool success, string nonSuccessMessage)
-            : this(success, nonSuccessMessage, null, null)
+        internal FalconOperationResult(bool success, string nonSuccessMessage, TReturnValue returnValue)
+            : this(success, nonSuccessMessage, null, returnValue)
         {
         }
 
-        internal FalconOperationResult(bool success, object tag)
-            : this(success, null, null, tag)
+        internal FalconOperationResult(bool success, TReturnValue returnValue)
+            : this(success, null, null, returnValue)
         {
         }
 
-        internal FalconOperationResult(Exception ex)
-            : this(false, ex.Message, ex, null)
+        internal FalconOperationResult(Exception ex, TReturnValue returnValue)
+            : this(false, ex.Message, ex, returnValue)
         {
         }
     }
