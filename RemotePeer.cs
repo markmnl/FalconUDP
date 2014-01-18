@@ -153,7 +153,7 @@ namespace FalconUDP
                 return;
             }
 
-            localPeer.Log(LogLevel.Debug, String.Format("Sending {0} bytes to {1}", args.Count, args.RemoteEndPoint));
+            localPeer.Log(LogLevel.Debug, String.Format("Sending {0} bytes to {1}", args.Count, endPoint));
 
             try
             {
