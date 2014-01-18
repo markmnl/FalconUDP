@@ -29,7 +29,7 @@ namespace FalconUDPTests
         private const int MAX_REPLY_WAIT_TIME = 5000; // milliseconds
 
         private static int portCount = START_PORT;
-        private static Timer ticker;
+        private static Thread ticker;
         private static List<FalconPeer> activePeers, disableSendFromPeers;
         private static event ReplyReceived replyReceived;
         private static FalconPeer peerProcessingReceivedPacketsFor;
@@ -68,7 +68,8 @@ namespace FalconUDPTests
         {
             activePeers = new List<FalconPeer>();
             disableSendFromPeers = new List<FalconPeer>();
-            ticker = new Timer(Tick, null, TICK_RATE, TICK_RATE);
+            ticker = new Thread(MainLoop);
+            ticker.Start();
         }
 
         private static void ProcessReceivedPacket(Packet packet)
@@ -146,9 +147,9 @@ namespace FalconUDPTests
             }
         }
 
-        private void Tick(object state)
+        private void MainLoop()
         {
-            lock (activePeers)
+            while (true)
             {
                 foreach (var peer in activePeers)
                 {
@@ -163,6 +164,7 @@ namespace FalconUDPTests
                         }
                     }
                 }
+                Thread.Sleep(TICK_RATE);
             }
         }
 
@@ -389,7 +391,7 @@ namespace FalconUDPTests
 
             var allPeers = new List<FalconPeer>(otherPeers);
             allPeers.Add(peer1);
-            allPeers.ForEach(p => p.SetLogLevel(LogLevel.NoLogging));
+            allPeers.ForEach(p => p.SetLogLevel(LogLevel.Debug));
 
             var rand = new Random();
             var numRemotePeers = NUM_OF_PEERS-1;
