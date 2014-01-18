@@ -106,7 +106,7 @@ namespace FalconUDP
             {
                 // write additional header
                 FalconHelper.WriteAdditionalFalconHeader(currentArgs.Buffer,
-                    currentArgs.Offset,
+                    currentArgsTotalBufferOffset,
                     type,
                     channelType,
                     packet == null ? (ushort)0 : (ushort)packet.BytesWritten);
