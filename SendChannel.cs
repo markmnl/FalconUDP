@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
+using System.Diagnostics;
 
 namespace FalconUDP
 {
@@ -126,7 +127,6 @@ namespace FalconUDP
         }
 
         // Get everything inc. current args if anything written to it
-        // ASSUMPTION lock on this.ChannelLock held
         internal Queue<SocketAsyncEventArgs> GetQueue()
         {
             if (currentArgsTotalBufferOffset > currentArgs.Offset) // i.e. something written

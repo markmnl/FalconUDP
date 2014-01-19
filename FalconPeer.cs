@@ -452,7 +452,7 @@ namespace FalconUDP
 
             do
             {
-                Log(LogLevel.Debug, String.Format("Processing received packet type: {0}, channel: {1}, seq {2}, payload size: {3}...", type, opts, seq, payloadSize));
+                Log(LogLevel.Debug, String.Format("<-- Processing received packet type: {0}, channel: {1}, seq {2}, payload size: {3}...", type, opts, seq, payloadSize));
 
                 if (peersByIp.TryGetValue(fromIPEndPoint, out rp))
                 {
@@ -1023,7 +1023,7 @@ namespace FalconUDP
         /// <param name="acceptJoinRequests">Set to true to allow other FalconUDP peers to join this one.</param>
         /// <param name="joinPassword">Password FalconUDP peers require to join this one.</param>
         /// <param name="replyToDiscoveryRequests">Set to true to allow other FalconUDP peers discover this one.</param>
-        /// <param name="replyToAnonymousPings">Set to true to send reply pong to any FalconUDP even if they have not joined.</param>
+        /// <param name="replyToAnonymousPings">Set to true to send reply pong to any FalconUDP Ping even if they have not joined.</param>
         /// <param name="replyToDiscoveryRequestsWithToken">Token incoming discovery requests require if we are to send reply to.</param>
         public void SetVisibility(bool acceptJoinRequests, 
             string joinPassword, 

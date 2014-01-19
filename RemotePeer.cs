@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Diagnostics;
 
 namespace FalconUDP
 {
@@ -17,9 +18,9 @@ namespace FalconUDP
     {
         internal int Id { get; private set; }
         internal IPEndPoint EndPoint { get { return endPoint; } }
-        internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application ASSUMPTION lock on ReceiveLock obtained
+        internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application
         internal string PeerName { get; private set; }                          // e.g. IP end point, used for logging
-        internal int Latency { get; private set; }
+        internal int Latency { get; private set; }                              // current estimate one-way latency to this remote peer
 
         internal bool IsKeepAliveMaster;                            // i.e. this remote peer is the master so it will send the KeepAlives, not us!
 
@@ -153,7 +154,13 @@ namespace FalconUDP
                 return;
             }
 
-            localPeer.Log(LogLevel.Debug, String.Format("Sending {0} bytes to {1}", args.Count, endPoint));
+#if DEBUG
+            ushort seq = BitConverter.ToUInt16(args.Buffer, args.Offset+1);
+            localPeer.Log(LogLevel.Debug, String.Format("--> Sending Packet to: {0}, size: {1} seq {2}...", 
+                endPoint,
+                args.Count, 
+                seq));
+#endif
 
             try
             {
@@ -212,7 +219,7 @@ namespace FalconUDP
                             PacketDetail detail = sentPacketsAwaitingACK[i];
                             if (detail.Sequence == seq)
                             {
-                                detail.EllapsedSecoundsSincePacketSent = 0.0f;
+                                detail.EllapsedSecondsSincePacketSent = 0.0f;
                                 break;
                             }
                         }
@@ -224,7 +231,7 @@ namespace FalconUDP
 
                         PacketDetail detail = packetDetailPool.Borrow();
                         detail.ChannelType = token.SendOptions;
-                        detail.EllapsedSecoundsSincePacketSent = 0.0f;
+                        detail.EllapsedSecondsSincePacketSent = 0.0f;
                         detail.Sequence = BitConverter.ToUInt16(args.Buffer, args.Offset + 1);
                         detail.CopyBytes(args.Buffer, args.Offset, args.Count);
                         sentPacketsAwaitingACK.Add(detail);                        
@@ -317,8 +324,8 @@ namespace FalconUDP
                 for (int i = 0; i < sentPacketsAwaitingACK.Count; i++)
                 {
                     PacketDetail pd = sentPacketsAwaitingACK[i];
-                    pd.EllapsedSecoundsSincePacketSent += dt;
-                    if (pd.EllapsedSecoundsSincePacketSent >= Settings.ACKTimeout)
+                    pd.EllapsedSecondsSincePacketSent += dt;
+                    if (pd.EllapsedSecondsSincePacketSent >= Settings.ACKTimeout)
                     {                        
                         pd.ResentCount++;
 
@@ -334,7 +341,7 @@ namespace FalconUDP
                         else
                         {
                             // try again..
-                            pd.EllapsedSecoundsSincePacketSent = 0.0f;
+                            pd.EllapsedSecondsSincePacketSent = 0.0f;
                             ReSend(pd);
                             localPeer.Log(LogLevel.Info, String.Format("Packet to: {0} re-sent as not ACKnowledged in time.", PeerName));
                         }
@@ -609,7 +616,7 @@ namespace FalconUDP
                             sentPacketsAwaitingACK.RemoveAt(detailIndex);
 
                             // update latency estimate (payloadSize is stopover time in on remote peer)
-                            UpdateLantency((int)(detail.EllapsedSecoundsSincePacketSent * 1000 - payloadSize));
+                            UpdateLantency((int)(detail.EllapsedSecondsSincePacketSent * 1000 - payloadSize));
                         }
                         else // must be AntiACK
                         {
@@ -617,7 +624,7 @@ namespace FalconUDP
                             // incrementing resent count, we are resetting it, because the remote
                             // peer must be alive to have sent the AntiACK.
 
-                            detail.EllapsedSecoundsSincePacketSent = 0.0f;
+                            detail.EllapsedSecondsSincePacketSent = 0.0f;
                             detail.ResentCount = 0;
                             ReSend(detail);
                         }
@@ -632,7 +639,8 @@ namespace FalconUDP
             }
         }
 
-        // ASSUMPTION: Caller has checked UnreadPacketCount > 0
+        // ASSUMPTION: Caller has checked UnreadPacketCount > 0, otherwise calling this would be 
+        //             unneccessary, though not fatal.
         internal List<Packet> Read()
         {
             allUnreadPackets.Clear();

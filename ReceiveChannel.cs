@@ -5,8 +5,6 @@ namespace FalconUDP
 {
     internal class ReceiveChannel
     {
-        private const float ADDITIONAL_PACKET_SEQ_INCREMENT_AMOUNT = 0.000001f;
-
         /// <summary>
         /// Number of unread packets ready for reading
         /// </summary>
@@ -78,7 +76,7 @@ namespace FalconUDP
             else
             {
                 // lastReceived Seq will be ordinal seq for previous packet in datagram
-                ordinalPacketSeq = lastReceivedPacketSeq + ADDITIONAL_PACKET_SEQ_INCREMENT_AMOUNT;
+                ordinalPacketSeq = lastReceivedPacketSeq + 0.0001f; // HERE BE DRAGONS using float.Epsilon does not work?!?!
             }
 
             // check not duplicate, this ASSUMES we haven't received 65534 datagrams between reads!
