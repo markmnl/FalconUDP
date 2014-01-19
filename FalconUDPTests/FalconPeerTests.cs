@@ -27,12 +27,13 @@ namespace FalconUDPTests
         private const int START_PORT = 37986;
         private const int TICK_RATE = 20;
         private const int MAX_REPLY_WAIT_TIME = 5000; // milliseconds
-
+        
         private static int portCount = START_PORT;
         private static Thread ticker;
         private static List<FalconPeer> activePeers, disableSendFromPeers;
         private static event ReplyReceived replyReceived;
         private static FalconPeer peerProcessingReceivedPacketsFor;
+        private static object falconPeerLock = new object();
 
         #region Additional test attributes
         // 
@@ -70,6 +71,7 @@ namespace FalconUDPTests
             disableSendFromPeers = new List<FalconPeer>();
             ticker = new Thread(MainLoop);
             ticker.Start();
+            falconPeerLock = new object();
         }
 
         private static void ProcessReceivedPacket(Packet packet)
@@ -151,16 +153,19 @@ namespace FalconUDPTests
         {
             while (true)
             {
-                foreach (var peer in activePeers)
+                lock (falconPeerLock)
                 {
-                    peerProcessingReceivedPacketsFor = peer;
-                    if (peer.IsStarted)
+                    foreach (var peer in activePeers)
                     {
-                        peer.Update();
-
-                        if (!disableSendFromPeers.Contains(peer))
+                        peerProcessingReceivedPacketsFor = peer;
+                        if (peer.IsStarted)
                         {
-                            peer.SendEnquedPackets();
+                            peer.Update();
+
+                            if (!disableSendFromPeers.Contains(peer))
+                            {
+                                peer.SendEnquedPackets();
+                            }
                         }
                     }
                 }
@@ -433,22 +438,25 @@ namespace FalconUDPTests
                             }
                         };
 
-                    var numOfPacketsToSend = rand.Next(MAX_NUM_PACKETS_PER_PEER+1);
-                    for (var j = 0; j < numOfPacketsToSend; j++)
+                    lock (falconPeerLock)
                     {
-                        var length = rand.Next(1, totalBytesToSend + 1);
-                        var bytes = new byte[length];
-                        rand.NextBytes(bytes);
-                        var packet = peer.BorrowPacketFromPool();
-                        packet.WriteByte((byte)FalconTestMessageType.RandomBytes);
-                        packet.WriteByte((byte)opts);
-                        packet.WriteUInt16((ushort)length);
-                        packet.WriteBytes(bytes);
-                        peer.EnqueueSendToAll(opts, packet);
-                        packetsSentCount++;
-                    }
+                        var numOfPacketsToSend = rand.Next(1, MAX_NUM_PACKETS_PER_PEER + 1);
+                        for (var j = 0; j < numOfPacketsToSend; j++)
+                        {
+                            var length = rand.Next(1, totalBytesToSend + 1);
+                            var bytes = new byte[length];
+                            rand.NextBytes(bytes);
+                            var packet = peer.BorrowPacketFromPool();
+                            packet.WriteByte((byte)FalconTestMessageType.RandomBytes);
+                            packet.WriteByte((byte)opts);
+                            packet.WriteUInt16((ushort)length);
+                            packet.WriteBytes(bytes);
+                            peer.EnqueueSendToAll(opts, packet);
+                            packetsSentCount++;
+                        }
 
-                    peer.SendEnquedPackets();
+                        peer.SendEnquedPackets();
+                    }
 
                     //------------------------------------------------------
                     waitHandel.WaitOne(numRemotePeers * MAX_REPLY_WAIT_TIME);
