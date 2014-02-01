@@ -76,7 +76,7 @@ namespace FalconUDP
             else
             {
                 // lastReceived Seq will be ordinal seq for previous packet in datagram
-                ordinalPacketSeq = lastReceivedPacketSeq + 0.0001f; // HERE BE DRAGONS using float.Epsilon does not work?!?!
+                ordinalPacketSeq = lastReceivedPacketSeq + 0.001f; // HERE BE DRAGONS using float.Epsilon does not work?!?!
             }
 
             // check not duplicate, this ASSUMES we haven't received 65534 datagrams between reads!
