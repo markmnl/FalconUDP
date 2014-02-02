@@ -5,8 +5,8 @@ namespace FalconUDP
     static class Const
     {
         internal const int      CARRIER_PROTOCOL_HEADER_SIZE        = 28;                               // used for stats, total additional size in bytes sent on wire in additiona to falcon packet size
-        internal const int      MAX_DATAGRAM_SIZE                   = 1400;                             // avoid fragmentation RFC 5405 3.2 http://www.rfc-editor.org/rfc/rfc5405.txt
         internal const int      FALCON_PACKET_HEADER_SIZE           = 5;
+        internal const int      MAX_DATAGRAM_SIZE                   = 1024 - CARRIER_PROTOCOL_HEADER_SIZE - FALCON_PACKET_HEADER_SIZE;
         internal const int      ADDITIONAL_PACKET_HEADER_SIZE       = 3;                                // seq num is not included
         internal const int      MAX_PAYLOAD_SIZE                    = MAX_DATAGRAM_SIZE - FALCON_PACKET_HEADER_SIZE;
         internal const int      DISCOVERY_TOKEN_SIZE                = 16;

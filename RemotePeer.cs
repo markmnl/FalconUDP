@@ -155,11 +155,19 @@ namespace FalconUDP
             }
 
 #if DEBUG
-            ushort seq = BitConverter.ToUInt16(args.Buffer, args.Offset+1);
-            localPeer.Log(LogLevel.Debug, String.Format("--> Sending Packet to: {0}, size: {1} seq {2}...", 
-                endPoint,
-                args.Count, 
-                seq));
+            ushort seq;
+            PacketType type;
+            SendOptions opts;
+            ushort payloadSize;
+
+            FalconHelper.ReadFalconHeader(args.Buffer, args.Offset, out type, out opts, out seq, out payloadSize);
+
+            localPeer.Log(LogLevel.Debug, String.Format("--> Sending packet type: {0}, channel: {1}, seq {2}, payload size: {3}, total size: {4}...", 
+                type, 
+                opts, 
+                seq, 
+                payloadSize,
+                args.Count));
 #endif
 
             try
@@ -328,13 +336,27 @@ namespace FalconUDP
                     if (pd.EllapsedSecondsSincePacketSent >= Settings.ACKTimeout)
                     {                        
                         pd.ResentCount++;
+#if DEBUG
+                        ushort seq;
+                        PacketType type;
+                        SendOptions opts;
+                        ushort payloadSize;
 
+                        FalconHelper.ReadFalconHeader(pd.Bytes, 0, out type, out opts, out seq, out payloadSize);
+#endif
                         if (pd.ResentCount > Settings.ACKRetryAttempts)
                         {
                             // give-up, assume the peer has disconnected and drop it
                             sentPacketsAwaitingACK.RemoveAt(i);
                             i--;
-                            localPeer.Log(LogLevel.Warning, String.Format("Peer failed to ACK {0} re-sends of Reliable packet in time.", Settings.ACKRetryAttempts));
+#if DEBUG
+                            localPeer.Log(LogLevel.Warning, String.Format("Peer failed to ACK {0} re-sends of Reliable packet type: {1}, channel: {2}, seq {3}, payload size: {4}, in time.", 
+                                Settings.ACKRetryAttempts,
+                                type,
+                                opts,
+                                seq,
+                                payloadSize));
+#endif
                             localPeer.RemovePeerOnNextUpdate(this);
                             packetDetailPool.Return(pd);
                         }
@@ -343,7 +365,14 @@ namespace FalconUDP
                             // try again..
                             pd.EllapsedSecondsSincePacketSent = 0.0f;
                             ReSend(pd);
-                            localPeer.Log(LogLevel.Info, String.Format("Packet to: {0} re-sent as not ACKnowledged in time.", PeerName));
+#if DEBUG
+                            localPeer.Log(LogLevel.Info, String.Format("Packet to: {0}, type: {1}, channel: {2}, seq {3}, payload size: {4} re-sent as not ACKnowledged in time.", 
+                                PeerName,
+                                type,
+                                opts,
+                                seq,
+                                payloadSize));
+#endif
                         }
                     }
                 }
