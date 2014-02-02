@@ -669,7 +669,7 @@ namespace FalconUDP
         }
 
         // ASSUMPTION: Caller has checked UnreadPacketCount > 0, otherwise calling this would be 
-        //             unneccessary, though not fatal.
+        //             unneccessary.
         internal List<Packet> Read()
         {
             allUnreadPackets.Clear();
