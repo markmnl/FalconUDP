@@ -384,10 +384,10 @@ namespace FalconUDPTests
         [TestMethod]
         public void FalconPeerStressTest()
         {
-            const int NUM_OF_PEERS              = 10;
+            const int NUM_OF_PEERS              = 8;
             const int MAX_PACKET_SIZE           = 1024 - 33;
-            const int NUM_ITERATIONS_PER_PEER   = 1;
-            const int MAX_NUM_PACKETS_PER_PEER  = 5;
+            const int NUM_ITERATIONS_PER_PEER   = 3;
+            const int MAX_NUM_PACKETS_PER_PEER  = 2;
 
             var peer1 = CreateAndStartLocalPeer();
             peer1.SetVisibility(true, null, false);

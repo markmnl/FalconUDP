@@ -839,6 +839,8 @@ namespace FalconUDP
                 Socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
                 Socket.Bind(anyAddrEndPoint);
                 Socket.Blocking = false;
+                Socket.ReceiveBufferSize = Settings.ReciveBufferSize;
+                Socket.SendBufferSize = Settings.SendBufferSize;
                 Socket.EnableBroadcast = true;
             }
             catch (SocketException se)
