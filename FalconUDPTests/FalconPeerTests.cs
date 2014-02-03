@@ -384,10 +384,11 @@ namespace FalconUDPTests
         [TestMethod]
         public void FalconPeerStressTest()
         {
-            const int NUM_OF_PEERS              = 8;
-            const int MAX_PACKET_SIZE           = 1024 - 33;
-            const int NUM_ITERATIONS_PER_PEER   = 3;
-            const int MAX_NUM_PACKETS_PER_PEER  = 2;
+            // NOTE: beware of overflowing the network buffer
+            const int NUM_OF_PEERS              = 5;
+            const int MAX_PACKET_SIZE           = 100;
+            const int NUM_ITERATIONS_PER_PEER   = 10;
+            const int MAX_NUM_PACKETS_PER_PEER  = 3;
 
             var peer1 = CreateAndStartLocalPeer();
             peer1.SetVisibility(true, null, false);
@@ -413,12 +414,12 @@ namespace FalconUDPTests
                     var waitHandel = new AutoResetEvent(false);
 
                     SendOptions opts = SendOptions.ReliableInOrder;
-                    //switch (rand.Next(4))
-                    //{
-                    //    case 1: opts = SendOptions.InOrder; break;
-                    //    case 2: opts = SendOptions.Reliable; break;
-                    //    case 3: opts = SendOptions.ReliableInOrder; break;
-                    //}
+                    switch (rand.Next(4))
+                    {
+                        case 1: opts = SendOptions.InOrder; break;
+                        case 2: opts = SendOptions.Reliable; break;
+                        case 3: opts = SendOptions.ReliableInOrder; break;
+                    }
 
                     var replies = new List<byte[]>();
                     replyReceived = null; // clears any listeners

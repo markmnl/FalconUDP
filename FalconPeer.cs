@@ -429,7 +429,9 @@ namespace FalconUDP
             ushort payloadSize  = BitConverter.ToUInt16(buffer, 3);
             
             // check the header makes sense (anyone could send us UDP datagrams)
-            if (!Enum.IsDefined(Const.SEND_OPTIONS_TYPE, opts) || !Enum.IsDefined(Const.PACKET_TYPE_TYPE, type))
+            if (!Enum.IsDefined(Const.SEND_OPTIONS_TYPE, opts) 
+                || !Enum.IsDefined(Const.PACKET_TYPE_TYPE, type)
+                || (isAckPacket && !opts.HasFlag(SendOptions.Reliable)))
             {
                 Log(LogLevel.Warning, String.Format("Datagram dropped from peer: {0}, bad header.", fromIPEndPoint));
                 return;
@@ -624,6 +626,7 @@ namespace FalconUDP
                     isAckPacket     = (type == PacketType.ACK || type == PacketType.AntiACK);
                     if (isAckPacket)
                     {
+                        opts        = (SendOptions)(packetDetail & Const.SEND_OPTS_MASK);
                         seq         = BitConverter.ToUInt16(buffer, index + 1);
                         payloadSize = BitConverter.ToUInt16(buffer, index + 3);
                         index       += Const.FALCON_PACKET_HEADER_SIZE;
