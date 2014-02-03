@@ -18,7 +18,7 @@ namespace FalconUDP
         internal const float KeepAliveIfNoKeepAliveReceived     = KeepAliveIfInterval + ACKTimeout + 1;
         internal const float AutoFlushInterval                  = ACKTimeout - 0.4f; // secounds
         internal const int PingTimeout                          = 2000; // milliseconds
-        internal const int ReciveBufferSize                     = 102400;
+        internal const int ReciveBufferSize                     = 8192;
         internal const int SendBufferSize                       = ReciveBufferSize;
 
         internal const int InitalNumRecvArgsToPool              = 32;
