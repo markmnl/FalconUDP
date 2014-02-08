@@ -128,6 +128,18 @@ namespace FalconUDP
         }
 
         /// <summary>
+        /// Reads next <see cref="Int16"/> from this packet.
+        /// </summary>
+        /// <returns>Next <see cref="Int16"/> from this Packet.</returns>
+        public short ReadInt16()
+        {
+            PreRead(sizeof(short));
+            short rv = BitConverter.ToInt16(backingBuffer, pos);
+            pos += sizeof(short);
+            return rv;
+        }
+
+        /// <summary>
         /// Reads next <see cref="UInt16"/> from this packet.
         /// </summary>
         /// <returns>Next <see cref="UInt16"/> from this Packet.</returns>
