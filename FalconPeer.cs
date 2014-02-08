@@ -1231,6 +1231,21 @@ namespace FalconUDP
                 RemovePeer(peersById[id], sayBye);
             }
         }
+
+        /// <summary>
+        /// Removes all remote peers.
+        /// </summary>
+        /// <param name="sayBye">Say bye to the remote peer? So can drop us straight away instead 
+        /// of waiting to find out we have disconnected.</param>
+        public void RemoveAllPeers(bool sayBye)
+        {
+            CheckStarted();
+
+            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+            {
+                RemovePeer(kv.Value, sayBye);
+            }
+        }
         
         /// <summary>
         /// Sends every <see cref="Packet"/> enqueud since this was last called.
@@ -1371,6 +1386,19 @@ namespace FalconUDP
             float ellapsedSeconds = (float)(ellapsedTicks - ellapsedTicksAtLastUpdate) / Stopwatch.Frequency;
             ellapsedTicksAtLastUpdate = ellapsedTicks;
             Update(ellapsedSeconds);
+        }
+
+        /// <summary>
+        /// Helper method which can be used by the user-application for measuring time.
+        /// </summary>
+        /// <remarks>
+        /// To get the number of ticks per second query <see cref="Stopwatch.Frequency"/>.
+        /// </remarks>
+        /// <returns>Ticks since this FalconPeer started.</returns>
+        public long GetEllapsedTicksSinceStarted()
+        {
+            CheckStarted();
+            return Stopwatch.ElapsedTicks;
         }
     }
 }
