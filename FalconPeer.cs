@@ -905,7 +905,7 @@ namespace FalconUDP
         /// immediately then calls the callback supplied when the operation completes.</summary>
         /// <param name="addr">IPv4 address of remote peer, e.g. "192.168.0.5"</param>
         /// <param name="port">Port number the remote peer is listening on, e.g. 30000</param>
-        /// <param name="callback"><see cref="FalconOperationCallback"/> callback to call when 
+        /// <param name="callback"><see cref="FalconOperationCallback{T}"/> callback to call when 
         /// operation completes.</param>
         /// <param name="pass">Password remote peer requires, if any.</param>
         public void TryJoinPeerAsync(string addr, int port, FalconOperationCallback<int> callback, string pass = null)
@@ -930,7 +930,7 @@ namespace FalconUDP
         /// which can also be obtained in the <see cref="PeerAdded"/> event. This Method returns 
         /// immediately then calls the callback supplied when the operation completes.</summary>
         /// <param name="endPoint"><see cref="System.Net.IPEndPoint"/> of remote peer.</param>
-        /// <param name="callback"><see cref="FalconOperationCallback"/> callback to call when 
+        /// <param name="callback"><see cref="FalconOperationCallback{T}"/> callback to call when 
         /// operation completes.</param>
         /// <param name="pass">Password remote peer requires, if any.</param>
         public void TryJoinPeerAsync(IPEndPoint endPoint, string pass, FalconOperationCallback<int> callback)
@@ -1397,7 +1397,7 @@ namespace FalconUDP
         /// Helper method which can be used by the user-application for measuring time.
         /// </summary>
         /// <remarks>
-        /// To get the number of ticks per second query <see cref="Stopwatch.Frequency"/>.
+        /// To get the number of ticks per second query <see cref="System.Diagnostics.Stopwatch.Frequency"/>.
         /// </remarks>
         /// <returns>Ticks since this FalconPeer started.</returns>
         public long GetEllapsedTicksSinceStarted()
