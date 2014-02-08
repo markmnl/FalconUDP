@@ -101,6 +101,25 @@ namespace FalconUDP
 
             Buffer.BlockCopy(backingBuffer, offset + index, destination, dstOffset, count);
         }
+
+        /// <summary>
+        /// Copies the bytes written from <see cref="Packet"/> supplied to this packet along with: 
+        /// current pos, PeerId sent from and ElapsedMillisecondsSinceSent.
+        /// </summary>
+        /// <param name="otherPacket"><see cref="Packet"/> to copy from.</param>
+        public void Clone(Packet otherPacket)
+        {
+            if (otherPacket.count != this.count)
+                throw new InvalidOperationException("packets are different sizes");
+
+            Buffer.BlockCopy(otherPacket.backingBuffer, otherPacket.offset, this.backingBuffer, this.offset, otherPacket.BytesWritten);
+            this.BytesWritten = otherPacket.BytesWritten;
+            this.pos = otherPacket.pos;
+            this.IsReadOnly = otherPacket.IsReadOnly;
+            this.DatagramSeq = otherPacket.DatagramSeq;
+            this.PeerId = otherPacket.PeerId;
+            this.ElapsedMillisecondsSinceSent = otherPacket.ElapsedMillisecondsSinceSent;
+        }
         
         /// <summary>
         /// Reads next <see cref="Byte"/> in this Packet.
@@ -344,6 +363,23 @@ namespace FalconUDP
                 *(ushort*)(ptr + pos) = value;
             }
             pos += sizeof(ushort);
+        }
+
+        /// <summary>
+        /// Writes <see cref="UInt16"/> value to this Packet at the index without modifying the 
+        /// current position to perform future read and write from.
+        /// </summary>
+        /// <param name="value">value to write</param>
+        /// <param name="index">index in underlying buffer for this packet to start write at</param>
+        public unsafe void WriteUInt16At(ushort value, int index)
+        {
+            if (index < 0 || (index + sizeof(ushort) > count))
+                throw new ArgumentOutOfRangeException("index");
+
+            fixed (byte* ptr = backingBuffer)
+            {
+                *(ushort*)(ptr + (pos + index)) = value;
+            }
         }
 
         /// <summary>
