@@ -101,15 +101,15 @@ namespace FalconUDP
                 }
                 runningRTTTotal = rtt * roundTripTimes.Length;
                 Latency = rtt / 2;
-                roundTripTimesIndex++;
                 hasUpdateLatencyBeenCalled = true;
-                return;
             }
-
-            runningRTTTotal -= roundTripTimes[roundTripTimesIndex]; // subtract oldest RTT from running total
-            roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
-            runningRTTTotal += rtt;                                 // add new RTT to running total
-            Latency = runningRTTTotal / (roundTripTimes.Length * 2);// re-calc average one-way latency
+            else
+            {
+                runningRTTTotal -= roundTripTimes[roundTripTimesIndex]; // subtract oldest RTT from running total
+                roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
+                runningRTTTotal += rtt;                                 // add new RTT to running total
+                Latency = runningRTTTotal / (roundTripTimes.Length * 2);// re-calc average one-way latency
+            }
 
             // increment index for next time this is called
             roundTripTimesIndex++;
