@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("FalconUDP")]
-[assembly: AssemblyCopyright("©2013 Gnomic Studios")]
+[assembly: AssemblyCopyright("©2013 - 2014 Gnomic Studios")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
