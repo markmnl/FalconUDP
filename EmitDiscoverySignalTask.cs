@@ -12,13 +12,13 @@ namespace FalconUDP
         private List<IPEndPoint> endPointsReceivedReplyFrom;
         private bool listenForReply; // it is possible to emit discovery signals without bothering about a reply, e.g. to aid another peer joining us in an attempt to traverse NAT 
         private DiscoveryCallback callback;
-        private float secoundsBetweenEmits;
+        private float secondsBetweenEmits;
         private int totalEmits;
         private int maxNumberPeersToDiscover;
         private FalconPeer falconPeer;
         private int emitCount;
         private Guid? token;
-        private float ellapsedSecoundsSinceLastEmit;
+        private float ellapsedSecondsSinceLastEmit;
         private byte[] signal;
 
         public bool IsAwaitingDiscoveryReply { get { return listenForReply; } }
@@ -53,12 +53,12 @@ namespace FalconUDP
 
         internal void Update(float dt)
         {
-            ellapsedSecoundsSinceLastEmit += dt;
+            ellapsedSecondsSinceLastEmit += dt;
 
-            if (ellapsedSecoundsSinceLastEmit >= secoundsBetweenEmits)
+            if (ellapsedSecondsSinceLastEmit >= secondsBetweenEmits)
             {
                 ++emitCount;
-                ellapsedSecoundsSinceLastEmit = 0.0f;
+                ellapsedSecondsSinceLastEmit = 0.0f;
 
                 if (emitCount == totalEmits) // an emit is sent when started
                 {
@@ -77,7 +77,7 @@ namespace FalconUDP
 
         internal void Init(FalconPeer falconPeer,
             bool listenForReply,
-            float durationSecounds,
+            float durationSeconds,
             int numOfSignalsToEmit,
             int maxNumOfPeersToDiscover,
             IEnumerable<IPEndPoint> endPointsToSendTo,
@@ -98,11 +98,11 @@ namespace FalconUDP
             this.emitCount = 0;
             this.listenForReply = listenForReply;
             this.callback = callback;
-            this.secoundsBetweenEmits = (durationSecounds / numOfSignalsToEmit);
+            this.secondsBetweenEmits = (durationSeconds / numOfSignalsToEmit);
             this.totalEmits = numOfSignalsToEmit;
             this.maxNumberPeersToDiscover = maxNumOfPeersToDiscover;
             this.token = token;
-            this.ellapsedSecoundsSinceLastEmit = 0.0f;
+            this.ellapsedSecondsSinceLastEmit = 0.0f;
 
             if (token.HasValue)
             {

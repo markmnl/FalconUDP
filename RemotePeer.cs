@@ -138,9 +138,9 @@ namespace FalconUDP
             }
 
             // simulate delay
-            if (localPeer.SimulateDelaySecounds > 0.0f && !hasAlreadyBeenDelayed)
+            if (localPeer.SimulateDelaySeconds > 0.0f && !hasAlreadyBeenDelayed)
             {
-                float delay = localPeer.SimulateDelaySecounds;
+                float delay = localPeer.SimulateDelaySeconds;
                 if (localPeer.SimulateDelayJitterMillisecuonds > 0.0f)
                     delay += (SingleRandom.Next(0, localPeer.SimulateDelayJitterMillisecuonds * 2) - localPeer.SimulateDelayJitterMillisecuonds) / 1000.0f;
 

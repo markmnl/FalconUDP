@@ -56,7 +56,7 @@ namespace FalconUDP
         public int Port { get; private set; }
 
         /// <summary>
-        /// <see cref="Statistics"/> structure containing total bytes sent and recieved in the last secound.
+        /// <see cref="Statistics"/> structure containing total bytes sent and recieved in the last second.
         /// </summary>
         public Statistics Statistics { get; private set; }
 
@@ -65,7 +65,7 @@ namespace FalconUDP
         /// </summary>
         public bool IsStarted { get { return !stopped; } }
 
-        internal float SimulateDelaySecounds { get; private set; }
+        internal float SimulateDelaySeconds { get; private set; }
         internal int SimulateDelayJitterMillisecuonds { get; set; }
         internal double SimulatePacketLossChance { get; private set; }
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
@@ -361,7 +361,7 @@ namespace FalconUDP
         }
         
         private void DiscoverFalconPeersAsync(bool listenForReply,
-            float durationInSecounds,
+            float durationInSeconds,
             int numOfRequests, 
             int maxPeersToDiscover,
             IEnumerable<IPEndPoint> endPoints,
@@ -369,7 +369,7 @@ namespace FalconUDP
             DiscoveryCallback callback)
         {
             EmitDiscoverySignalTask task = emitDiscoverySignalTaskPool.Borrow();
-            task.Init(this, listenForReply, durationInSecounds, numOfRequests, maxPeersToDiscover, endPoints, token, callback);
+            task.Init(this, listenForReply, durationInSeconds, numOfRequests, maxPeersToDiscover, endPoints, token, callback);
             lock (discoveryTasks)
             {
                 task.EmitDiscoverySignal(); // emit first signal now
@@ -1336,7 +1336,7 @@ namespace FalconUDP
             if(jitterAboveOrBelowDelay < 0 || jitterAboveOrBelowDelay > milliseondsToDelay)
                 throw new ArgumentOutOfRangeException("jitterAboveOrBelowDelay", "cannot be less than 0 or greater than milliseondsToDelay");
 
-            SimulateDelaySecounds = milliseondsToDelay / 1000.0f;
+            SimulateDelaySeconds = milliseondsToDelay / 1000.0f;
             SimulateDelayJitterMillisecuonds = jitterAboveOrBelowDelay;
         }
 
@@ -1379,13 +1379,13 @@ namespace FalconUDP
         /// Updates this FalconPeer. Performs message pumping and processes received packets. 
         /// </summary>
         /// <remarks>This must be called frequently at regular intervals (for example 30 times a 
-        /// secound) even when nothing may have been sent. </remarks>
+        /// second) even when nothing may have been sent. </remarks>
         public void Update()
         {
             CheckStarted();
 
             // NOTE: Stopwatch with a frequency of 2338439 will only loop after 16935 days 14 mins 
-            //       and 9 secounds!
+            //       and 9 seconds!
 
             long ellapsedTicks = Stopwatch.ElapsedTicks;
             float ellapsedSeconds = (float)(ellapsedTicks - ellapsedTicksAtLastUpdate) / Stopwatch.Frequency;

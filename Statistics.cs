@@ -1,7 +1,7 @@
 ﻿namespace FalconUDP
 {
     /// <summary>
-    /// Provides total number of bytes sent and recieved in the last secound.
+    /// Provides total number of bytes sent and recieved in the last second.
     /// </summary>
     /// <remarks>Statistics are only collected when <see cref="FalconPeer.StartCollectingStatistics()"/> is called.</remarks>
     public class Statistics
@@ -13,9 +13,9 @@
         private int bytesReceivedPerSecond;
 
         /// <summary>
-        /// Total number of bytes sent in the last secound (including IP, UDP and FalconUDP header bytes).
+        /// Total number of bytes sent in the last second (including IP, UDP and FalconUDP header bytes).
         /// </summary>
-        public int BytesSentPerSecound
+        public int BytesSentPerSecond
         {
             get { return bytesSentPerSecond; }
         }
@@ -23,7 +23,7 @@
         /// <summary>
         /// Total number of bytes received in the last second (including IP, UDP and FalconUDP header bytes).
         /// </summary>
-        public int BytesReceivedPerSecound
+        public int BytesReceivedPerSecond
         {
             get { return bytesReceivedPerSecond; }
         }
