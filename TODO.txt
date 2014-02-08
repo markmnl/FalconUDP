@@ -2,11 +2,6 @@ TODO
 ----
 - consider determining addresses to broadcast to at time of discovery not at startup (could have changed, though it does take a little time)
 
-Nice to have
-------------
-- add received packets to single collection on FalconPeer to make reading them faster (if reliable only if previous ones received else hold on to them)
-- reduce number of locks!
-
 One day
 -------
 - IPv6 and other underlying protocols support
