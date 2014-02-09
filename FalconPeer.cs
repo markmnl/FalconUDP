@@ -1246,9 +1246,12 @@ namespace FalconUDP
         {
             CheckStarted();
 
-            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+            int[] ids = new int[peersById.Count]; // TODO garbage :-|
+            peersById.Keys.CopyTo(ids, 0);
+
+            foreach (int id in ids)
             {
-                RemovePeer(kv.Value, sayBye);
+                RemovePeer(peersById[id], sayBye);
             }
         }
         
