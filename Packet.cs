@@ -107,22 +107,31 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Copies the bytes written from <see cref="Packet"/> supplied to this packet along with: 
-        /// current pos, PeerId sent from and ElapsedMillisecondsSinceSent.
+        /// Copies the bytes written from <see cref="Packet"/> supplied to this packet along with
+        /// PeerId sent from and ElapsedMillisecondsSinceSent.
         /// </summary>
         /// <param name="otherPacket"><see cref="Packet"/> to copy from.</param>
-        public void CopyFrom(Packet otherPacket)
+        /// <param name="reset">If true resets current pos and makes read-only.</param>
+        public void CopyFrom(Packet otherPacket, bool reset)
         {
             if (otherPacket.count != this.count)
                 throw new InvalidOperationException("packets are different sizes");
 
             Buffer.BlockCopy(otherPacket.backingBuffer, otherPacket.offset, this.backingBuffer, this.offset, otherPacket.BytesWritten);
             this.BytesWritten = otherPacket.BytesWritten;
-            this.pos = otherPacket.pos;
-            this.IsReadOnly = otherPacket.IsReadOnly;
             this.DatagramSeq = otherPacket.DatagramSeq;
             this.PeerId = otherPacket.PeerId;
             this.ElapsedMillisecondsSinceSent = otherPacket.ElapsedMillisecondsSinceSent;
+            if (reset)
+            {
+                this.pos = offset;
+                this.IsReadOnly = true;
+            }
+            else
+            {
+                this.pos = otherPacket.pos;
+                this.IsReadOnly = otherPacket.IsReadOnly;
+            }
         }
         
         /// <summary>
