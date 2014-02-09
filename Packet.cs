@@ -85,9 +85,13 @@ namespace FalconUDP
 
         internal void Init()
         {
+            // NOTE: This should fully reset this Packet as is called when re-used from the pool.
+
             ResetPos();
             BytesWritten = 0;
             IsReadOnly = false;
+            ElapsedMillisecondsSinceSent = 0;
+            DatagramSeq = 0;
         }
 
         internal void CopyBytes(int index, byte[] destination, int dstOffset, int count)
@@ -107,7 +111,7 @@ namespace FalconUDP
         /// current pos, PeerId sent from and ElapsedMillisecondsSinceSent.
         /// </summary>
         /// <param name="otherPacket"><see cref="Packet"/> to copy from.</param>
-        public void Clone(Packet otherPacket)
+        public void CopyFrom(Packet otherPacket)
         {
             if (otherPacket.count != this.count)
                 throw new InvalidOperationException("packets are different sizes");
