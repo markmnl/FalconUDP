@@ -6,7 +6,8 @@ namespace FalconUDP
     /// Delegate used as callback once a Falcon operation completes.
     /// </summary>
     /// <param name="result"><see cref="FalconOperationResult{T}"/> with the result of the operation.</param>
-    public delegate void FalconOperationCallback<T>(FalconOperationResult<T> result);
+    /// <typeparam name="TReturnValue">The type <see cref="FalconOperationResult.ReturnValue"/>will be.</typeparam>
+    public delegate void FalconOperationCallback<TReturnValue>(FalconOperationResult<TReturnValue> result);
 
     /// <summary>
     /// Result of a Falcon operation, successful or not.

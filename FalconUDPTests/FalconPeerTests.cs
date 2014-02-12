@@ -203,7 +203,7 @@ namespace FalconUDPTests
             return peer;
         }
 
-        private void ConnectToLocalPeer(FalconPeer peer, FalconPeer remotePeer, string pass)
+        private void ConnectToLocalPeer(FalconPeer peer, FalconPeer remotePeer, string pass, byte[] userData = null)
         {
             var mre = new ManualResetEvent(false);
             FalconOperationResult<int> result = null;
@@ -213,7 +213,7 @@ namespace FalconUDPTests
                     {
                         result = rv;
                         mre.Set();
-                    }, pass);
+                    }, pass, userData);
             }
             mre.WaitOne();
             Assert.IsTrue(result.Success, result.NonSuccessMessage);
@@ -319,8 +319,6 @@ namespace FalconUDPTests
 
         #region Stopping
         #endregion
-
-        #region Send and Receive
 
         [TestMethod]
         public void PingPongOnePeer()
@@ -482,9 +480,7 @@ namespace FalconUDPTests
                 }
             }
         }
-
-        #endregion
-
+        
         [TestMethod]
         public void KeepAliveTest()
         {
@@ -641,6 +637,37 @@ namespace FalconUDPTests
             waitHandel.WaitOne();
 
             Assert.IsTrue(!discoveredPeer1);
+        }
+
+        [TestMethod]
+        public void JoinUserDataTest()
+        {
+            var peer1 = CreateAndStartLocalPeer();
+            peer1.SetVisibility(true, null, false);
+            var bytes = new byte[34];
+            byte[] bytes2 = null;
+            object myLock = new object();
+            SingleRandom.NextBytes(bytes);
+            var waitHandel = new AutoResetEvent(false);
+            
+            peer1.PeerAdded += (int id, Packet userData) =>
+                {
+                    lock (myLock)
+                    {
+                        bytes2 = userData.ReadBytes(userData.BytesRemaining);
+                        waitHandel.Set();
+                    }
+                };
+
+            var peer2 = CreateAndStartLocalPeer();
+            ConnectToLocalPeer(peer2, peer1, null, bytes);
+
+            waitHandel.WaitOne(MAX_REPLY_WAIT_TIME);
+
+            lock (myLock)
+            {
+                Assert.IsTrue(bytes.SequenceEqual(bytes2), "user data received in JoinRequest not as sent");
+            }
         }
     }
 }

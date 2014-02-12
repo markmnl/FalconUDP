@@ -26,5 +26,10 @@ namespace FalconUDP
         {
             return random.NextDouble();
         }
+
+        internal static void NextBytes(byte[] buffer)
+        {
+            random.NextBytes(buffer);
+        }
     }
 }

@@ -1,4 +1,6 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
+using System.Collections.Generic;
 
 namespace FalconUDP
 {
@@ -6,18 +8,17 @@ namespace FalconUDP
     {
         internal IPEndPoint EndPoint;
         internal FalconOperationCallback<int> Callback;
-        internal float EllapsedMillisecondsSinceStart;
+        internal float EllapsedSecondsSinceStart;
         internal int RetryCount;
-        internal byte[] Pass;
+        internal byte[] JoinData;
 
-        internal AwaitingAcceptDetail(IPEndPoint ip, FalconOperationCallback<int> callback, string pass)
+        internal AwaitingAcceptDetail(IPEndPoint ip, FalconOperationCallback<int> callback, byte[] joinData)
         {
-            EndPoint = ip;
-            Callback = callback;
-            if(pass != null)
-                Pass = Settings.TextEncoding.GetBytes(pass);
-            EllapsedMillisecondsSinceStart = 0.0f;
-            RetryCount = 0;
+            this.EndPoint = ip;
+            this.Callback = callback;
+            this.JoinData = joinData;
+            this.EllapsedSecondsSinceStart = 0.0f;
+            this.RetryCount = 0;
         }
     }
 }

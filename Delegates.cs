@@ -9,7 +9,10 @@ namespace FalconUDP
     /// </summary>
     /// <param name="id">
     /// Id of peer added</param>
-    public delegate void PeerAdded(int id);
+    /// <param name="userData">
+    /// Additional data sent by the peer just added, if any, otherwise null. Can only be not null 
+    /// when remote peers join this one.</param>
+    public delegate void PeerAdded(int id, Packet userData);
 
     /// <summary>
     /// Delegate for the <see cref="FalconPeer.PeerDropped"/> event.

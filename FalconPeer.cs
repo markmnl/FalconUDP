@@ -313,9 +313,10 @@ namespace FalconUDP
                 for (int i = 0; i < awaitingAcceptDetails.Count; i++)
                 {
                     AwaitingAcceptDetail aad = awaitingAcceptDetails[i];
-                    if (aad.EllapsedMillisecondsSinceStart >= Settings.ACKTimeout)
+                    aad.EllapsedSecondsSinceStart += dt;
+                    if (aad.EllapsedSecondsSinceStart >= Settings.ACKTimeout)
                     {
-                        aad.EllapsedMillisecondsSinceStart = 0;
+                        aad.EllapsedSecondsSinceStart = 0.0f;
                         aad.RetryCount++;
                         if (aad.RetryCount == Settings.ACKRetryAttempts)
                         {
@@ -395,7 +396,7 @@ namespace FalconUDP
         
         private void TryJoinPeerAsync(AwaitingAcceptDetail detail)
         {
-            SendToUnknownPeer(detail.EndPoint, PacketType.JoinRequest, SendOptions.None, detail.Pass);
+            SendToUnknownPeer(detail.EndPoint, PacketType.JoinRequest, SendOptions.None, detail.JoinData);
         }
 
         private void ProcessReceivedDatagram(IPEndPoint fromIPEndPoint, byte[] buffer, int size)
@@ -421,15 +422,15 @@ namespace FalconUDP
             }
 
             // parse header
-            byte packetDetail   = buffer[0];
-            SendOptions opts    = (SendOptions)(byte)(packetDetail & Const.SEND_OPTS_MASK);
-            PacketType type     = (PacketType)(byte)(packetDetail & Const.PACKET_TYPE_MASK);
-            bool isAckPacket    = (type == PacketType.ACK || type == PacketType.AntiACK);
-            ushort seq          = BitConverter.ToUInt16(buffer, 1);
-            ushort payloadSize  = BitConverter.ToUInt16(buffer, 3);
-            
+            byte packetDetail = buffer[0];
+            SendOptions opts = (SendOptions)(byte)(packetDetail & Const.SEND_OPTS_MASK);
+            PacketType type = (PacketType)(byte)(packetDetail & Const.PACKET_TYPE_MASK);
+            bool isAckPacket = (type == PacketType.ACK || type == PacketType.AntiACK);
+            ushort seq = BitConverter.ToUInt16(buffer, 1);
+            ushort payloadSize = BitConverter.ToUInt16(buffer, 3);
+
             // check the header makes sense (anyone could send us UDP datagrams)
-            if (!Enum.IsDefined(Const.SEND_OPTIONS_TYPE, opts) 
+            if (!Enum.IsDefined(Const.SEND_OPTIONS_TYPE, opts)
                 || !Enum.IsDefined(Const.PACKET_TYPE_TYPE, type)
                 || (isAckPacket && !opts.HasFlag(SendOptions.Reliable)))
             {
@@ -449,14 +450,13 @@ namespace FalconUDP
             int count = size - Const.FALCON_PACKET_HEADER_SIZE;    // num of bytes remaining to be read
             int index = Const.FALCON_PACKET_HEADER_SIZE;           // index in args.Buffer to read from
 
+            Log(LogLevel.Debug, String.Format("<-- Processing received packet type: {0}, channel: {1}, seq {2}, payload size: {3}...", type, opts, seq, payloadSize));
+
             RemotePeer rp;
-            bool isFirstPacketInDatagram = true;
-
-            do
+            if (peersByIp.TryGetValue(fromIPEndPoint, out rp))
             {
-                Log(LogLevel.Debug, String.Format("<-- Processing received packet type: {0}, channel: {1}, seq {2}, payload size: {3}...", type, opts, seq, payloadSize));
-
-                if (peersByIp.TryGetValue(fromIPEndPoint, out rp))
+                bool isFirstPacketInDatagram = true;
+                do
                 {
                     if (!rp.TryAddReceivedPacket(seq,
                         opts,
@@ -468,195 +468,219 @@ namespace FalconUDP
                     {
                         break;
                     }
-                }
-                else
-                {
-                    #region Proccess Unauthenticated Datagram
-                    switch (type)
+
+                    // process any additional packets in datagram
+
+                    if (!isAckPacket) // payloadSize is stopover time in ACKs
                     {
-                        case PacketType.JoinRequest:
-                            {
-                                if (!acceptJoinRequests)
-                                {
-                                    Log(LogLevel.Warning, String.Format("Join request dropped from peer: {0}, not accepting join requests.", fromIPEndPoint));
-                                    return;
-                                }
-
-                                string pass = null;
-                                if (payloadSize > 0)
-                                {
-                                    pass = Settings.TextEncoding.GetString(buffer, index, payloadSize);
-                                    count -= payloadSize;
-                                    index += payloadSize;
-                                }
-
-                                if (pass != joinPass)
-                                {
-                                    Log(LogLevel.Warning, String.Format("Join request from: {0} dropped, bad pass.", fromIPEndPoint));
-                                }
-                                else if (peersByIp.ContainsKey(fromIPEndPoint))
-                                {
-                                    Log(LogLevel.Warning, String.Format("Cannot add peer again: {0}, peer is already added!", fromIPEndPoint));
-                                }
-                                else
-                                {
-                                    Log(LogLevel.Info, String.Format("Accepted Join Request from: {0}", fromIPEndPoint));
-
-                                    rp = AddPeer(fromIPEndPoint);
-                                    rp.Accept();
-                                }
-                            }
-                            break;
-                        case PacketType.AcceptJoin:
-                            {
-                                AwaitingAcceptDetail detail;
-                                if (!TryGetAndRemoveWaitingAcceptDetail(fromIPEndPoint, out detail))
-                                {
-                                    // Possible reasons we do not have detail are: 
-                                    //  1) Accept is too late,
-                                    //  2) Accept duplicated and we have already removed it, or
-                                    //  3) Accept was unsolicited.
-
-                                    Log(LogLevel.Warning, String.Format("Dropped Accept Packet from unknown peer: {0}.", fromIPEndPoint));
-                                }
-                                else
-                                {
-                                    Log(LogLevel.Info, String.Format("Successfully joined: {0}", fromIPEndPoint));
-
-                                    // create the new peer, send ACK, call the callback
-                                    rp = AddPeer(fromIPEndPoint);
-                                    rp.ACK(seq, PacketType.ACK, opts);
-                                    rp.IsKeepAliveMaster = true; // the acceptor of our join request is the keep-alive-master by default
-                                    FalconOperationResult<int> tr = new FalconOperationResult<int>(true, null, null, rp.Id);
-                                    detail.Callback(tr);
-                                }
-                            }
-                            break;
-                        case PacketType.DiscoverRequest:
-                            {
-                                bool reply = false;
-
-                                if (replyToDiscoveryRequests)
-                                {
-                                    reply = true;
-                                }
-                                else if (onlyReplyToDiscoveryRequestsWithToken.Count > 0 && count == Const.DISCOVERY_TOKEN_SIZE)
-                                {
-                                    byte[] tokenBytes = new byte[Const.DISCOVERY_TOKEN_SIZE];
-                                    Buffer.BlockCopy(buffer, index, tokenBytes, 0, Const.DISCOVERY_TOKEN_SIZE);
-                                    Guid token = new Guid(tokenBytes);
-
-                                    if (onlyReplyToDiscoveryRequestsWithToken.Contains(token))
-                                        reply = true;
-                                }
-
-                                if (reply)
-                                {
-                                    Log(LogLevel.Info, String.Format("Received Discovery Request from: {0}, sending discovery reply...", fromIPEndPoint));
-                                    SendToUnknownPeer(fromIPEndPoint, PacketType.DiscoverReply, SendOptions.None, null);
-                                }
-                                else
-                                {
-                                    Log(LogLevel.Info, String.Format("Received Discovery Request from: {0}, dropped - invalid token and set to not reply.", fromIPEndPoint));
-                                }
-                            }
-                            break;
-                        case PacketType.DiscoverReply:
-                            {
-                                // ASSUMPTION: There can only be one EmitDiscoverySignalTask at any one time that 
-                                //             matches (inc. broadcast addresses) any one discovery reply.
-
-                                foreach (EmitDiscoverySignalTask task in discoveryTasks)
-                                {
-                                    if (task.IsAwaitingDiscoveryReply && task.IsForDiscoveryReply(fromIPEndPoint))
-                                    {
-                                        task.AddDiscoveryReply(fromIPEndPoint);
-                                        Log(LogLevel.Info, String.Format("Received Discovery Reply from: {0}", fromIPEndPoint));
-                                        break;
-                                    }
-                                }
-                            }
-                            break;
-                        case PacketType.Ping:
-                            {
-                                if (!replyToAnonymousPings)
-                                    return;
-
-                                SendToUnknownPeer(fromIPEndPoint, PacketType.Pong, SendOptions.None, null);
-                            }
-                            break;
-                        case PacketType.Pong:
-                            {
-                                if (HasPingsAwaitingPong)
-                                {
-                                    PingDetail detail = PingsAwaitingPong.Find(pd => pd.IPEndPointPingSentTo != null 
-                                        && pd.IPEndPointPingSentTo.Address.Equals(fromIPEndPoint.Address)
-                                        && pd.IPEndPointPingSentTo.Port == fromIPEndPoint.Port);
-
-                                    if (detail != null)
-                                    {
-                                        RaisePongReceived(fromIPEndPoint, (int)(Stopwatch.ElapsedMilliseconds - detail.EllapsedMillisecondsAtSend));
-                                        RemovePingAwaitingPongDetail(detail);
-                                    }
-                                }
-                            }
-                            break;
-                        default:
-                            {
-                                Log(LogLevel.Warning, String.Format("{0} Datagram dropped from unknown peer: {1}.", type, fromIPEndPoint));
-                            }
-                            break;
+                        count -= payloadSize;
+                        index += payloadSize;
                     }
-                    #endregion
-                }
 
-                // process any additional packets in datagram
-
-                if (!isAckPacket) // payloadSize is stopover time in ACKs
-                {
-                    count -= payloadSize;
-                    index += payloadSize;
-                }
-
-                if (count >= Const.ADDITIONAL_PACKET_HEADER_SIZE)
-                {
-                    // parse additional packet header
-                    packetDetail    = buffer[index];
-                    type            = (PacketType)(packetDetail & Const.PACKET_TYPE_MASK);
-                    isAckPacket     = (type == PacketType.ACK || type == PacketType.AntiACK);
-                    if (isAckPacket)
+                    if (count >= Const.ADDITIONAL_PACKET_HEADER_SIZE)
                     {
-                        opts        = (SendOptions)(packetDetail & Const.SEND_OPTS_MASK);
-                        seq         = BitConverter.ToUInt16(buffer, index + 1);
-                        payloadSize = BitConverter.ToUInt16(buffer, index + 3);
-                        index       += Const.FALCON_PACKET_HEADER_SIZE;
-                        count       -= Const.FALCON_PACKET_HEADER_SIZE;
+                        // parse additional packet header
+                        packetDetail = buffer[index];
+                        type = (PacketType)(packetDetail & Const.PACKET_TYPE_MASK);
+                        isAckPacket = (type == PacketType.ACK || type == PacketType.AntiACK);
+                        if (isAckPacket)
+                        {
+                            opts = (SendOptions)(packetDetail & Const.SEND_OPTS_MASK);
+                            seq = BitConverter.ToUInt16(buffer, index + 1);
+                            payloadSize = BitConverter.ToUInt16(buffer, index + 3);
+                            index += Const.FALCON_PACKET_HEADER_SIZE;
+                            count -= Const.FALCON_PACKET_HEADER_SIZE;
+                        }
+                        else
+                        {
+                            payloadSize = BitConverter.ToUInt16(buffer, index + 1);
+                            index += Const.ADDITIONAL_PACKET_HEADER_SIZE;
+                            count -= Const.ADDITIONAL_PACKET_HEADER_SIZE;
+
+                            // validate size
+                            if (payloadSize > count)
+                            {
+                                Log(LogLevel.Error, String.Format("Dropped last {0} bytes of datagram from {1}, additional size less than min purported: {2}.",
+                                    count,
+                                    fromIPEndPoint,
+                                    payloadSize));
+                                return;
+                            }
+                        }
                     }
                     else
                     {
-                        payloadSize = BitConverter.ToUInt16(buffer, index + 1);
-                        index       += Const.ADDITIONAL_PACKET_HEADER_SIZE;
-                        count       -= Const.ADDITIONAL_PACKET_HEADER_SIZE;
-
-                        // validate size
-                        if (payloadSize > count)
-                        {
-                            Log(LogLevel.Error, String.Format("Dropped last {0} bytes of datagram from {1}, additional size less than min purported: {2}.",
-                                count,
-                                fromIPEndPoint,
-                                payloadSize));
-                            return;
-                        }
+                        return;
                     }
-                }
-                else
+
+                    isFirstPacketInDatagram = false;
+
+                } while (true);
+            }
+            else
+            {
+                #region "Proccess datagram from unknown peer"
+
+                // NOTE: Additional packets not possible in any of the valid messages from an 
+                //       unknown peer.
+
+                switch (type)
                 {
-                    return;
+                    case PacketType.JoinRequest:
+                        {
+                            if (!acceptJoinRequests)
+                            {
+                                Log(LogLevel.Warning, String.Format("Join request dropped from peer: {0}, not accepting join requests.", fromIPEndPoint));
+                                return;
+                            }
+
+                            if (payloadSize == 0)
+                            {
+                                Log(LogLevel.Warning, String.Format("Join request dropped from peer: {0}, 0 payload size.", fromIPEndPoint));
+                                return;
+                            }
+
+                            string pass = null;
+                            byte passSize = buffer[index];
+                            index++;
+                            count--;
+                            if (passSize > 0)
+                            {
+                                if (count < passSize)
+                                {
+                                    Log(LogLevel.Warning, String.Format("Join request dropped from peer: {0}, has pass size {1} but remaining size is {2}.", fromIPEndPoint, passSize, count));
+                                    return;
+                                }
+                                pass = Settings.TextEncoding.GetString(buffer, index, passSize);
+                                index += passSize;
+                                count -= passSize;
+                            }
+
+                            if (pass != joinPass)
+                            {
+                                Log(LogLevel.Warning, String.Format("Join request from: {0} dropped, bad pass.", fromIPEndPoint));
+                            }
+                            else
+                            {
+                                Log(LogLevel.Info, String.Format("Accepted Join Request from: {0}", fromIPEndPoint));
+
+                                // If any remaining bytes included in payload they are for the user-application.
+                                Packet joinUserData = null;
+                                if (count > 0)
+                                {
+                                    joinUserData = PacketPool.Borrow();
+                                    joinUserData.WriteBytes(buffer, index, count);
+                                    joinUserData.ResetPos();
+                                    joinUserData.IsReadOnly = true;
+                                }
+
+                                rp = AddPeer(fromIPEndPoint, joinUserData);
+                                rp.Accept();
+                            }
+                        }
+                        break;
+                    case PacketType.AcceptJoin:
+                        {
+                            AwaitingAcceptDetail detail;
+                            if (!TryGetAndRemoveWaitingAcceptDetail(fromIPEndPoint, out detail))
+                            {
+                                // Possible reasons we do not have detail are: 
+                                //  1) Accept is too late,
+                                //  2) Accept duplicated and we have already removed it, or
+                                //  3) Accept was unsolicited.
+
+                                Log(LogLevel.Warning, String.Format("Dropped Accept Packet from unknown peer: {0}.", fromIPEndPoint));
+                            }
+                            else
+                            {
+                                Log(LogLevel.Info, String.Format("Successfully joined: {0}", fromIPEndPoint));
+
+                                // create the new peer, send ACK, call the callback
+                                rp = AddPeer(fromIPEndPoint, null);
+                                rp.ACK(seq, PacketType.ACK, opts);
+                                rp.IsKeepAliveMaster = true; // the acceptor of our join request is the keep-alive-master by default
+                                FalconOperationResult<int> tr = new FalconOperationResult<int>(true, null, null, rp.Id);
+                                detail.Callback(tr);
+                            }
+                        }
+                        break;
+                    case PacketType.DiscoverRequest:
+                        {
+                            bool reply = false;
+
+                            if (replyToDiscoveryRequests)
+                            {
+                                reply = true;
+                            }
+                            else if (onlyReplyToDiscoveryRequestsWithToken.Count > 0 && count == Const.DISCOVERY_TOKEN_SIZE)
+                            {
+                                byte[] tokenBytes = new byte[Const.DISCOVERY_TOKEN_SIZE];
+                                Buffer.BlockCopy(buffer, index, tokenBytes, 0, Const.DISCOVERY_TOKEN_SIZE);
+                                Guid token = new Guid(tokenBytes);
+
+                                if (onlyReplyToDiscoveryRequestsWithToken.Contains(token))
+                                    reply = true;
+                            }
+
+                            if (reply)
+                            {
+                                Log(LogLevel.Info, String.Format("Received Discovery Request from: {0}, sending discovery reply...", fromIPEndPoint));
+                                SendToUnknownPeer(fromIPEndPoint, PacketType.DiscoverReply, SendOptions.None, null);
+                            }
+                            else
+                            {
+                                Log(LogLevel.Info, String.Format("Received Discovery Request from: {0}, dropped - invalid token and set to not reply.", fromIPEndPoint));
+                            }
+                        }
+                        break;
+                    case PacketType.DiscoverReply:
+                        {
+                            // ASSUMPTION: There can only be one EmitDiscoverySignalTask at any one time that 
+                            //             matches (inc. broadcast addresses) any one discovery reply.
+
+                            foreach (EmitDiscoverySignalTask task in discoveryTasks)
+                            {
+                                if (task.IsAwaitingDiscoveryReply && task.IsForDiscoveryReply(fromIPEndPoint))
+                                {
+                                    task.AddDiscoveryReply(fromIPEndPoint);
+                                    Log(LogLevel.Info, String.Format("Received Discovery Reply from: {0}", fromIPEndPoint));
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+                    case PacketType.Ping:
+                        {
+                            if (!replyToAnonymousPings)
+                                return;
+
+                            SendToUnknownPeer(fromIPEndPoint, PacketType.Pong, SendOptions.None, null);
+                        }
+                        break;
+                    case PacketType.Pong:
+                        {
+                            if (HasPingsAwaitingPong)
+                            {
+                                PingDetail detail = PingsAwaitingPong.Find(pd => pd.IPEndPointPingSentTo != null
+                                    && pd.IPEndPointPingSentTo.Address.Equals(fromIPEndPoint.Address)
+                                    && pd.IPEndPointPingSentTo.Port == fromIPEndPoint.Port);
+
+                                if (detail != null)
+                                {
+                                    RaisePongReceived(fromIPEndPoint, (int)(Stopwatch.ElapsedMilliseconds - detail.EllapsedMillisecondsAtSend));
+                                    RemovePingAwaitingPongDetail(detail);
+                                }
+                            }
+                        }
+                        break;
+                    default:
+                        {
+                            Log(LogLevel.Warning, String.Format("{0} Datagram dropped from unknown peer: {1}.", type, fromIPEndPoint));
+                        }
+                        break;
                 }
-
-                isFirstPacketInDatagram = false;
-
-            } while (true);
+                #endregion
+            }
         }
                 
         private void PunchThroughDiscoveryCallback(IPEndPoint[] endPoints)
@@ -692,7 +716,7 @@ namespace FalconUDP
             RaisePeerDropped(rp.Id);
         }
 
-        internal RemotePeer AddPeer(IPEndPoint ip)
+        internal RemotePeer AddPeer(IPEndPoint ip, Packet joinUserData)
         {
             peerIdCount++;
             RemotePeer rp = new RemotePeer(this, ip, peerIdCount);
@@ -701,7 +725,7 @@ namespace FalconUDP
 
             // raise PeerAdded event
             if (PeerAdded != null)
-                PeerAdded(rp.Id);
+                PeerAdded(rp.Id, joinUserData);
 
             return rp;
         }
@@ -905,23 +929,16 @@ namespace FalconUDP
         /// immediately then calls the callback supplied when the operation completes.</summary>
         /// <param name="addr">IPv4 address of remote peer, e.g. "192.168.0.5"</param>
         /// <param name="port">Port number the remote peer is listening on, e.g. 30000</param>
-        /// <param name="callback"><see cref="FalconOperationCallback{T}"/> callback to call when 
+        /// <param name="callback"><see cref="FalconOperationCallback{TReturnValue}"/> callback to call when 
         /// operation completes.</param>
         /// <param name="pass">Password remote peer requires, if any.</param>
-        public void TryJoinPeerAsync(string addr, int port, FalconOperationCallback<int> callback, string pass = null)
+        public void TryJoinPeerAsync(string addr, int port, FalconOperationCallback<int> callback, string pass = null, byte[] userData = null)
         {
             CheckStarted();
 
-            IPAddress ip;
-            if (!IPAddress.TryParse(addr, out ip))
-            {
-                callback(new FalconOperationResult<int>(false, "Invalid IP address supplied.", -1));
-            }
-            else
-            {
-                IPEndPoint endPoint = new IPEndPoint(ip, port);
-                TryJoinPeerAsync(endPoint, pass, callback);
-            }
+            IPAddress ip = IPAddress.Parse(addr);
+            IPEndPoint endPoint = new IPEndPoint(ip, port);
+            TryJoinPeerAsync(endPoint, pass, callback, userData);
         }
 
         /// <summary>
@@ -930,12 +947,46 @@ namespace FalconUDP
         /// which can also be obtained in the <see cref="PeerAdded"/> event. This Method returns 
         /// immediately then calls the callback supplied when the operation completes.</summary>
         /// <param name="endPoint"><see cref="System.Net.IPEndPoint"/> of remote peer.</param>
-        /// <param name="callback"><see cref="FalconOperationCallback{T}"/> callback to call when 
+        /// <param name="callback"><see cref="FalconOperationCallback{TReturnValue}"/> callback to call when 
         /// operation completes.</param>
         /// <param name="pass">Password remote peer requires, if any.</param>
-        public void TryJoinPeerAsync(IPEndPoint endPoint, string pass, FalconOperationCallback<int> callback)
+        public void TryJoinPeerAsync(IPEndPoint endPoint, string pass, FalconOperationCallback<int> callback, byte[] userData = null)
         {
-            AwaitingAcceptDetail detail = new AwaitingAcceptDetail(endPoint, callback, pass);
+            byte[] joinBytes = null;
+            if(pass == null && userData == null)
+            {
+                joinBytes = new byte[1];
+            }
+            else
+	        {
+                Packet joinPayload = PacketPool.Borrow();
+
+                // write pass prepended with size as byte
+                if (pass == null)
+                {
+                    joinPayload.WriteByte(0);
+                }
+                else
+                {
+                    byte[] passBytes = Settings.TextEncoding.GetBytes(pass);
+                    if (passBytes.Length > byte.MaxValue)
+                        throw new ArgumentException("pass too long - cannot exceed 256 bytes", "pass");
+                    joinPayload.WriteByte((byte)passBytes.Length);
+                    joinPayload.WriteBytes(passBytes);
+                }
+
+                // write user data
+                if (userData != null)
+                {
+                    joinPayload.WriteBytes(userData);
+                }
+
+                // get payload as byte[]
+                joinBytes = new byte[joinPayload.BytesWritten];
+                joinPayload.CopyBytes(0, joinBytes, 0, joinPayload.BytesWritten);
+	        }
+
+            AwaitingAcceptDetail detail = new AwaitingAcceptDetail(endPoint, callback, joinBytes);
             awaitingAcceptDetails.Add(detail);
             TryJoinPeerAsync(detail);
         }
