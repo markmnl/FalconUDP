@@ -950,6 +950,8 @@ namespace FalconUDP
         /// <param name="callback"><see cref="FalconOperationCallback{TReturnValue}"/> callback to call when 
         /// operation completes.</param>
         /// <param name="pass">Password remote peer requires, if any.</param>
+        /// <param name="userData">Bytes to include in request passed to <see cref="PeerAdded"/> 
+        /// event on remote peer only if successfull in joining.</param>
         public void TryJoinPeerAsync(IPEndPoint endPoint, string pass, FalconOperationCallback<int> callback, byte[] userData = null)
         {
             byte[] joinBytes = null;
