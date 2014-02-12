@@ -984,6 +984,8 @@ namespace FalconUDP
                 // get payload as byte[]
                 joinBytes = new byte[joinPayload.BytesWritten];
                 joinPayload.CopyBytes(0, joinBytes, 0, joinPayload.BytesWritten);
+
+                PacketPool.Return(joinPayload);
 	        }
 
             AwaitingAcceptDetail detail = new AwaitingAcceptDetail(endPoint, callback, joinBytes);
