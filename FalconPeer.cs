@@ -1469,6 +1469,20 @@ namespace FalconUDP
             CheckStarted();
             return Stopwatch.ElapsedTicks;
         }
+
+        /// <summary>
+        /// Gets the current estimated one-way latency for <paramref name="peerId"/>.
+        /// </summary>
+        /// <param name="peerId">Id of the Falcon Peer connected to this peer.</param>
+        /// <returns>Current one-way estimated latency in milliseconds.</returns>
+        public int GetPeerLatency(int peerId)
+        {
+            RemotePeer rp;
+            if (!peersById.TryGetValue(peerId, out rp))
+                return 0;
+
+            return rp.Latency;
+        }
     }
 }
 
