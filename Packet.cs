@@ -391,7 +391,7 @@ namespace FalconUDP
 
             fixed (byte* ptr = backingBuffer)
             {
-                *(ushort*)(ptr + (pos + index)) = value;
+                *(ushort*)(ptr + (offset + index)) = value;
             }
         }
 
