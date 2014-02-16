@@ -323,7 +323,10 @@ namespace FalconUDP
                             // give up, peer has not been added yet so no need to drop
                             awaitingAcceptDetails.RemoveAt(i);
                             i--;
-                            aad.Callback(new FalconOperationResult<int>(false, "Remote peer never responded to join request.", -1));
+                            if (aad.Callback != null)
+                            {
+                                aad.Callback(new FalconOperationResult<int>(false, "Remote peer never responded to join request.", -1));
+                            }
                         }
                         else
                         {
@@ -599,8 +602,11 @@ namespace FalconUDP
                                 rp = AddPeer(fromIPEndPoint, null);
                                 rp.ACK(seq, PacketType.ACK, opts);
                                 rp.IsKeepAliveMaster = true; // the acceptor of our join request is the keep-alive-master by default
-                                FalconOperationResult<int> tr = new FalconOperationResult<int>(true, null, null, rp.Id);
-                                detail.Callback(tr);
+                                if (detail.Callback != null)
+                                {
+                                    FalconOperationResult<int> tr = new FalconOperationResult<int>(true, null, null, rp.Id);
+                                    detail.Callback(tr);
+                                }
                             }
                         }
                         break;
@@ -932,7 +938,7 @@ namespace FalconUDP
         /// <param name="callback"><see cref="FalconOperationCallback{TReturnValue}"/> callback to call when 
         /// operation completes.</param>
         /// <param name="pass">Password remote peer requires, if any.</param>
-        public void TryJoinPeerAsync(string addr, int port, FalconOperationCallback<int> callback, string pass = null, byte[] userData = null)
+        public void TryJoinPeerAsync(string addr, int port, string pass = null, FalconOperationCallback<int> callback = null, byte[] userData = null)
         {
             CheckStarted();
 
@@ -943,7 +949,7 @@ namespace FalconUDP
 
         /// <summary>
         /// Attempts to connect to the remote peer. If successful Falcon can send and receive from 
-        /// this peer and FalconOperationResult.Tag will be set to the Id for this remote peer 
+        /// this peer and FalconOperationResult.ReturnValue will be set to the Id for this remote peer 
         /// which can also be obtained in the <see cref="PeerAdded"/> event. This Method returns 
         /// immediately then calls the callback supplied when the operation completes.</summary>
         /// <param name="endPoint"><see cref="System.Net.IPEndPoint"/> of remote peer.</param>
@@ -952,7 +958,7 @@ namespace FalconUDP
         /// <param name="pass">Password remote peer requires, if any.</param>
         /// <param name="userData">Bytes to include in request passed to <see cref="PeerAdded"/> 
         /// event on remote peer only if successfull in joining.</param>
-        public void TryJoinPeerAsync(IPEndPoint endPoint, string pass, FalconOperationCallback<int> callback, byte[] userData = null)
+        public void TryJoinPeerAsync(IPEndPoint endPoint, string pass = null, FalconOperationCallback<int> callback = null, byte[] userData = null)
         {
             byte[] joinBytes = null;
             if(pass == null && userData == null)

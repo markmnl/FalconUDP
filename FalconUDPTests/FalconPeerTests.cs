@@ -209,11 +209,11 @@ namespace FalconUDPTests
             FalconOperationResult<int> result = null;
             lock (falconPeerLock)
             {
-                peer.TryJoinPeerAsync("127.0.0.1", remotePeer.Port, rv =>
+                peer.TryJoinPeerAsync("127.0.0.1", remotePeer.Port, pass, rv =>
                     {
                         result = rv;
                         mre.Set();
-                    }, pass, userData);
+                    }, userData);
             }
             mre.WaitOne();
             Assert.IsTrue(result.Success, result.NonSuccessMessage);
