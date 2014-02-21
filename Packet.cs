@@ -129,7 +129,7 @@ namespace FalconUDP
             }
             else
             {
-                this.pos = otherPacket.pos;
+                this.pos = offset + (otherPacket.pos - otherPacket.offset);
                 this.IsReadOnly = otherPacket.IsReadOnly;
             }
         }
