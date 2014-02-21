@@ -107,17 +107,21 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Copies the bytes written from <see cref="Packet"/> supplied to this packet along with
-        /// PeerId sent from and ElapsedMillisecondsSinceSent.
+        /// Copies the bytes from <paramref name="otherPacket"/> supplied into this packet, 
+        /// PeerId, sent from and ElapsedMillisecondsSinceSent.
         /// </summary>
         /// <param name="otherPacket"><see cref="Packet"/> to copy from.</param>
         /// <param name="reset">If true resets current pos and makes read-only.</param>
-        public void CopyFrom(Packet otherPacket, bool reset)
+        /// <param name="copyFromCurrentPos">If true only start copying from the current pos, otherwise copy entire packet.</param>
+        public void CopyFrom(Packet otherPacket, bool copyFromCurrentPos, bool reset)
         {
             if (otherPacket.count != this.count)
                 throw new InvalidOperationException("packets are different sizes");
 
-            Buffer.BlockCopy(otherPacket.backingBuffer, otherPacket.offset, this.backingBuffer, this.offset, otherPacket.BytesWritten);
+            int srcIndex = copyFromCurrentPos ? otherPacket.pos : otherPacket.offset;
+            int count = copyFromCurrentPos ? this.count - this.pos : this.count;
+
+            Buffer.BlockCopy(otherPacket.backingBuffer, srcIndex, this.backingBuffer, this.offset, count);
             this.BytesWritten = otherPacket.BytesWritten;
             this.DatagramSeq = otherPacket.DatagramSeq;
             this.PeerId = otherPacket.PeerId;
