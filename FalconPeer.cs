@@ -327,6 +327,10 @@ namespace FalconUDP
                             {
                                 aad.Callback(new FalconOperationResult<int>(false, "Remote peer never responded to join request.", -1));
                             }
+                            if (aad.UserDataPacket != null)
+                            {
+                                ReturnPacketToPool(aad.UserDataPacket);
+                            }
                         }
                         else
                         {
@@ -731,9 +735,15 @@ namespace FalconUDP
             // raise PeerAdded event
             if (PeerAdded != null)
             {
+                // set the peer id which we only just learnt on the user data packet
                 if(joinUserData != null)
                     joinUserData.PeerId = rp.Id;
+
                 PeerAdded(rp.Id, joinUserData);
+
+                // return packet to pool 
+                if(joinUserData != null)
+                    ReturnPacketToPool(joinUserData);
             }
 
             return rp;

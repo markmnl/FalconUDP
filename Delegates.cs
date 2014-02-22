@@ -10,8 +10,10 @@ namespace FalconUDP
     /// <param name="id">
     /// Id of peer added</param>
     /// <param name="userData">
-    /// Additional data sent by the peer just added, if any, otherwise null. Can only be not null 
-    /// when remote peers join this one.</param>
+    /// Additional data sent by the peer sent in the join request. 
+    /// 
+    /// NOTE: Packet must NOT be held and used outside of event handler as it autmatically 
+    /// returned to the pool.</param>
     public delegate void PeerAdded(int id, Packet userData);
 
     /// <summary>
