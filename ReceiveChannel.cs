@@ -112,10 +112,8 @@ namespace FalconUDP
                         Packet packet = localPeer.PacketPool.Borrow();
                         packet.ElapsedMillisecondsSinceSent = remotePeer.Latency;
                         packet.ElapsedTimeAtReceived = localPeer.Stopwatch.ElapsedMilliseconds;
-                        packet.PeerId = remotePeer.Id;
                         packet.WriteBytes(buffer, index, count);
-                        packet.IsReadOnly = true;
-                        packet.ResetPos();
+                        packet.MakeReadOnly(remotePeer.Id);
                         packet.DatagramSeq = datagramSeq;
 
                         // Add packet

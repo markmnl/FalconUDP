@@ -573,8 +573,7 @@ namespace FalconUDP
                                 {
                                     joinUserData = PacketPool.Borrow();
                                     joinUserData.WriteBytes(buffer, index, count);
-                                    joinUserData.ResetPos();
-                                    joinUserData.IsReadOnly = true;
+                                    joinUserData.MakeReadOnly(-1);
                                 }
 
                                 rp = AddPeer(fromIPEndPoint, joinUserData);
@@ -599,13 +598,13 @@ namespace FalconUDP
                                 Log(LogLevel.Info, String.Format("Successfully joined: {0}", fromIPEndPoint));
 
                                 // create the new peer, send ACK, call the callback
-                                rp = AddPeer(fromIPEndPoint, null);
+                                rp = AddPeer(fromIPEndPoint, detail.UserDataPacket);
                                 rp.ACK(seq, PacketType.ACK, opts);
                                 rp.IsKeepAliveMaster = true; // the acceptor of our join request is the keep-alive-master by default
                                 if (detail.Callback != null)
                                 {
-                                    FalconOperationResult<int> tr = new FalconOperationResult<int>(true, null, null, rp.Id);
-                                    detail.Callback(tr);
+                                    FalconOperationResult<int> result = new FalconOperationResult<int>(true, null, null, rp.Id);
+                                    detail.Callback(result);
                                 }
                             }
                         }
@@ -731,7 +730,11 @@ namespace FalconUDP
 
             // raise PeerAdded event
             if (PeerAdded != null)
+            {
+                if(joinUserData != null)
+                    joinUserData.PeerId = rp.Id;
                 PeerAdded(rp.Id, joinUserData);
+            }
 
             return rp;
         }
@@ -996,7 +999,18 @@ namespace FalconUDP
                 PacketPool.Return(joinPayload);
 	        }
 
-            AwaitingAcceptDetail detail = new AwaitingAcceptDetail(endPoint, callback, joinBytes);
+            
+            // Copy the user data into a packet used passed to the PeerAdded event, this way user 
+            // cannot modify the userData supplied.
+
+            if (userData != null)
+            {
+                Packet userDataPacket = BorrowPacketFromPool();
+                userDataPacket.WriteBytes(userData);
+                userDataPacket.MakeReadOnly(-1);
+            }
+
+            AwaitingAcceptDetail detail = new AwaitingAcceptDetail(endPoint, callback, joinBytes, userData);
             awaitingAcceptDetails.Add(detail);
             TryJoinPeerAsync(detail);
         }

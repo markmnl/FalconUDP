@@ -78,16 +78,22 @@ namespace FalconUDP
             BytesWritten += size;
         }
 
-        internal void ResetPos()
+        /// <summary>
+        /// Resets the pos, marks are read only and sets the peer id from.
+        /// </summary>
+        /// <param name="peerId">Falcon Peer Id packet received from.</param>
+        internal void MakeReadOnly(int peerId)
         {
             pos = offset;
+            IsReadOnly = true;
+            PeerId = peerId;
         }
 
         internal void Init()
         {
             // NOTE: This should fully reset this Packet as is called when re-used from the pool.
 
-            ResetPos();
+            pos = offset;
             BytesWritten = 0;
             IsReadOnly = false;
             ElapsedMillisecondsSinceSent = 0;

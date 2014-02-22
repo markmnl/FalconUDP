@@ -11,14 +11,16 @@ namespace FalconUDP
         internal float EllapsedSecondsSinceStart;
         internal int RetryCount;
         internal byte[] JoinData;
+        internal Packet UserDataPacket;
 
-        internal AwaitingAcceptDetail(IPEndPoint ip, FalconOperationCallback<int> callback, byte[] joinData)
+        internal AwaitingAcceptDetail(IPEndPoint ip, FalconOperationCallback<int> callback, byte[] joinData, byte[] userData)
         {
             this.EndPoint = ip;
             this.Callback = callback;
             this.JoinData = joinData;
             this.EllapsedSecondsSinceStart = 0.0f;
             this.RetryCount = 0;
+            
         }
     }
 }
