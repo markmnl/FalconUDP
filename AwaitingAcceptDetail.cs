@@ -13,14 +13,13 @@ namespace FalconUDP
         internal byte[] JoinData;
         internal Packet UserDataPacket;
 
-        internal AwaitingAcceptDetail(IPEndPoint ip, FalconOperationCallback<int> callback, byte[] joinData, byte[] userData)
+        internal AwaitingAcceptDetail(IPEndPoint ip, FalconOperationCallback<int> callback, byte[] joinData)
         {
             this.EndPoint = ip;
             this.Callback = callback;
             this.JoinData = joinData;
             this.EllapsedSecondsSinceStart = 0.0f;
             this.RetryCount = 0;
-            
         }
     }
 }
