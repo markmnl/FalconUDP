@@ -113,7 +113,7 @@ namespace FalconUDP
                         packet.ElapsedMillisecondsSinceSent = remotePeer.Latency;
                         packet.ElapsedTimeAtReceived = localPeer.Stopwatch.ElapsedMilliseconds;
                         packet.WriteBytes(buffer, index, count);
-                        packet.MakeReadOnly(remotePeer.Id);
+                        packet.ResetAndMakeReadOnly(remotePeer.Id);
                         packet.DatagramSeq = datagramSeq;
 
                         // Add packet

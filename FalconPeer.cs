@@ -577,7 +577,9 @@ namespace FalconUDP
                                 {
                                     joinUserData = PacketPool.Borrow();
                                     joinUserData.WriteBytes(buffer, index, count);
-                                    joinUserData.MakeReadOnly(-1);
+                                    count = 0;
+                                    index += count;
+                                    joinUserData.ResetAndMakeReadOnly(-1);
                                 }
 
                                 rp = AddPeer(fromIPEndPoint, joinUserData);
@@ -948,10 +950,11 @@ namespace FalconUDP
         /// immediately then calls the callback supplied when the operation completes.</summary>
         /// <param name="addr">IPv4 address of remote peer, e.g. "192.168.0.5"</param>
         /// <param name="port">Port number the remote peer is listening on, e.g. 30000</param>
+        /// <param name="pass">Password remote peer requires, if any.</param>
         /// <param name="callback"><see cref="FalconOperationCallback{TReturnValue}"/> callback to call when 
         /// operation completes.</param>
-        /// <param name="pass">Password remote peer requires, if any.</param>
-        public void TryJoinPeerAsync(string addr, int port, string pass = null, FalconOperationCallback<int> callback = null, byte[] userData = null)
+        /// <param name="userData">Optional additional data to be included in the <see cref="PeerAdded"/> event/</param>
+        public void TryJoinPeerAsync(string addr, int port, string pass = null, FalconOperationCallback<int> callback = null, Packet userData = null)
         {
             CheckStarted();
 
@@ -966,12 +969,11 @@ namespace FalconUDP
         /// which can also be obtained in the <see cref="PeerAdded"/> event. This Method returns 
         /// immediately then calls the callback supplied when the operation completes.</summary>
         /// <param name="endPoint"><see cref="System.Net.IPEndPoint"/> of remote peer.</param>
+        /// <param name="pass">Password remote peer requires, if any.</param>
         /// <param name="callback"><see cref="FalconOperationCallback{TReturnValue}"/> callback to call when 
         /// operation completes.</param>
-        /// <param name="pass">Password remote peer requires, if any.</param>
-        /// <param name="userData">Bytes to include in request passed to <see cref="PeerAdded"/> 
-        /// event on remote peer only if successfull in joining.</param>
-        public void TryJoinPeerAsync(IPEndPoint endPoint, string pass = null, FalconOperationCallback<int> callback = null, byte[] userData = null)
+        /// <param name="userData">Optional additional data to be included in the <see cref="PeerAdded"/> event.</param>
+        public void TryJoinPeerAsync(IPEndPoint endPoint, string pass = null, FalconOperationCallback<int> callback = null, Packet userData = null)
         {
             byte[] joinBytes = null;
             if(pass == null && userData == null)
@@ -999,27 +1001,25 @@ namespace FalconUDP
                 // write user data
                 if (userData != null)
                 {
-                    joinPayload.WriteBytes(userData);
+                    joinPayload.WriteBytes(userData, 0, userData.BytesWritten);
                 }
 
                 // get payload as byte[]
-                joinBytes = new byte[joinPayload.BytesWritten];
-                joinPayload.CopyBytes(0, joinBytes, 0, joinPayload.BytesWritten);
+                joinBytes = joinPayload.ToBytes();
 
                 PacketPool.Return(joinPayload);
 	        }
 
             AwaitingAcceptDetail detail = new AwaitingAcceptDetail(endPoint, callback, joinBytes);
 
-            // Copy the user data into a packet used passed to the PeerAdded event, this way user 
-            // cannot modify the userData supplied.
+            // Copy the user data into a packet which will be passed to the PeerAdded event, this 
+            // if this operation is successful. This way user cannot modify the userData supplied.
 
             if (userData != null)
             {
-                Packet userDataPacket = BorrowPacketFromPool();
-                userDataPacket.WriteBytes(userData);
-                userDataPacket.MakeReadOnly(-1);
-                detail.UserDataPacket = userDataPacket;
+                Packet userDataCopy = BorrowPacketFromPool();
+                Packet.Clone(userData, userDataCopy, true);
+                detail.UserDataPacket = userDataCopy;
             }
 
             awaitingAcceptDetails.Add(detail);

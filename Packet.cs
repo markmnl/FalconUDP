@@ -82,7 +82,7 @@ namespace FalconUDP
         /// Resets the pos, marks are read only and sets the peer id from.
         /// </summary>
         /// <param name="peerId">Falcon Peer Id packet received from.</param>
-        internal void MakeReadOnly(int peerId)
+        internal void ResetAndMakeReadOnly(int peerId)
         {
             pos = offset;
             IsReadOnly = true;
@@ -112,33 +112,43 @@ namespace FalconUDP
             Buffer.BlockCopy(backingBuffer, offset + index, destination, dstOffset, count);
         }
 
+        internal byte[] ToBytes()
+        { 
+            byte[] bytes = new byte[BytesWritten];
+            if(BytesWritten > 0)
+                Buffer.BlockCopy(backingBuffer, offset, bytes, 0, BytesWritten);
+            return bytes;
+        }
+        
         /// <summary>
-        /// Copies the bytes written from <see cref="Packet"/> supplied to this packet along with
-        /// PeerId sent from and ElapsedMillisecondsSinceSent.
+        /// Copies all public members and underlying bytes written from 
+        /// <paramref name="srcPacket"/> to <paramref name="dstPacket"/>.
         /// </summary>
-        /// <param name="otherPacket"><see cref="Packet"/> to copy from.</param>
-        /// <param name="reset">If true resets current pos and makes read-only.</param>
-        public void CopyFrom(Packet otherPacket, bool reset)
+        /// <param name="srcPacket">Packet to copy from</param>
+        /// <param name="dstPacket">Packet to copy to</param>
+        /// <param name="reset">If true resets <paramref name="dstPacket"/>'s current pos to 
+        /// the beginning, and makes it read-only.</param>
+        public static void Clone(Packet srcPacket, Packet dstPacket, bool reset)
         {
-            if (otherPacket.count != this.count)
-                throw new InvalidOperationException("packets are different sizes");
+            if(dstPacket.count != srcPacket.count)
+                throw new InvalidOperationException("packets are differnt sizes");
 
-            Buffer.BlockCopy(otherPacket.backingBuffer, otherPacket.offset, this.backingBuffer, this.offset, otherPacket.BytesWritten);
-            this.BytesWritten = otherPacket.BytesWritten;
-            this.DatagramSeq = otherPacket.DatagramSeq;
-            this.PeerId = otherPacket.PeerId;
-            this.ElapsedMillisecondsSinceSent = otherPacket.ElapsedMillisecondsSinceSent;
+            Buffer.BlockCopy(srcPacket.backingBuffer, srcPacket.offset, dstPacket.backingBuffer, dstPacket.offset, srcPacket.BytesWritten);
+            dstPacket.BytesWritten = srcPacket.BytesWritten;
+            dstPacket.DatagramSeq = srcPacket.DatagramSeq;
+            dstPacket.ElapsedMillisecondsSinceSent = srcPacket.ElapsedMillisecondsSinceSent;
             if (reset)
             {
-                this.pos = offset;
-                this.IsReadOnly = true;
+                dstPacket.ResetAndMakeReadOnly(srcPacket.PeerId);
             }
             else
             {
-                this.pos = offset + (otherPacket.pos - otherPacket.offset);
-                this.IsReadOnly = otherPacket.IsReadOnly;
+                dstPacket.pos = dstPacket.offset +  (srcPacket.pos - srcPacket.offset);
+                dstPacket.IsReadOnly = srcPacket.IsReadOnly;
+                dstPacket.PeerId = srcPacket.PeerId;
             }
         }
+
         
         /// <summary>
         /// Reads next <see cref="Byte"/> in this Packet.
@@ -496,6 +506,20 @@ namespace FalconUDP
         {
             PreWrite(count);
             Buffer.BlockCopy(bytes, srcOffset, backingBuffer, pos, count);
+            pos += count;
+        }
+
+        /// <summary>
+        /// Writes <paramref name="count"/> bytes from <paramref name="srcOffset"/> in <paramref name="bytes"/>
+        /// to this Packet.
+        /// </summary>
+        /// <param name="bytes">Byte array containing bytes to write.</param>
+        /// <param name="srcOffset">Index in <paramref name="bytes"/> to start writing from.</param>
+        /// <param name="count">Number of bytes to write.</param>
+        public void WriteBytes(Packet srcPacket, int srcOffset, int count)
+        {
+            PreWrite(count);
+            Buffer.BlockCopy(srcPacket.backingBuffer, srcPacket.offset + srcOffset, backingBuffer, pos, count);
             pos += count;
         }
 

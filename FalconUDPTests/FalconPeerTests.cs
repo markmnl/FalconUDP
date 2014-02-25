@@ -203,7 +203,7 @@ namespace FalconUDPTests
             return peer;
         }
 
-        private void ConnectToLocalPeer(FalconPeer peer, FalconPeer remotePeer, string pass, byte[] userData = null)
+        private void ConnectToLocalPeer(FalconPeer peer, FalconPeer remotePeer, string pass, Packet userData = null)
         {
             var mre = new ManualResetEvent(false);
             FalconOperationResult<int> result = null;
@@ -644,29 +644,32 @@ namespace FalconUDPTests
         {
             var peer1 = CreateAndStartLocalPeer();
             peer1.SetVisibility(true, null, false);
-            var bytes = new byte[34];
-            byte[] bytes2 = null;
+            var bytesSent = new byte[123];
+            SingleRandom.NextBytes(bytesSent);
             object myLock = new object();
-            SingleRandom.NextBytes(bytes);
             var waitHandel = new AutoResetEvent(false);
-            
-            peer1.PeerAdded += (int id, Packet userData) =>
+            byte[] bytesReceived = null;
+
+            peer1.PeerAdded += (int id, Packet userDataPacketReceived) =>
                 {
                     lock (myLock)
                     {
-                        bytes2 = userData.ReadBytes(userData.BytesRemaining);
+                        bytesReceived = userDataPacketReceived.ReadBytes(userDataPacketReceived.BytesRemaining);
                         waitHandel.Set();
                     }
                 };
 
             var peer2 = CreateAndStartLocalPeer();
-            ConnectToLocalPeer(peer2, peer1, null, bytes);
+            var userData = peer1.BorrowPacketFromPool();
+            userData.WriteBytes(bytesSent);
+            ConnectToLocalPeer(peer2, peer1, null, userData);
+            peer1.ReturnPacketToPool(userData);
 
             waitHandel.WaitOne(MAX_REPLY_WAIT_TIME);
 
             lock (myLock)
             {
-                Assert.IsTrue(bytes.SequenceEqual(bytes2), "user data received in JoinRequest not as sent");
+                Assert.IsTrue(bytesSent.SequenceEqual(bytesReceived), "user data received in JoinRequest not as sent");
             }
         }
     }

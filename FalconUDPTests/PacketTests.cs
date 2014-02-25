@@ -54,7 +54,7 @@ namespace FalconUDPTests
 
             Assert.AreEqual(PACKET_SIZE, packet.BytesWritten);
 
-            packet.MakeReadOnly(0);
+            packet.ResetAndMakeReadOnly(0);
 
             var readBytes = packet.ReadBytes(PACKET_SIZE);
 
@@ -86,7 +86,7 @@ namespace FalconUDPTests
             var bytes = new byte[4];
 
             packet.WriteBytes(bytes);
-            packet.MakeReadOnly(0);
+            packet.ResetAndMakeReadOnly(0);
 
             packet.ReadBytes(bytes.Length+1);
         }
@@ -108,7 +108,7 @@ namespace FalconUDPTests
                 rand.NextBytes(bytes);
                 packet.WriteBytes(bytes);
                 Assert.AreEqual(bytes.Length, packet.BytesWritten);
-                packet.MakeReadOnly(0);
+                packet.ResetAndMakeReadOnly(0);
                 var numOfBytesToRead = rand.Next(bytes.Length + 1);
                 var readBytes = packet.ReadBytes(numOfBytesToRead);
                 Assert.AreEqual(bytes.Length - numOfBytesToRead, packet.BytesRemaining);
