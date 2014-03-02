@@ -108,21 +108,26 @@ namespace FalconUDP
         private RemotePeer          unknownPeer;                        // peer re-used to send unsolicited messages to
         private List<IPEndPoint>    broadcastEndPoints;
 
+#if DEBUG
         /// <summary>
         /// Creates a new FalconPeer.
         /// </summary>
         /// <param name="port">Port to listen on.</param>
         /// <param name="processReceivedPacketDelegate">Callback invoked when 
         /// <see cref="ProcessReceivedPackets()"/> called for each packet received.</param>
-#if DEBUG
         /// <param name="logCallback">Callback to use for logging, if not supplied logs written to Debug.</param>
         /// <param name="logLevel">Severtiy level and more serious levels which to log.</param>
-
         public FalconPeer(int port, 
             ProcessReceivedPacket processReceivedPacketDelegate, 
             LogCallback logCallback = null, 
             LogLevel logLevel = LogLevel.Warning)
 #else
+        /// <summary>
+        /// Creates a new FalconPeer.
+        /// </summary>
+        /// <param name="port">Port to listen on.</param>
+        /// <param name="processReceivedPacketDelegate">Callback invoked when 
+        /// <see cref="ProcessReceivedPackets()"/> called for each packet received.</param>
         public FalconPeer(int port, ProcessReceivedPacket processReceivedPacketDelegate)
 #endif
         {

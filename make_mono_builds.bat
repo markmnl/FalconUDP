@@ -1,0 +1,1 @@
+dmcs -d:MONO;DEBUG -platform:x86 -unsafe -out:.\bing\Mono\x86\Debug\FalconUDP.dll *.cs
