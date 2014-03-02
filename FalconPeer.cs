@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Threading;
 
 namespace FalconUDP
 {
@@ -886,7 +884,9 @@ namespace FalconUDP
             {
                 // create a new socket when starting
                 Socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+#if !MONO
                 Socket.SetIPProtectionLevel(IPProtectionLevel.EdgeRestricted);
+#endif
                 Socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
                 Socket.Bind(anyAddrEndPoint);
                 Socket.Blocking = false;
