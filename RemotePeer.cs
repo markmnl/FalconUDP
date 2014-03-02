@@ -71,10 +71,10 @@ namespace FalconUDP
             this.ackPool                = new GenericObjectPool<AckDetail>(Settings.InitalNumAcksToPoolPerPeer);
 
             // channels
-            this.noneSendChannel            = new SendChannel(SendOptions.None, this.sendArgsPool, this.tokenPool, this.localPeer);
-            this.inOrderSendChannel         = new SendChannel(SendOptions.InOrder, this.sendArgsPool, this.tokenPool, this.localPeer);
-            this.reliableSendChannel        = new SendChannel(SendOptions.Reliable, this.sendArgsPool, this.tokenPool, this.localPeer);
-            this.reliableInOrderSendChannel = new SendChannel(SendOptions.ReliableInOrder, this.sendArgsPool, this.tokenPool, this.localPeer);
+            this.noneSendChannel            = new SendChannel(SendOptions.None, this.sendArgsPool, this.tokenPool);
+            this.inOrderSendChannel         = new SendChannel(SendOptions.InOrder, this.sendArgsPool, this.tokenPool);
+            this.reliableSendChannel        = new SendChannel(SendOptions.Reliable, this.sendArgsPool, this.tokenPool);
+            this.reliableInOrderSendChannel = new SendChannel(SendOptions.ReliableInOrder, this.sendArgsPool, this.tokenPool);
             this.noneReceiveChannel         = new ReceiveChannel(SendOptions.None, this.localPeer, this);
             this.inOrderReceiveChannel      = new ReceiveChannel(SendOptions.InOrder, this.localPeer, this);
             this.reliableReceiveChannel     = new ReceiveChannel(SendOptions.Reliable, this.localPeer, this);

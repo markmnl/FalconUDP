@@ -17,11 +17,12 @@ namespace FalconUDP
         private ushort seqCount;
         private GenericObjectPool<SendToken> tokenPool;
         private SendToken currentToken;
-        private FalconPeer localPeer;
         private int count;
         private bool isReliable;
         
-        public SendChannel(SendOptions channelType, SocketAsyncEventArgsPool argsPool, GenericObjectPool<SendToken> tokenPool, FalconPeer localPeer)
+        public SendChannel(SendOptions channelType, 
+            SocketAsyncEventArgsPool argsPool, 
+            GenericObjectPool<SendToken> tokenPool)
         {
             this.channelType    = channelType;
             this.argsPool       = argsPool;
@@ -30,7 +31,6 @@ namespace FalconUDP
             this.currentArgsTotalBufferOffset = this.currentArgs.Offset;
             this.isReliable     = (channelType & SendOptions.Reliable) == SendOptions.Reliable;
             this.tokenPool      = tokenPool;
-            this.localPeer      = localPeer;
             this.count          = 0;
 
             SetCurrentArgsToken();
