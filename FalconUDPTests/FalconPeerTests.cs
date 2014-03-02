@@ -190,7 +190,11 @@ namespace FalconUDPTests
         {
             if(port == -1)
                 port = GetUnusedPortNumber();
+#if DEBUG
             FalconPeer peer = new FalconPeer(port, ProcessReceivedPacket, null, LogLevel.Debug);
+#else
+            FalconPeer peer = new FalconPeer(port, ProcessReceivedPacket);
+#endif
             var tr = peer.TryStart(); 
             Assert.IsTrue(tr.Success, tr.NonSuccessMessage);
             if (tr.Success)
@@ -406,7 +410,9 @@ namespace FalconUDPTests
 
             var allPeers = new List<FalconPeer>(otherPeers);
             allPeers.Add(peer1);
+#if DEBUG
             allPeers.ForEach(p => p.SetLogLevel(LogLevel.Debug));
+#endif
 
             var rand = new Random();
             var numRemotePeers = NUM_OF_PEERS-1;

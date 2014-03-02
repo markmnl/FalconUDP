@@ -510,11 +510,11 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Writes <paramref name="count"/> bytes from <paramref name="srcOffset"/> in <paramref name="bytes"/>
+        /// Writes <paramref name="count"/> bytes from <paramref name="srcOffset"/> in <paramref name="srcPacket"/>
         /// to this Packet.
         /// </summary>
-        /// <param name="bytes">Byte array containing bytes to write.</param>
-        /// <param name="srcOffset">Index in <paramref name="bytes"/> to start writing from.</param>
+        /// <param name="srcPacket"><see cref="Packet"/> to copy the bytes from.</param>
+        /// <param name="srcOffset">Index in <paramref name="srcOffset"/> index to start copying bytes from.</param>
         /// <param name="count">Number of bytes to write.</param>
         public void WriteBytes(Packet srcPacket, int srcOffset, int count)
         {

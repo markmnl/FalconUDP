@@ -83,8 +83,8 @@ namespace FalconUDP
         private int                 peerIdCount;
         private Dictionary<IPEndPoint, RemotePeer> peersByIp;   // same RemotePeers as peersById
         private Dictionary<int, RemotePeer> peersById;          // same RemotePeers as peersByIp
-        private LogLevel            logLvl;
 #if DEBUG
+        private LogLevel            logLvl;
         private LogCallback         logger;
 #endif
         private string              joinPass; 
@@ -116,9 +116,10 @@ namespace FalconUDP
         /// <param name="port">Port to listen on.</param>
         /// <param name="processReceivedPacketDelegate">Callback invoked when 
         /// <see cref="ProcessReceivedPackets()"/> called for each packet received.</param>
+#if DEBUG
         /// <param name="logCallback">Callback to use for logging, if not supplied logs written to Debug.</param>
         /// <param name="logLevel">Severtiy level and more serious levels which to log.</param>
-#if DEBUG
+
         public FalconPeer(int port, 
             ProcessReceivedPacket processReceivedPacketDelegate, 
             LogCallback logCallback = null, 
@@ -759,6 +760,7 @@ namespace FalconUDP
         [Conditional("DEBUG")]
         internal void Log(LogLevel lvl, string msg)
         {
+#if DEBUG
             if (lvl >= logLvl)
             {
                 string line = String.Format("{0}\t{1}\t{2}\t{3}", 
@@ -766,13 +768,14 @@ namespace FalconUDP
                     Port, 
                     lvl, 
                     msg);
-#if DEBUG
+
                 if (logger != null)
                     logger(lvl, line);
                 else
-#endif
+
                     Debug.WriteLine(line);
             }
+#endif
         }
 
         internal void RaisePeerDropped(int peerId)
