@@ -121,23 +121,20 @@ namespace FalconUDP
 
         internal void AddDiscoveryReply(IPEndPoint endPointReceivedFrom)
         {
-            lock (endPointsReceivedReplyFrom)
+            // check we haven't already discovered this peer
+            if (endPointsReceivedReplyFrom.Find(ep => ep.Address.Equals(endPointReceivedFrom.Address) && ep.Port == endPointReceivedFrom.Port) != null)
+                return;
+
+            // raise PeerDiscovered event
+            falconPeer.RaisePeerDiscovered(endPointReceivedFrom);
+
+            // add to list of end points received reply from
+            endPointsReceivedReplyFrom.Add(endPointReceivedFrom);
+            if (endPointsReceivedReplyFrom.Count == maxNumberPeersToDiscover)
             {
-                // check we haven't already discovered this peer
-                if (endPointsReceivedReplyFrom.Find(ep => ep.Address.Equals(endPointReceivedFrom.Address) && ep.Port == endPointReceivedFrom.Port) != null)
-                    return;
-
-                // raise PeerDiscovered event
-                falconPeer.RaisePeerDiscovered(endPointReceivedFrom);
-
-                // add to list of end points received reply from
-                endPointsReceivedReplyFrom.Add(endPointReceivedFrom);
-                if (endPointsReceivedReplyFrom.Count == maxNumberPeersToDiscover)
-                {
-                    callback(endPointsReceivedReplyFrom.ToArray());
-                    callback = null; // prevent possible subsequent Tick() calling the callback again
-                    TaskEnded = true;
-                }
+                callback(endPointsReceivedReplyFrom.ToArray());
+                callback = null; // prevent possible subsequent Tick() calling the callback again
+                TaskEnded = true;
             }
         }
 
@@ -147,6 +144,9 @@ namespace FalconUDP
             //             matches (inc. broadcast addresses) any one discovery reply.
 
             Debug.Assert(endPointDiscoveryReplyReceivedFrom.AddressFamily == AddressFamily.InterNetwork);
+
+            if (TaskEnded)
+                return false;
 
             foreach (IPEndPoint endPointToSendTo in endPointsToSendTo)
             {
