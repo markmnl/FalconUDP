@@ -320,9 +320,14 @@ namespace FalconUDP
                     aad.EllapsedSecondsSinceStart += dt;
                     if (aad.EllapsedSecondsSinceStart >= Settings.ACKTimeout)
                     {
-                        aad.EllapsedSecondsSinceStart = 0.0f;
-                        aad.RetryCount++;
-                        if (aad.RetryCount == Settings.ACKRetryAttempts)
+                        if (aad.RetryCount < Settings.ACKRetryAttempts)
+                        {
+                            // try again
+                            TryJoinPeerAsync(aad);
+                            aad.EllapsedSecondsSinceStart = 0.0f;
+                            aad.RetryCount++;
+                        }
+                        else
                         {
                             // give up, peer has not been added yet so no need to drop
                             awaitingAcceptDetails.RemoveAt(i);
@@ -335,11 +340,6 @@ namespace FalconUDP
                             {
                                 ReturnPacketToPool(aad.UserDataPacket);
                             }
-                        }
-                        else
-                        {
-                            // try again
-                            TryJoinPeerAsync(aad);
                         }
                     }
                 }
