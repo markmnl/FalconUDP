@@ -160,7 +160,8 @@ namespace FalconUDP
 
             FalconHelper.ReadFalconHeader(args.Buffer, args.Offset, out type, out opts, out seq, out payloadSize);
 
-            localPeer.Log(LogLevel.Debug, String.Format("--> Sending packet type: {0}, channel: {1}, seq {2}, payload size: {3}, total size: {4}...", 
+            localPeer.Log(LogLevel.Debug, String.Format("--> Sending packet to: {0}, type: {1}, channel: {2}, seq {3}, payload size: {4}, total size: {5}...", 
+                endPoint,
                 type, 
                 opts, 
                 seq, 
