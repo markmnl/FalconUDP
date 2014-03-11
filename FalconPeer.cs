@@ -1121,7 +1121,7 @@ namespace FalconUDP
         /// </summary>
         /// <param name="acceptJoinRequests">Set to true to allow other FalconUDP peers to join this one.</param>
         /// <param name="joinPassword">Password FalconUDP peers require to join this one.</param>
-        /// <param name="replyToDiscoveryRequests">Set to true to allow other FalconUDP peers discover this one.</param>
+        /// <param name="replyToDiscoveryRequests">Set to true to allow other FalconUDP peers discover this one with or without a token.</param>
         /// <param name="replyToAnonymousPings">Set to true to send reply pong to any FalconUDP Ping even if they have not joined.</param>
         /// <param name="replyToDiscoveryRequestsWithToken">Token incoming discovery requests require if we are to send reply to.</param>
         public void SetVisibility(bool acceptJoinRequests, 
