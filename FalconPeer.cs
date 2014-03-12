@@ -1529,14 +1529,14 @@ namespace FalconUDP
                 throw new NotImplementedException("only IPv4 addresses implemented");
 
             byte[] bytes = ip.GetAddressBytes(); // TODO garbage :-|
+
+            if (bytes[0] == 192 && bytes[1] == 168)
+                return true;
             
             if (bytes[0] == 10)
                 return true;
             
-            if(bytes[0] == 172 && bytes[1] == 16)
-                return true;
-
-            if (bytes[0] == 192 && bytes[1] == 168)
+            if(bytes[0] == 172 && (bytes[1] >= 16 && bytes[1] <= 31))
                 return true;
 
             return false;
