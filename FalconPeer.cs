@@ -1516,6 +1516,31 @@ namespace FalconUDP
 
             return rp.Latency;
         }
+
+        /// <summary>
+        /// Helper method gets whether <paramref name="ip"/> is in the private address space as defined in 
+        /// RFC3927.
+        /// </summary>
+        /// <param name="ip"><see cref="IPAddress"/> to check.</param>
+        /// <returns>True if <paramref name="ip"/> is in the private address space, otherwise false.</returns>
+        public static bool GetIsIPAddressPrivate(IPAddress ip)
+        {
+            if (ip.AddressFamily != AddressFamily.InterNetwork)
+                throw new NotImplementedException("only IPv4 addresses implemented");
+
+            byte[] bytes = ip.GetAddressBytes(); // TODO garbage :-|
+            
+            if (bytes[0] == 10)
+                return true;
+            
+            if(bytes[0] == 172 && bytes[1] == 16)
+                return true;
+
+            if (bytes[0] == 192 && bytes[1] == 168)
+                return true;
+
+            return false;
+        }
     }
 }
 
