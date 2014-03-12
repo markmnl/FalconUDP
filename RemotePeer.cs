@@ -136,15 +136,18 @@ namespace FalconUDP
             }
 
             // simulate delay
-            if (localPeer.SimulateDelaySeconds > 0.0f && !hasAlreadyBeenDelayed)
+            if (localPeer.SimulateDelayTimeSpan > TimeSpan.Zero && !hasAlreadyBeenDelayed)
             {
-                float delay = localPeer.SimulateDelaySeconds;
-                if (localPeer.SimulateDelayJitterMillisecuonds > 0.0f)
-                    delay += (SingleRandom.Next(0, localPeer.SimulateDelayJitterMillisecuonds * 2) - localPeer.SimulateDelayJitterMillisecuonds) / 1000.0f;
+                TimeSpan delay = localPeer.SimulateDelayTimeSpan;
+                if (localPeer.SimulateDelayJitterTimeSpan > TimeSpan.Zero)
+                {
+                    int jitterMilliseconds = (int)delay.TotalMilliseconds;
+                    delay.Add(TimeSpan.FromMilliseconds((SingleRandom.Next(0, jitterMilliseconds * 2) - (int)localPeer.SimulateDelayJitterTimeSpan.TotalMilliseconds)));
+                }
 
                 DelayedDatagram delayedDatagram = new DelayedDatagram
                     {
-                        EllapsedSecondsRemainingToDelay = delay,
+                        EllapsedSecondsRemainingToDelay = (float)delay.TotalSeconds,
                         Datagram = args
                     };
                 delayedDatagrams.Add(delayedDatagram);

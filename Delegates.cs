@@ -33,15 +33,15 @@ namespace FalconUDP
     /// Delegate for the <see cref="FalconPeer.PongReceivedFromPeer"/> event.
     /// </summary>
     /// <param name="peerId">Id of peer that send the Pong</param>
-    /// <param name="roundTripTimeInMilliseconds">Ellapsed milliseconds since Ping sent.</param>
-    public delegate void PongReceivedFromPeer(int peerId, int roundTripTimeInMilliseconds);
+    /// <param name="roundTripTime">Ellapsed milliseconds since Ping sent.</param>
+    public delegate void PongReceivedFromPeer(int peerId, TimeSpan roundTripTime);
 
     /// <summary>
     /// Delegate for the <see cref="FalconPeer.PongReceivedFromUnknownPeer"/> event.
     /// </summary>
     /// <param name="ipEndPoint">IPEndPoint pong received from.</param>
-    /// <param name="roundTripTimeInMilliseconds">Ellapsed milliseconds since Ping sent.</param>
-    public delegate void PongReceivedFromUnknownPeer(IPEndPoint ipEndPoint, int roundTripTimeInMilliseconds);
+    /// <param name="roundTripTime">Ellapsed seconds since Ping sent.</param>
+    public delegate void PongReceivedFromUnknownPeer(IPEndPoint ipEndPoint, TimeSpan roundTripTime);
 
 #if DEBUG
     /// <summary>

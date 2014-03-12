@@ -63,8 +63,8 @@ namespace FalconUDP
         /// </summary>
         public bool IsStarted { get { return !stopped; } }
 
-        internal float SimulateDelaySeconds { get; private set; }
-        internal int SimulateDelayJitterMillisecuonds { get; set; }
+        internal TimeSpan SimulateDelayTimeSpan { get; private set; }
+        internal TimeSpan SimulateDelayJitterTimeSpan { get; set; }
         internal double SimulatePacketLossChance { get; private set; }
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
         internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }
@@ -373,7 +373,7 @@ namespace FalconUDP
         }
         
         private void DiscoverFalconPeersAsync(bool listenForReply,
-            float durationInSeconds,
+            TimeSpan timeSpan,
             int numOfRequests, 
             int maxPeersToDiscover,
             IEnumerable<IPEndPoint> endPoints,
@@ -381,7 +381,7 @@ namespace FalconUDP
             DiscoveryCallback callback)
         {
             EmitDiscoverySignalTask task = emitDiscoverySignalTaskPool.Borrow();
-            task.Init(this, listenForReply, durationInSeconds, numOfRequests, maxPeersToDiscover, endPoints, token, callback);
+            task.Init(this, listenForReply, (float)timeSpan.TotalSeconds, numOfRequests, maxPeersToDiscover, endPoints, token, callback);
             lock (discoveryTasks)
             {
                 task.EmitDiscoverySignal(); // emit first signal now
@@ -682,7 +682,7 @@ namespace FalconUDP
 
                                 if (detail != null)
                                 {
-                                    RaisePongReceived(fromIPEndPoint, (int)(Stopwatch.ElapsedMilliseconds - detail.EllapsedMillisecondsAtSend));
+                                    RaisePongReceivedFromUnknownPeer(fromIPEndPoint, (int)(Stopwatch.ElapsedMilliseconds - detail.EllapsedMillisecondsAtSend));
                                     RemovePingAwaitingPongDetail(detail);
                                 }
                             }
@@ -787,18 +787,18 @@ namespace FalconUDP
                 PeerDropped(peerId);
         }
 
-        internal void RaisePongReceived(IPEndPoint ipEndPoint, int rtt)
+        internal void RaisePongReceivedFromUnknownPeer(IPEndPoint ipEndPoint, float rtt)
         {
             PongReceivedFromUnknownPeer pongReceivedFromUnknownPeer = PongReceivedFromUnknownPeer;
             if (pongReceivedFromUnknownPeer != null)
-                pongReceivedFromUnknownPeer(ipEndPoint, rtt);
+                pongReceivedFromUnknownPeer(ipEndPoint, TimeSpan.FromMilliseconds(rtt));
         }
 
         internal void RaisePongReceived(RemotePeer rp, int rtt)
         {
             PongReceivedFromPeer pongReceived = PongReceivedFromPeer;
             if (pongReceived != null)
-                pongReceived(rp.Id, rtt);
+                pongReceived(rp.Id, TimeSpan.FromMilliseconds(rtt));
         }
 
         internal void RaisePeerDiscovered(IPEndPoint ep)
@@ -1038,12 +1038,12 @@ namespace FalconUDP
         /// Begins a discovery process by emitting discovery signals to connected subnet on port 
         /// and for the time supplied.
         /// </summary>
-        /// <param name="millisecondsToWait">Time in milliseconds to wait for replies.</param>
+        /// <param name="timeSpan">Time span to wait for replies.</param>
         /// <param name="port">Port number to emit discovery signals to.</param>
         /// <param name="token">Optional <see cref="System.Guid"/> token remote peer requries</param>
         /// <param name="callback"><see cref="DiscoveryCallback"/> to invoke when the operation completes</param>
         /// <remarks><paramref name="token"/> should be null if NOT to be included int the discovery requests.</remarks>
-        public void DiscoverFalconPeersAsync(int millisecondsToWait, int port, Guid? token, DiscoveryCallback callback)
+        public void DiscoverFalconPeersAsync(TimeSpan timeSpan, int port, Guid? token, DiscoveryCallback callback)
         {
             CheckStarted();
 
@@ -1055,7 +1055,7 @@ namespace FalconUDP
             }
 
             DiscoverFalconPeersAsync(true,
-                millisecondsToWait / 1000.0f,
+                timeSpan,
                 Settings.DiscoverySignalsToEmit,
                 Settings.MaxNumberPeersToDiscover,
                 endPoints,
@@ -1067,11 +1067,11 @@ namespace FalconUDP
         /// Begins a discovery process by emitting signals to <paramref name="publicEndPoint"/>
         /// </summary>
         /// <param name="publicEndPoint"><see cref="IPEndPoint"/> to send discovery signals to.</param>
-        /// <param name="millisecondsToWait">Time in millisconds to continue operation for.</param>
+        /// <param name="timeSpan">Time span to continue operation for.</param>
         /// <param name="numOfRequests">Number of signals to emit.</param>
         /// <param name="replyToDiscoveryRequestsWithToken"><see cref="Guid"/> token required to solicit a response to.</param>
         public void AssistPunchThroughFromAsync(IPEndPoint publicEndPoint,
-            int millisecondsToWait,
+            TimeSpan timeSpan,
             int numOfRequests,
             Guid? replyToDiscoveryRequestsWithToken)
         {
@@ -1088,7 +1088,7 @@ namespace FalconUDP
             }
 
             DiscoverFalconPeersAsync(false,
-                millisecondsToWait,
+                timeSpan,
                 numOfRequests,
                 1,
                 new[] { publicEndPoint },
@@ -1100,12 +1100,12 @@ namespace FalconUDP
         /// Begins a discover process by emitting signals to <paramref name="endPoints"/>.
         /// </summary>
         /// <param name="endPoints"><see cref="IPEndPoint"/>s to send discovery signals to.</param>
-        /// <param name="millisecondsToWait">Time in millisconds to continue operation for.</param>
+        /// <param name="timeSpan">Time span to continue operation for.</param>
         /// <param name="numOfRequests">Number of signals to emit.</param>
         /// <param name="token"><see cref="Guid"/> token</param>
         /// <param name="callback"><see cref="PunchThroughCallback"/> to invoke once process completes.</param>
         public void PunchThroughToAsync(IEnumerable<IPEndPoint> endPoints, 
-            int millisecondsToWait, 
+            TimeSpan timeSpan, 
             int numOfRequests, 
             Guid? token,
             PunchThroughCallback callback)
@@ -1113,7 +1113,7 @@ namespace FalconUDP
             CheckStarted();
 
             punchThroughCallback = callback;
-            DiscoverFalconPeersAsync(true, millisecondsToWait, numOfRequests, 1, endPoints, token, PunchThroughDiscoveryCallback);
+            DiscoverFalconPeersAsync(true, timeSpan, numOfRequests, 1, endPoints, token, PunchThroughDiscoveryCallback);
         }
 
         /// <summary>
@@ -1422,19 +1422,19 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Simulates latency by delaying outgoing packets <paramref name="milliseondsToDelay"/> plus or minus <paramref name="jitterAboveOrBelowDelay"/>
+        /// Simulates latency by delaying outgoing packets <paramref name="periodToDelay"/> plus or minus <paramref name="jitterAboveOrBelowDelay"/>
         /// </summary>
-        /// <param name="milliseondsToDelay">Milliseconds to delay outgoing packets for</param>
-        /// <param name="jitterAboveOrBelowDelay">Milliseonds plus or minus (chosen randomly) to add to <paramref name="milliseondsToDelay"/></param>
-        public void SetSimulateLatency(int milliseondsToDelay, int jitterAboveOrBelowDelay)
+        /// <param name="periodToDelay">Time span to delay outgoing packets for</param>
+        /// <param name="jitterAboveOrBelowDelay">Time span plus or minus (chosen randomly) to add to <paramref name="periodToDelay"/></param>
+        public void SetSimulateLatency(TimeSpan periodToDelay, TimeSpan jitterAboveOrBelowDelay)
         {
-            if(milliseondsToDelay < 0)
-                throw new ArgumentOutOfRangeException("milliseondsToDelay", "must be equal to 0 (for no delay) or greater than 0 (to simulate delay)");
-            if(jitterAboveOrBelowDelay < 0 || jitterAboveOrBelowDelay > milliseondsToDelay)
-                throw new ArgumentOutOfRangeException("jitterAboveOrBelowDelay", "cannot be less than 0 or greater than milliseondsToDelay");
+            if(periodToDelay < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException("periodToDelay", "must be equal to 0 (for no delay) or greater than 0 (to simulate delay)");
+            if(jitterAboveOrBelowDelay < TimeSpan.Zero || jitterAboveOrBelowDelay > periodToDelay)
+                throw new ArgumentOutOfRangeException("jitterAboveOrBelowDelay", "cannot be less than 0 or greater than periodToDelay");
 
-            SimulateDelaySeconds = milliseondsToDelay / 1000.0f;
-            SimulateDelayJitterMillisecuonds = jitterAboveOrBelowDelay;
+            SimulateDelayTimeSpan = periodToDelay;
+            SimulateDelayJitterTimeSpan = jitterAboveOrBelowDelay;
         }
 
         /// <summary>
@@ -1507,14 +1507,14 @@ namespace FalconUDP
         /// Gets the current estimated one-way latency for <paramref name="peerId"/>.
         /// </summary>
         /// <param name="peerId">Id of the Falcon Peer connected to this peer.</param>
-        /// <returns>Current one-way estimated latency in milliseconds.</returns>
-        public int GetPeerLatency(int peerId)
+        /// <returns>Current one-way estimated latency.</returns>
+        public TimeSpan GetPeerLatency(int peerId)
         {
             RemotePeer rp;
             if (!peersById.TryGetValue(peerId, out rp))
-                return 0;
+                return TimeSpan.Zero;
 
-            return rp.Latency;
+            return TimeSpan.FromMilliseconds(rp.Latency);
         }
 
         /// <summary>
