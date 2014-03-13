@@ -101,7 +101,7 @@ namespace FalconUDP
 
         // discovery
         private List<EmitDiscoverySignalTask> discoveryTasks;
-        private bool                replyToDiscoveryRequests;           // i.e. reply unconditionally without a token
+        private bool                replyToAnyDiscoveryRequests;           // i.e. reply unconditionally without a token
         private List<Guid>          onlyReplyToDiscoveryRequestsWithToken;
 
         // helper
@@ -620,7 +620,7 @@ namespace FalconUDP
                         {
                             bool reply = false;
 
-                            if (replyToDiscoveryRequests)
+                            if (replyToAnyDiscoveryRequests)
                             {
                                 reply = true;
                             }
@@ -1081,7 +1081,7 @@ namespace FalconUDP
             }
             else
             {
-                replyToDiscoveryRequests = true;
+                replyToAnyDiscoveryRequests = true;
             }
 
             DiscoverFalconPeersAsync(false,
@@ -1134,7 +1134,7 @@ namespace FalconUDP
 
             this.acceptJoinRequests = acceptJoinRequests;
             this.joinPass = joinPassword;
-            this.replyToDiscoveryRequests = replyToDiscoveryRequests;
+            this.replyToAnyDiscoveryRequests = replyToDiscoveryRequests;
             this.replyToAnonymousPings = replyToAnonymousPings;
 
             if (replyToDiscoveryRequestsWithToken.HasValue)
