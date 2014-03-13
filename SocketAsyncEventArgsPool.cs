@@ -38,16 +38,13 @@ namespace FalconUDP
 
         internal SocketAsyncEventArgs Borrow()
         {
-            lock (pool)
+            if (pool.Count == 0)
             {
-                if (pool.Count == 0)
-                {
-                    Debug.WriteLine("***SocketAsyncEventArgsPool depleted, newing up another pool, each pool is {0}bytes***", buffersSize * numPerPool);
-                    GrowPool();
-                }
-
-                return pool.Dequeue();
+                Debug.WriteLine("***SocketAsyncEventArgsPool depleted, newing up another pool, each pool is {0}bytes***", buffersSize * numPerPool);
+                GrowPool();
             }
+
+            return pool.Dequeue();
         }
 
         internal void Return(SocketAsyncEventArgs args)
@@ -62,10 +59,7 @@ namespace FalconUDP
             if (args.Count != buffersSize)
                 args.SetBuffer(args.Offset, buffersSize);
 
-            lock (pool)
-            {
-                pool.Enqueue(args);
-            }
+            pool.Enqueue(args);
         }
     }
 }

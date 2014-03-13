@@ -382,11 +382,8 @@ namespace FalconUDP
         {
             EmitDiscoverySignalTask task = emitDiscoverySignalTaskPool.Borrow();
             task.Init(this, listenForReply, (float)timeSpan.TotalSeconds, numOfRequests, maxPeersToDiscover, endPoints, token, callback);
-            lock (discoveryTasks)
-            {
-                task.EmitDiscoverySignal(); // emit first signal now
-                discoveryTasks.Add(task);
-            }
+            task.EmitDiscoverySignal(); // emit first signal now
+            discoveryTasks.Add(task);
         }
 
         private void TryRemovePeer(IPEndPoint ip, bool logFailure, bool sayBye) 
@@ -1237,10 +1234,7 @@ namespace FalconUDP
             PingDetail detail = pingPool.Borrow();
             detail.Init(ipEndPoint, Stopwatch.ElapsedMilliseconds);
             SendToUnknownPeer(ipEndPoint, PacketType.Ping, SendOptions.None, null);
-            lock (PingsAwaitingPong)
-            {
-                PingsAwaitingPong.Add(detail);
-            }
+            PingsAwaitingPong.Add(detail);
         }
         
         /// <summary>
