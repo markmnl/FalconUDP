@@ -559,7 +559,7 @@ namespace FalconUDPTests
         [TestMethod]
         public void SimulateLatencyTest()
         {
-            const int DELAY = 100;
+            TimeSpan DELAY = TimeSpan.FromMilliseconds(100);
             const int OUT_OF_RANGE_TOLERANCE = 10; // NOTE: in DEBUG need wider tolerance to allow for Debug.WriteLine()'s
             const int NUM_OF_PINGS = 100;
 
@@ -574,8 +574,8 @@ namespace FalconUDPTests
 
             ConnectToLocalPeer(peer2, peer1, null);
 
-            peer1.SetSimulateLatency(DELAY, 0);
-            peer2.SetSimulateLatency(DELAY, 0);
+            peer1.SetSimulateLatency(DELAY, TimeSpan.Zero);
+            peer2.SetSimulateLatency(DELAY, TimeSpan.Zero);
              
             replyReceived = null; // clears any listeners
             replyReceived += (sender, packet) =>
@@ -604,7 +604,7 @@ namespace FalconUDPTests
             }
 
             double avg = estimatedLatencies.Average();
-            double diff = Math.Abs(avg - DELAY);
+            double diff = Math.Abs(avg - DELAY.TotalMilliseconds);
             Assert.IsTrue(diff < OUT_OF_RANGE_TOLERANCE, "Average estimated latency {0} differs from expected: {1} by: {2}ms", avg, DELAY, diff);
         }
 
@@ -620,7 +620,7 @@ namespace FalconUDPTests
             var waitHandel = new ManualResetEvent(false);
             var discoveredPeer1 = false;
 
-            peer2.DiscoverFalconPeersAsync(100, peer1.Port, DISCOVERY_TOKEN, ips => 
+            peer2.DiscoverFalconPeersAsync(TimeSpan.FromMilliseconds(100), peer1.Port, DISCOVERY_TOKEN, ips => 
                 {
                     if(ips!= null && ips.Length > 0 && ips[0].Port == peer1.Port)
                         discoveredPeer1 = true;
@@ -633,7 +633,7 @@ namespace FalconUDPTests
 
             discoveredPeer1 = false;
 
-            peer2.DiscoverFalconPeersAsync(100, peer1.Port, Guid.NewGuid(), ips =>
+            peer2.DiscoverFalconPeersAsync(TimeSpan.FromMilliseconds(100), peer1.Port, Guid.NewGuid(), ips =>
                 {
                     if (ips != null && ips.Length > 0 && ips[0].Port == peer1.Port)
                         discoveredPeer1 = true;

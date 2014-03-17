@@ -46,34 +46,28 @@ namespace FalconUDP
 
         internal Packet Borrow()
         {
-            lock (pool)
+            if (pool.Count == 0)
             {
-                if (pool.Count == 0)
-                {
-                    Debug.WriteLine("***PacketPool depleted, newing up another pool, each pool is {0}bytes.***", buffersSize * packetsPerBigBuffer);
-                    GrowPool();
-                }
-
-                Packet p = pool.Pop();
-                p.Init();
-#if DEBUG
-                leased.Add(p);
-#endif
-                return p;
+                Debug.WriteLine("***PacketPool depleted, newing up another pool, each pool is {0}bytes.***", buffersSize * packetsPerBigBuffer);
+                GrowPool();
             }
+
+            Packet p = pool.Pop();
+            p.Init();
+#if DEBUG
+            leased.Add(p);
+#endif
+            return p;
         }
 
         internal void Return(Packet p)
         {
-            lock (pool)
-            {
 #if DEBUG
-                if (!leased.Contains(p))
-                    throw new InvalidOperationException("item not leased");
-                leased.Remove(p);
+            if (!leased.Contains(p))
+                throw new InvalidOperationException("item not leased");
+            leased.Remove(p);
 #endif
-                pool.Push(p);
-            }
+            pool.Push(p);
         }
     }
 }

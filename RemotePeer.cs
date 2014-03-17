@@ -136,15 +136,18 @@ namespace FalconUDP
             }
 
             // simulate delay
-            if (localPeer.SimulateDelaySeconds > 0.0f && !hasAlreadyBeenDelayed)
+            if (localPeer.SimulateDelayTimeSpan > TimeSpan.Zero && !hasAlreadyBeenDelayed)
             {
-                float delay = localPeer.SimulateDelaySeconds;
-                if (localPeer.SimulateDelayJitterMillisecuonds > 0.0f)
-                    delay += (SingleRandom.Next(0, localPeer.SimulateDelayJitterMillisecuonds * 2) - localPeer.SimulateDelayJitterMillisecuonds) / 1000.0f;
+                TimeSpan delay = localPeer.SimulateDelayTimeSpan;
+                if (localPeer.SimulateDelayJitterTimeSpan > TimeSpan.Zero)
+                {
+                    int jitterMilliseconds = (int)delay.TotalMilliseconds;
+                    delay.Add(TimeSpan.FromMilliseconds((SingleRandom.Next(0, jitterMilliseconds * 2) - (int)localPeer.SimulateDelayJitterTimeSpan.TotalMilliseconds)));
+                }
 
                 DelayedDatagram delayedDatagram = new DelayedDatagram
                     {
-                        EllapsedSecondsRemainingToDelay = delay,
+                        EllapsedSecondsRemainingToDelay = (float)delay.TotalSeconds,
                         Datagram = args
                     };
                 delayedDatagrams.Add(delayedDatagram);
@@ -160,7 +163,8 @@ namespace FalconUDP
 
             FalconHelper.ReadFalconHeader(args.Buffer, args.Offset, out type, out opts, out seq, out payloadSize);
 
-            localPeer.Log(LogLevel.Debug, String.Format("--> Sending packet type: {0}, channel: {1}, seq {2}, payload size: {3}, total size: {4}...", 
+            localPeer.Log(LogLevel.Debug, String.Format("--> Sending packet to: {0}, type: {1}, channel: {2}, seq {3}, payload size: {4}, total size: {5}...", 
+                endPoint,
                 type, 
                 opts, 
                 seq, 

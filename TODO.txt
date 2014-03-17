@@ -1,5 +1,8 @@
 TODO
 ----
+- settings settable on FalconPeer
+- include packet size and version no. in join request
+- replace SocketAsyncEventArgs usage with BufferSegmant from BufferPool and Packet's can inherit from BufferSegmant
 - consider determining addresses to broadcast to at time of discovery not at startup (could have changed, though it does take a little time)
 
 One day
