@@ -893,7 +893,7 @@ namespace FalconUDP
 #if !MONO
                 Socket.SetIPProtectionLevel(IPProtectionLevel.EdgeRestricted);
 #endif
-#if !LINuX
+#if !LINUX
                 Socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
 #endif
                 Socket.Bind(anyAddrEndPoint);
