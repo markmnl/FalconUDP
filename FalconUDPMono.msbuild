@@ -3,7 +3,7 @@
   <PropertyGroup>
     <AssemblyName>FalconUDP</AssemblyName>
     <OutputPath>bin\x86\MonoRelease\</OutputPath>
-    <DefineConstants>MONO;UNSAFE</DefineConstants>
+    <DefineConstants>MONO;UNSAFE;</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Optimize>true</Optimize>
     <PlatformTarget>x86</PlatformTarget>
