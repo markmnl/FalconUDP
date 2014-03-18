@@ -53,8 +53,16 @@ namespace FalconUDP
         }
 
         internal FalconOperationResult(Exception ex, TReturnValue returnValue)
-            : this(false, ex.Message, ex, returnValue)
+            : this(false, null, ex, returnValue)
         {
+            string msg = "";
+            do
+            {
+                msg += String.Format("{0}{1}{0}{2}", Environment.NewLine, ex.Message, ex.StackTrace);
+                ex = ex.InnerException;
+            } while(ex != null);
+
+            this.NonSuccessMessage = msg;
         }
     }
 }
