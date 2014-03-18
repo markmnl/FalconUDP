@@ -865,7 +865,11 @@ namespace FalconUDP
                             LocalAddresses.Add(addrInfo.Address);
 
                             // broadcast addr
+#if LINUX
+                            byte[] mask = Const.CLASS_C_SUBNET_MASK;
+#else
                             byte[] mask = addrInfo.IPv4Mask == null ? Const.CLASS_C_SUBNET_MASK : addrInfo.IPv4Mask.GetAddressBytes();
+#endif
                             byte[] addr = addrInfo.Address.GetAddressBytes();
                             for (int i = 0; i < mask.Length; i++)
                                 addr[i] = mask[i] == 255 ? addr[i] : (byte)255;
