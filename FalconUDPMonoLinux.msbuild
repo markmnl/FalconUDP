@@ -1,0 +1,51 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <AssemblyName>FalconUDP</AssemblyName>
+    <OutputPath>bin\x86\MonoLinuxRelease\</OutputPath>
+    <DefineConstants>MONO;UNSAFE;LINUX</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Optimize>true</Optimize>
+    <PlatformTarget>x86</PlatformTarget>
+    <OutputType>Library</OutputType>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <TargetFrameworkProfile>Client</TargetFrameworkProfile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="AckDetail.cs"/>
+    <Compile Include="AwaitingAcceptDetail.cs"/>
+    <Compile Include="Const.cs"/>
+    <Compile Include="DelayedDatagram.cs"/>
+    <Compile Include="Delegates.cs"/>
+    <Compile Include="EmitDiscoverySignalTask.cs"/>
+    <Compile Include="Enums.cs"/>
+    <Compile Include="FalconHelper.cs"/>
+    <Compile Include="FalconOperationResult.cs"/>
+    <Compile Include="FalconPeer.cs"/>
+    <Compile Include="GenericObjectPool.cs"/>
+    <Compile Include="Packet.cs"/>
+    <Compile Include="PacketDetail.cs"/>
+    <Compile Include="PacketPool.cs"/>
+    <Compile Include="PingDetail.cs"/>
+    <Compile Include="ReceiveChannel.cs"/>
+    <Compile Include="RemotePeer.cs"/>
+    <Compile Include="SendChannel.cs"/>
+    <Compile Include="Settings.cs"/>
+    <Compile Include="SingleRandom.cs"/>
+    <Compile Include="SocketAsyncEventArgsPool.cs"/>
+    <Compile Include="Statistics.cs"/>
+  </ItemGroup>
+  <!--<Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />-->
+  <Target Name="Build">
+    <MakeDir Directories="$(OutputPath)" Condition="!Exists('$(OutputPath)')"/>
+    <Csc 
+      References="@(Reference)" 
+      Sources="@(Compile)" 
+      AllowUnsafeBlocks="$(AllowUnsafeBlocks)"
+      DefineConstants="$(DefineConstants)"
+      Optimize="$(Optimize)"
+      Platform="$(PlatformTarget)"
+      TargetType="$(OutputType)"
+      OutputAssembly="$(OutputPath)$(AssemblyName).dll"/>
+  </Target>
+</Project>
