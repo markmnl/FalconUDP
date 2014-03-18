@@ -1,15 +1,26 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <AssemblyName>FalconUDP</AssemblyName>
-    <OutputPath>bin\x86\MonoLinuxRelease\</OutputPath>
-    <DefineConstants>MONO;UNSAFE;LINUX</DefineConstants>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Optimize>true</Optimize>
     <PlatformTarget>x86</PlatformTarget>
     <OutputType>Library</OutputType>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <TargetFrameworkProfile>Client</TargetFrameworkProfile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
+    <OutputPath>bin\x86\MonoLinuxDebug\</OutputPath>
+    <DefineConstants>DEBUG;MONO;UNSAFE;LINUX</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
+    <OutputPath>bin\x86\MonoLinuxRelease\</OutputPath>
+    <DefineConstants>MONO;UNSAFE;LINUX</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Optimize>true</Optimize>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AckDetail.cs"/>
@@ -46,6 +57,7 @@
       Optimize="$(Optimize)"
       Platform="$(PlatformTarget)"
       TargetType="$(OutputType)"
+      EmitDebugInformation="$(DebugSymbols)"
       OutputAssembly="$(OutputPath)$(AssemblyName).dll"/>
   </Target>
 </Project>
