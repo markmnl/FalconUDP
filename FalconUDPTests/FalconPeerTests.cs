@@ -21,7 +21,7 @@ namespace FalconUDPTests
 
     public delegate void ReplyReceived(IPEndPoint sender, Packet packet);
 
-    [TestClass()]
+    [TestClass]
     public class FalconPeerTests
     {
         private const int START_PORT = 37986;
@@ -676,6 +676,66 @@ namespace FalconUDPTests
             lock (myLock)
             {
                 Assert.IsTrue(bytesSent.SequenceEqual(bytesReceived), "user data received in JoinRequest not as sent");
+            }
+        }
+
+        [TestMethod]
+        public void FalconAnonoymousPingTest()
+        {
+            var peer1 = CreateAndStartLocalPeer();
+            var peer2 = CreateAndStartLocalPeer();
+            var myLock = new object();
+            var pongReceived = false;
+            var waitHandel = new AutoResetEvent(false);
+
+            peer1.SetVisibility(true, null, false, true);
+
+            peer2.PongReceivedFromUnknownPeer += (IPEndPoint ip, TimeSpan rtt) =>
+                {
+                    lock (myLock)
+                    {
+                        pongReceived = true;
+                    }
+                };
+
+            peer2.PingEndPoint(new IPEndPoint(IPAddress.Loopback, peer1.Port));
+
+            waitHandel.WaitOne(MAX_REPLY_WAIT_TIME);
+
+            lock (myLock)
+            {
+                Assert.IsTrue(pongReceived, "Reply Pong not received from unknown Ping in time.");
+            }
+        }
+
+        [TestMethod]
+        public void FalconPingPeerTest()
+        {
+            var peer1 = CreateAndStartLocalPeer();
+            var peer2 = CreateAndStartLocalPeer();
+            var myLock = new object();
+            var pongReceived = false;
+            var waitHandel = new AutoResetEvent(false);
+
+            peer1.SetVisibility(true, null, false, false);
+            ConnectToLocalPeer(peer2, peer1, null);
+
+            peer2.PongReceivedFromPeer += (int id, TimeSpan rtt) =>
+            {
+                lock (myLock)
+                {
+                    pongReceived = true;
+                }
+            };
+
+            var peer1Id = peer2.GetAllRemotePeers().First().Key;
+            peer2.PingPeer(peer1Id);
+
+            waitHandel.WaitOne(MAX_REPLY_WAIT_TIME);
+
+            lock (myLock)
+            {
+                Assert.IsTrue(pongReceived, "Reply Pong not received from Ping to known peer in time.");
             }
         }
     }

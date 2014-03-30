@@ -39,12 +39,12 @@ namespace FalconUDP
         public event PeerDiscovered PeerDiscovered;
 
         /// <summary>
-        /// Event raised when Ping received in reply to a Ping sent to a known Peer using <see cref="PingPeer(int)"/>.
+        /// Event raised when Pong received in reply to a Ping sent to a known Peer using <see cref="PingPeer(int)"/>.
         /// </summary>
         public event PongReceivedFromPeer PongReceivedFromPeer;
 
         /// <summary>
-        /// Event raised when Ping received in reply to a Ping sent to a known or unknown Peer using <see cref="PingEndPoint(IPEndPoint)"/>.
+        /// Event raised when Pong received in reply to a Ping sent to a known or unknown Peer using <see cref="PingEndPoint(IPEndPoint)"/>.
         /// </summary>
         public event PongReceivedFromUnknownPeer PongReceivedFromUnknownPeer;
 
@@ -280,7 +280,8 @@ namespace FalconUDP
                 for (int i = 0; i < PingsAwaitingPong.Count; i++)
                 {
                     PingDetail detail = PingsAwaitingPong[i];
-                    if ((Stopwatch.ElapsedMilliseconds - detail.EllapsedMillisecondsAtSend) > Settings.PingTimeout)
+                    detail.EllapsedSeconds += dt;
+                    if (detail.EllapsedSeconds > Settings.PingTimeout)
                     {
                         PingsAwaitingPong.RemoveAt(i);
                         --i;
@@ -679,7 +680,7 @@ namespace FalconUDP
 
                                 if (detail != null)
                                 {
-                                    RaisePongReceivedFromUnknownPeer(fromIPEndPoint, (int)(Stopwatch.ElapsedMilliseconds - detail.EllapsedMillisecondsAtSend));
+                                    RaisePongReceivedFromUnknownPeer(fromIPEndPoint, (int)(Stopwatch.ElapsedMilliseconds - detail.EllapsedSeconds));
                                     RemovePingAwaitingPongDetail(detail);
                                 }
                             }
@@ -1221,26 +1222,26 @@ namespace FalconUDP
             else
             {
                 PingDetail detail = pingPool.Borrow();
-                detail.Init(peerId, Stopwatch.ElapsedMilliseconds);
-                rp.Ping();
+                detail.Init(peerId);
                 PingsAwaitingPong.Add(detail);
+                rp.Ping();
                 return true;
             }
         }
 
         /// <summary>
-        /// Ping remote peer.
+        /// Send ping <paramref name="ipEndPoint"/> which may not be joined.
         /// </summary>
-        /// <param name="ipEndPoint"><see cref="IPEndPoint"/> of the of remote peer to ping.</param>
-        /// <remarks><see cref="PongReceivedFromUnknownPeer"/>Will be raised, when/if reply Pong is received in time.</remarks>
+        /// <param name="ipEndPoint"><see cref="IPEndPoint"/> to ping.</param>
+        /// <remarks><see cref="PongReceivedFromUnknownPeer"/> Will be raised, when/if reply Pong is received in time.</remarks>
         public void PingEndPoint(IPEndPoint ipEndPoint)
         {
             CheckStarted();
 
             PingDetail detail = pingPool.Borrow();
-            detail.Init(ipEndPoint, Stopwatch.ElapsedMilliseconds);
-            SendToUnknownPeer(ipEndPoint, PacketType.Ping, SendOptions.None, null);
+            detail.Init(ipEndPoint);
             PingsAwaitingPong.Add(detail);
+            SendToUnknownPeer(ipEndPoint, PacketType.Ping, SendOptions.None, null);
         }
         
         /// <summary>
@@ -1493,14 +1494,11 @@ namespace FalconUDP
         /// <summary>
         /// Helper method which can be used by the user-application for measuring time.
         /// </summary>
-        /// <remarks>
-        /// To get the number of ticks per second query <see cref="System.Diagnostics.Stopwatch.Frequency"/>.
-        /// </remarks>
-        /// <returns>Ticks since this FalconPeer started.</returns>
-        public long GetEllapsedTicksSinceStarted()
+        /// <returns><see cref="TimeSpan"/> since this FalconPeer started.</returns>
+        public TimeSpan GetEllapsedSinceStarted()
         {
             CheckStarted();
-            return Stopwatch.ElapsedTicks;
+            return Stopwatch.Elapsed;
         }
 
         /// <summary>
