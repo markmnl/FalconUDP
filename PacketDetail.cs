@@ -6,7 +6,7 @@ namespace FalconUDP
     internal class PacketDetail
     {
         internal ushort Sequence;   
-        internal byte[] Bytes;
+        internal FalconBuffer Datagram;
         internal int    Count;
         internal byte   ResentCount;
         internal float  EllapsedSecondsSincePacketSent;
@@ -14,13 +14,8 @@ namespace FalconUDP
 
         public PacketDetail()
         {
-            Bytes = new byte[Const.MAX_DATAGRAM_SIZE];
         }
 
-        internal void CopyBytes(byte[] srcBuffer, int srcIndex, int count)
-        {
-            Buffer.BlockCopy(srcBuffer, srcIndex, Bytes, 0, count);
-            Count = count;
-        }
+        
     }
 }

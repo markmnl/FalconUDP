@@ -9,52 +9,53 @@ namespace FalconUDP
         internal bool IsReliable { get { return isReliable; } }
         internal int Count { get { return count; } } // number of packets ready for sending
 
-        private Queue<SocketAsyncEventArgs> queue;
+        private readonly BufferPool datagramPool;
+        private readonly GenericObjectPool<SendToken> tokenPool;
+        private readonly Queue<FalconBuffer> queue;
+        private readonly bool isReliable;
+
         private SendOptions channelType;
-        private SocketAsyncEventArgs currentArgs;
-        private int currentArgsTotalBufferOffset;
-        private SocketAsyncEventArgsPool argsPool;
+        private FalconBuffer currentDatagram;
+        private int currentBufferBufferOffset;
         private ushort seqCount;
-        private GenericObjectPool<SendToken> tokenPool;
         private SendToken currentToken;
         private int count;
-        private bool isReliable;
         
         public SendChannel(SendOptions channelType, 
-            SocketAsyncEventArgsPool argsPool, 
+            BufferPool datagramPool, 
             GenericObjectPool<SendToken> tokenPool)
         {
             this.channelType    = channelType;
-            this.argsPool       = argsPool;
-            this.queue          = new Queue<SocketAsyncEventArgs>();
-            this.currentArgs    = argsPool.Borrow();
-            this.currentArgsTotalBufferOffset = this.currentArgs.Offset;
+            this.datagramPool   = datagramPool;
+            this.queue          = new Queue<FalconBuffer>();
+            this.currentDatagram  = datagramPool.Borrow();
+            this.currentBufferBufferOffset = this.currentDatagram.Offset;
             this.isReliable     = (channelType & SendOptions.Reliable) == SendOptions.Reliable;
             this.tokenPool      = tokenPool;
             this.count          = 0;
 
-            SetCurrentArgsToken();
+            SetCurrentDatagramToken();
         }
 
-        private void SetCurrentArgsToken()
+        private void SetCurrentDatagramToken()
         {
             currentToken = tokenPool.Borrow();
             currentToken.SendOptions = this.channelType;
-            currentArgs.UserToken = currentToken; 
+            currentDatagram.UserToken = currentToken; 
         }
 
         private void EnqueueCurrentArgs()
         {
             // queue current one setting Count to actual number of bytes written
-            currentArgs.SetBuffer(currentArgs.Offset, currentArgsTotalBufferOffset - currentArgs.Offset);
-            queue.Enqueue(currentArgs);
+            currentDatagram.ReduceCount(currentBufferBufferOffset - currentDatagram.Offset);
+            queue.Enqueue(currentDatagram);
 
             // get a new one
-            currentArgs = argsPool.Borrow();
-            currentArgsTotalBufferOffset = currentArgs.Offset;
+            currentDatagram = datagramPool.Borrow();
+            currentBufferBufferOffset = currentDatagram.Offset;
 
             // assign it a new token
-            SetCurrentArgsToken();
+            SetCurrentDatagramToken();
 
             seqCount++;
         }
@@ -64,10 +65,10 @@ namespace FalconUDP
             count = 0;
         }
 
-        // used when args already constructed, e.g. re-sending unACKnowledged packet
-        internal void EnqueueSend(SocketAsyncEventArgs args)
+        // used when datagram already constructed, e.g. re-sending unACKnowledged packet
+        internal void EnqueueSend(FalconBuffer datagram)
         {
-            queue.Enqueue(args);
+            queue.Enqueue(datagram);
         }
 
         internal void EnqueueSend(PacketType type, Packet packet)
@@ -79,13 +80,13 @@ namespace FalconUDP
                 throw new InvalidOperationException(String.Format("Packet size: {0}, greater than max: {1}", packet.BytesWritten, Const.MAX_PAYLOAD_SIZE));
             }
 
-            bool isFalconHeaderWritten = currentArgsTotalBufferOffset > currentArgs.Offset;
+            bool isFalconHeaderWritten = currentBufferBufferOffset > currentDatagram.Offset;
 
             if (isFalconHeaderWritten)
             {
-                if (packet != null && (packet.BytesWritten + Const.ADDITIONAL_PACKET_HEADER_SIZE) > (currentArgs.Count - (currentArgsTotalBufferOffset - currentArgs.Offset))) // i.e. cannot fit
+                if (packet != null && (packet.BytesWritten + Const.ADDITIONAL_PACKET_HEADER_SIZE) > (currentDatagram.Count - (currentBufferBufferOffset - currentDatagram.Offset))) // i.e. cannot fit
                 {
-                    // enqueue the current args and get a new one
+                    // enqueue the current datagram and get a new one
                     EnqueueCurrentArgs();
                     isFalconHeaderWritten = false;
                 }
@@ -94,41 +95,41 @@ namespace FalconUDP
             if (!isFalconHeaderWritten)
             {
                 // write the falcon header
-                FalconHelper.WriteFalconHeader(currentArgs.Buffer,
-                    currentArgs.Offset,
+                FalconHelper.WriteFalconHeader(currentDatagram.Buffer,
+                    currentDatagram.Offset,
                     type,
                     channelType,
                     seqCount,
                     packet == null ? (ushort)0 : (ushort)packet.BytesWritten);
-                currentArgsTotalBufferOffset += Const.FALCON_PACKET_HEADER_SIZE;
+                currentBufferBufferOffset += Const.FALCON_PACKET_HEADER_SIZE;
             }
             else
             {
                 // write additional header
-                FalconHelper.WriteAdditionalFalconHeader(currentArgs.Buffer,
-                    currentArgsTotalBufferOffset,
+                FalconHelper.WriteAdditionalFalconHeader(currentDatagram.Buffer,
+                    currentBufferBufferOffset,
                     type,
                     channelType,
                     packet == null ? (ushort)0 : (ushort)packet.BytesWritten);
-                currentArgsTotalBufferOffset += Const.ADDITIONAL_PACKET_HEADER_SIZE;
+                currentBufferBufferOffset += Const.ADDITIONAL_PACKET_HEADER_SIZE;
             }
 
             if (packet != null)
             {
                 //----------------------------------------------------------------------------------------
-                packet.CopyBytes(0, currentArgs.Buffer, currentArgsTotalBufferOffset, packet.BytesWritten);
+                packet.CopyBytes(0, currentDatagram.Buffer, currentBufferBufferOffset, packet.BytesWritten);
                 //----------------------------------------------------------------------------------------
 
-                currentArgsTotalBufferOffset += packet.BytesWritten;
+                currentBufferBufferOffset += packet.BytesWritten;
             }
 
             count++;
         }
 
         // Get everything inc. current args if anything written to it
-        internal Queue<SocketAsyncEventArgs> GetQueue()
+        internal Queue<FalconBuffer> GetQueue()
         {
-            if (currentArgsTotalBufferOffset > currentArgs.Offset) // i.e. something written
+            if (currentBufferBufferOffset > currentDatagram.Offset) // i.e. something written
             {
                 EnqueueCurrentArgs();
             }

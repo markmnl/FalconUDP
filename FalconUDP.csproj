@@ -63,11 +63,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AckDetail.cs" />
+    <Compile Include="BufferPool.cs" />
     <Compile Include="Const.cs" />
     <Compile Include="DelayedDatagram.cs" />
     <Compile Include="Delegates.cs" />
     <Compile Include="EmitDiscoverySignalTask.cs" />
     <Compile Include="Enums.cs" />
+    <Compile Include="FalconBuffer.cs" />
     <Compile Include="FalconHelper.cs" />
     <Compile Include="FalconOperationResult.cs" />
     <Compile Include="FalconPeer.cs" />
