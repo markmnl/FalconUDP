@@ -20,7 +20,7 @@ namespace FalconUDP
             this.originalCount = count;
         }
 
-        internal void ReduceCount(int newCount)
+        internal void AdjustCount(int newCount)
         {
             Debug.Assert(newCount > 0, "newCount must be > 0");
             Debug.Assert(newCount <= originalCount, "newCount cannot be greater than originalCount");
@@ -36,7 +36,7 @@ namespace FalconUDP
         internal void CopyBuffer(FalconBuffer src)
         {
             System.Buffer.BlockCopy(src.Buffer, src.Offset, Buffer, Offset, src.Count);
-            ReduceCount(src.Count);
+            AdjustCount(src.Count);
         }
     }
 }

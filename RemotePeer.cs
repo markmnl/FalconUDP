@@ -199,7 +199,7 @@ namespace FalconUDP
                 ackPool.Return(ack);
                 index += Const.FALCON_PACKET_HEADER_SIZE;
             }
-            datagram.ReduceCount(index - datagram.Offset);
+            datagram.AdjustCount(index - datagram.Offset);
         }
 
         private void FlushSendChannel(SendChannel channel)
@@ -345,6 +345,7 @@ namespace FalconUDP
                                 payloadSize));
 #endif
                             localPeer.RemovePeerOnNextUpdate(this);
+                            datagramPool.Return(pd.Datagram);
                             packetDetailPool.Return(pd);
                         }
                         else
@@ -630,6 +631,10 @@ namespace FalconUDP
                         {
                             // remove packet detail
                             sentPacketsAwaitingACK.RemoveAt(detailIndex);
+
+                            // return packet detail and it's datagram to pools
+                            datagramPool.Return(detail.Datagram);
+                            packetDetailPool.Return(detail);
 
                             // update latency estimate (payloadSize is stopover time in on remote peer)
                             UpdateLantency((int)(detail.EllapsedSecondsSincePacketSent * 1000 - payloadSize));

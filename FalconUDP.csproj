@@ -86,7 +86,6 @@
     <Compile Include="SingleRandom.cs" />
     <Compile Include="Statistics.cs" />
     <Compile Include="GenericObjectPool.cs" />
-    <Compile Include="SocketAsyncEventArgsPool.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Protocol.txt" />

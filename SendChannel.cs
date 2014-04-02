@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Net.Sockets;
 
 namespace FalconUDP
 {
@@ -47,7 +46,7 @@ namespace FalconUDP
         private void EnqueueCurrentArgs()
         {
             // queue current one setting Count to actual number of bytes written
-            currentDatagram.ReduceCount(currentBufferBufferOffset - currentDatagram.Offset);
+            currentDatagram.AdjustCount(currentBufferBufferOffset - currentDatagram.Offset);
             queue.Enqueue(currentDatagram);
 
             // get a new one
