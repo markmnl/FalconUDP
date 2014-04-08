@@ -13,8 +13,14 @@ namespace FalconUDP
     /// , the Packet must not be re-used, always get another Packet by borrowing another one from 
     /// <see cref="FalconPeer.BorrowPacketFromPool()"/>.
     /// </remarks>
-    public class Packet
+    public class Packet : FalconBuffer
     {
+        private int pos;
+
+        internal bool IsReadOnly;
+        internal long ElapsedTimeAtReceived;
+        internal ushort DatagramSeq;
+
         /// <summary>
         /// FalconUDP Peer Id this packet was received from. Only set on received packets.
         /// </summary>
@@ -37,28 +43,17 @@ namespace FalconUDP
         /// <summary>
         /// Number bytes remaining to be read from this Packet from the current pos.
         /// </summary>
-        public int BytesRemaining { get { return BytesWritten - (pos - offset); } }
+        public int BytesRemaining { get { return BytesWritten - (pos - Offset); } }
 
         /// <summary>
         /// Number of bytes written to this Packet.
         /// </summary>
         public int BytesWritten { get; private set; }
 
-        internal bool IsReadOnly;
-        internal long ElapsedTimeAtReceived;
-        internal ushort DatagramSeq;
-
-        private byte[] backingBuffer;
-        private int offset;
-        private int count;
-        private int pos;
            
         // do not construct, get from a pool
-        internal Packet(byte[] backingBuffer, int offset, int count)
+        internal Packet()
         {
-            this.backingBuffer = backingBuffer;
-            this.offset = offset;
-            this.count = count;
         }
         
         private void PreRead(int size)
@@ -73,7 +68,7 @@ namespace FalconUDP
         {
             if(IsReadOnly)
                 throw new InvalidOperationException("Packet is read-only, borrow another from the pool.");
-            if(size > (count - (pos - offset)))
+            if(size > (Count - (pos - Offset)))
                 throw new ArgumentException("Not enough bytes avaliable to write from current position");
             BytesWritten += size;
         }
@@ -84,7 +79,7 @@ namespace FalconUDP
         /// <param name="peerId">Falcon Peer Id packet received from.</param>
         internal void ResetAndMakeReadOnly(int peerId)
         {
-            pos = offset;
+            pos = Offset;
             IsReadOnly = true;
             PeerId = peerId;
         }
@@ -93,30 +88,18 @@ namespace FalconUDP
         {
             // NOTE: This should fully reset this Packet as is called when re-used from the pool.
 
-            pos = offset;
+            pos = Offset;
             BytesWritten = 0;
             IsReadOnly = false;
             ElapsedMillisecondsSinceSent = 0;
             DatagramSeq = 0;
         }
 
-        internal void CopyBytes(int index, byte[] destination, int dstOffset, int count)
-        {
-            if (index > BytesWritten)
-                throw new ArgumentOutOfRangeException("index");
-            if (index + count > BytesWritten)
-                throw new InvalidOperationException("Not enough bytes remain to copy count from index");
-            if (count == 0)
-                return;
-
-            Buffer.BlockCopy(backingBuffer, offset + index, destination, dstOffset, count);
-        }
-
         internal byte[] ToBytes()
         { 
             byte[] bytes = new byte[BytesWritten];
             if(BytesWritten > 0)
-                Buffer.BlockCopy(backingBuffer, offset, bytes, 0, BytesWritten);
+                Buffer.BlockCopy(BackingBuffer, Offset, bytes, 0, BytesWritten);
             return bytes;
         }
         
@@ -130,10 +113,10 @@ namespace FalconUDP
         /// the beginning, and makes it read-only.</param>
         public static void Clone(Packet srcPacket, Packet dstPacket, bool reset)
         {
-            if(dstPacket.count != srcPacket.count)
+            if(dstPacket.Count != srcPacket.Count)
                 throw new InvalidOperationException("packets are differnt sizes");
 
-            Buffer.BlockCopy(srcPacket.backingBuffer, srcPacket.offset, dstPacket.backingBuffer, dstPacket.offset, srcPacket.BytesWritten);
+            Buffer.BlockCopy(srcPacket.BackingBuffer, srcPacket.Offset, dstPacket.BackingBuffer, dstPacket.Offset, srcPacket.BytesWritten);
             dstPacket.BytesWritten = srcPacket.BytesWritten;
             dstPacket.DatagramSeq = srcPacket.DatagramSeq;
             dstPacket.ElapsedMillisecondsSinceSent = srcPacket.ElapsedMillisecondsSinceSent;
@@ -143,7 +126,7 @@ namespace FalconUDP
             }
             else
             {
-                dstPacket.pos = dstPacket.offset +  (srcPacket.pos - srcPacket.offset);
+                dstPacket.pos = dstPacket.Offset +  (srcPacket.pos - srcPacket.Offset);
                 dstPacket.IsReadOnly = srcPacket.IsReadOnly;
                 dstPacket.PeerId = srcPacket.PeerId;
             }
@@ -157,7 +140,7 @@ namespace FalconUDP
         public byte ReadByte()
         {
             PreRead(sizeof(byte));
-            byte rv = backingBuffer[pos];
+            byte rv = BackingBuffer[pos];
             pos += sizeof(byte);
             return rv;
         }
@@ -170,7 +153,7 @@ namespace FalconUDP
         public bool ReadBool()
         {
             PreRead(sizeof(bool));
-            bool rv = backingBuffer[pos] > 0;
+            bool rv = BackingBuffer[pos] > 0;
             pos += sizeof(bool);
             return rv;
         }
@@ -182,7 +165,7 @@ namespace FalconUDP
         public short ReadInt16()
         {
             PreRead(sizeof(short));
-            short rv = BitConverter.ToInt16(backingBuffer, pos);
+            short rv = BitConverter.ToInt16(BackingBuffer, pos);
             pos += sizeof(short);
             return rv;
         }
@@ -194,7 +177,7 @@ namespace FalconUDP
         public ushort ReadUInt16()
         {
             PreRead(sizeof(ushort));
-            ushort rv = BitConverter.ToUInt16(backingBuffer, pos);
+            ushort rv = BitConverter.ToUInt16(BackingBuffer, pos);
             pos += sizeof(ushort);
             return rv;
         }
@@ -206,7 +189,7 @@ namespace FalconUDP
         public int ReadInt32()
         {
             PreRead(sizeof(int));
-            int rv = BitConverter.ToInt32(backingBuffer, pos);
+            int rv = BitConverter.ToInt32(BackingBuffer, pos);
             pos += sizeof(int);
             return rv;
         }
@@ -218,7 +201,7 @@ namespace FalconUDP
         public uint ReadUInt32()
         {
             PreRead(sizeof(uint));
-            uint rv = BitConverter.ToUInt32(backingBuffer, pos);
+            uint rv = BitConverter.ToUInt32(BackingBuffer, pos);
             pos += sizeof(uint);
             return rv;
         }
@@ -230,7 +213,7 @@ namespace FalconUDP
         public long ReadInt64()
         {
             PreRead(sizeof(long));
-            long rv = BitConverter.ToInt64(backingBuffer, pos);
+            long rv = BitConverter.ToInt64(BackingBuffer, pos);
             pos += sizeof(long);
             return rv;
         }
@@ -242,7 +225,7 @@ namespace FalconUDP
         public ulong ReadUInt64()
         {
             PreRead(sizeof(ulong));
-            ulong rv = BitConverter.ToUInt64(backingBuffer, pos);
+            ulong rv = BitConverter.ToUInt64(BackingBuffer, pos);
             pos += sizeof(ulong);
             return rv;
         }
@@ -254,7 +237,7 @@ namespace FalconUDP
         public float ReadSingle()
         {
             PreRead(sizeof(float));
-            float rv = BitConverter.ToSingle(backingBuffer, pos);
+            float rv = BitConverter.ToSingle(BackingBuffer, pos);
             pos += sizeof(float);
             return rv;
         }
@@ -266,7 +249,7 @@ namespace FalconUDP
         public double ReadDouble()
         {
             PreRead(sizeof(double));
-            double rv = BitConverter.ToDouble(backingBuffer, pos);
+            double rv = BitConverter.ToDouble(BackingBuffer, pos);
             pos += sizeof(double);
             return rv;
         }
@@ -280,7 +263,7 @@ namespace FalconUDP
         {
             PreRead(count);
             byte[] bytes = new byte[count];
-            Buffer.BlockCopy(backingBuffer, pos, bytes, 0, count);
+            Buffer.BlockCopy(BackingBuffer, pos, bytes, 0, count);
             pos += count;
             return bytes;
         }
@@ -294,7 +277,7 @@ namespace FalconUDP
         public void ReadBytes(byte[] destination, int dstOffset, int count)
         {
             PreRead(count);
-            Buffer.BlockCopy(backingBuffer, pos, destination, dstOffset, count);
+            Buffer.BlockCopy(BackingBuffer, pos, destination, dstOffset, count);
             pos += count;
         }
         
@@ -307,7 +290,7 @@ namespace FalconUDP
         /// <returns>Text as <see cref="String"/></returns>
         public string ReadString(Encoding encoding, int lengthInBytes)
         {
-            string rv = encoding.GetString(backingBuffer, pos, lengthInBytes);
+            string rv = encoding.GetString(BackingBuffer, pos, lengthInBytes);
             pos += lengthInBytes;
             return rv;
         }
@@ -351,7 +334,7 @@ namespace FalconUDP
         public void WriteByte(byte value)
         {
             PreWrite(sizeof(byte));
-            backingBuffer[pos] = value;
+            BackingBuffer[pos] = value;
             pos += sizeof(byte);
         }
         
@@ -362,7 +345,7 @@ namespace FalconUDP
         public void WriteBool(bool value)
         {
             PreWrite(sizeof(bool));
-            backingBuffer[pos] = value ? (byte)1 : (byte)0;
+            BackingBuffer[pos] = value ? (byte)1 : (byte)0;
             pos += sizeof(bool);
         }
 
@@ -373,7 +356,7 @@ namespace FalconUDP
         public unsafe void WriteInt16(short value)
         {
             PreWrite(sizeof(short));
-            fixed (byte* ptr = backingBuffer)
+            fixed (byte* ptr = BackingBuffer)
             {
                 *(short*)(ptr + pos) = value;
             }
@@ -387,7 +370,7 @@ namespace FalconUDP
         public unsafe void WriteUInt16(ushort value)
         {
             PreWrite(sizeof(ushort));
-            fixed (byte* ptr = backingBuffer)
+            fixed (byte* ptr = BackingBuffer)
             {
                 *(ushort*)(ptr + pos) = value;
             }
@@ -402,12 +385,12 @@ namespace FalconUDP
         /// <param name="index">index in underlying buffer for this packet to start write at</param>
         public unsafe void WriteUInt16At(ushort value, int index)
         {
-            if (index < 0 || (index + sizeof(ushort) > count))
+            if (index < 0 || (index + sizeof(ushort) > Count))
                 throw new ArgumentOutOfRangeException("index");
 
-            fixed (byte* ptr = backingBuffer)
+            fixed (byte* ptr = BackingBuffer)
             {
-                *(ushort*)(ptr + (offset + index)) = value;
+                *(ushort*)(ptr + (Offset + index)) = value;
             }
         }
 
@@ -418,7 +401,7 @@ namespace FalconUDP
         public unsafe void WriteInt32(int value)
         {
             PreWrite(sizeof(int));
-            fixed (byte* ptr = backingBuffer)
+            fixed (byte* ptr = BackingBuffer)
             {
                 *(int*)(ptr + pos) = value;
             }
@@ -432,7 +415,7 @@ namespace FalconUDP
         public unsafe void WriteUInt32(uint value)
         {
             PreWrite(sizeof(uint));
-            fixed (byte* ptr = backingBuffer)
+            fixed (byte* ptr = BackingBuffer)
             {
                 *(uint*)(ptr + pos) = value;
             }
@@ -446,7 +429,7 @@ namespace FalconUDP
         public unsafe void WriteInt64(long value)
         {
             PreWrite(sizeof(long));
-            fixed (byte* ptr = backingBuffer)
+            fixed (byte* ptr = BackingBuffer)
             {
                 *(long*)(ptr + pos) = value;
             }
@@ -460,7 +443,7 @@ namespace FalconUDP
         public unsafe void WriteUInt64(ulong value)
         {
             PreWrite(sizeof(ulong));
-            fixed (byte* ptr = backingBuffer)
+            fixed (byte* ptr = BackingBuffer)
             {
                 *(ulong*)(ptr + pos) = value;
             }
@@ -474,7 +457,7 @@ namespace FalconUDP
         public unsafe void WriteSingle(float value)
         {
             PreWrite(sizeof(float));
-            fixed (byte* ptr = backingBuffer)
+            fixed (byte* ptr = BackingBuffer)
             {
                 *(float*)(ptr + pos) = value;
             }
@@ -488,7 +471,7 @@ namespace FalconUDP
         public unsafe void WriteDouble(double value)
         {
             PreWrite(sizeof(double));
-            fixed (byte* ptr = backingBuffer)
+            fixed (byte* ptr = BackingBuffer)
             {
                 *(double*)(ptr + pos) = value;
             }
@@ -505,7 +488,7 @@ namespace FalconUDP
         public void WriteBytes(byte[] bytes, int srcOffset, int count)
         {
             PreWrite(count);
-            Buffer.BlockCopy(bytes, srcOffset, backingBuffer, pos, count);
+            Buffer.BlockCopy(bytes, srcOffset, BackingBuffer, pos, count);
             pos += count;
         }
 
@@ -519,7 +502,7 @@ namespace FalconUDP
         public void WriteBytes(Packet srcPacket, int srcOffset, int count)
         {
             PreWrite(count);
-            Buffer.BlockCopy(srcPacket.backingBuffer, srcPacket.offset + srcOffset, backingBuffer, pos, count);
+            Buffer.BlockCopy(srcPacket.BackingBuffer, srcPacket.Offset + srcOffset, BackingBuffer, pos, count);
             pos += count;
         }
 

@@ -2,25 +2,28 @@
 
 namespace FalconUDP
 {
-    internal class FalconBuffer
+    public abstract class FalconBuffer
     {
-        private readonly int originalCount;
+        private int originalCount;
 
-        internal byte[] Buffer { get; private set; }
+        internal byte[] BackingBuffer { get; private set; }
         internal int Offset { get; private set; }
         internal int Count { get; private set; }
-        internal int Pos { get; private set; }
-        internal object UserToken { get; set; }
 
-        internal FalconBuffer(byte[] backingBuffer, int offset, int count)
+        internal FalconBuffer()
         {
-            this.Buffer = backingBuffer;
+
+        }
+
+        internal void Init(byte[] backingBuffer, int offset, int count)
+        {
+            this.BackingBuffer = backingBuffer;
             this.Offset = offset;
             this.Count = count;
             this.originalCount = count;
         }
 
-        internal void AdjustCount(int newCount)
+        internal void SetCount(int newCount)
         {
             Debug.Assert(newCount > 0, "newCount must be > 0");
             Debug.Assert(newCount <= originalCount, "newCount cannot be greater than originalCount");
@@ -31,12 +34,6 @@ namespace FalconUDP
         internal void ResetCount()
         {
             Count = originalCount;
-        }
-
-        internal void CopyBuffer(FalconBuffer src)
-        {
-            System.Buffer.BlockCopy(src.Buffer, src.Offset, Buffer, Offset, src.Count);
-            AdjustCount(src.Count);
         }
     }
 }
