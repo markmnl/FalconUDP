@@ -14,7 +14,7 @@ namespace FalconUDP
 
     internal class RemotePeer
     {
-        internal int Id { get; private set; }
+        internal int Id { get { return id; } }
         internal IPEndPoint EndPoint { get { return endPoint; } }
         internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application
         internal string PeerName { get; private set; }                          // e.g. IP end point, used for logging
@@ -22,6 +22,7 @@ namespace FalconUDP
 
         internal bool IsKeepAliveMaster;                            // i.e. this remote peer is the master so it will send the KeepAlives, not us!
 
+        private readonly int id;
         private int unreadPacketCount;
         private readonly bool keepAliveAndAutoFlush;
         private IPEndPoint endPoint;
@@ -52,7 +53,7 @@ namespace FalconUDP
              
         internal RemotePeer(FalconPeer localPeer, IPEndPoint endPoint, int peerId, bool keepAliveAndAutoFlush = true)
         {
-            this.Id                     = peerId;
+            this.id                     = peerId;
             this.localPeer              = localPeer;
             this.endPoint               = endPoint;
             this.unreadPacketCount      = 0;
@@ -213,10 +214,11 @@ namespace FalconUDP
 
                 if (channel.IsReliable)
                 {
+                    ushort seq = BitConverter.ToUInt16(datagram.Buffer, datagram.Offset + 1);
+
                     if (token.IsReSend)
                     {
                         // update the time sent TODO include bit in header to indicate is resend so if ACK for previous datagram latency calculated correctly could do packet loss stats too?
-                        ushort seq = BitConverter.ToUInt16(datagram.Buffer, datagram.Offset + 1);
                         for (int i = 0; i < sentPacketsAwaitingACK.Count; i++)
                         {
                             PacketDetail detail = sentPacketsAwaitingACK[i];
@@ -235,7 +237,7 @@ namespace FalconUDP
                         PacketDetail detail = packetDetailPool.Borrow();
                         detail.ChannelType = token.SendOptions;
                         detail.EllapsedSecondsSincePacketSent = 0.0f;
-                        detail.Sequence = BitConverter.ToUInt16(datagram.Buffer, datagram.Offset + 1);
+                        detail.Sequence = seq;
                         detail.Datagram = datagramPool.Borrow(); // we need to copy datagram as one being processed is returned to pool
                         detail.Datagram.CopyBuffer(datagram);
                         sentPacketsAwaitingACK.Add(detail);                        
@@ -265,8 +267,8 @@ namespace FalconUDP
 
         private void Pong()
         {
-            EnqueueSend(PacketType.Pong, SendOptions.Reliable, null);
-            ForceFlushSendChannelNow(SendOptions.Reliable); // pongs must be sent immediatly as RTT is measured
+            EnqueueSend(PacketType.Pong, SendOptions.None, null);
+            ForceFlushSendChannelNow(SendOptions.None); // pongs must be sent immediatly as RTT is measured
         }
 
         private void DiscoverReply()

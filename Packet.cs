@@ -79,7 +79,7 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Resets the pos, marks are read only and sets the peer id from.
+        /// Resets the pos, marks as read only and sets the peer id from.
         /// </summary>
         /// <param name="peerId">Falcon Peer Id packet received from.</param>
         internal void ResetAndMakeReadOnly(int peerId)
