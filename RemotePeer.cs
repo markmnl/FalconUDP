@@ -277,8 +277,8 @@ namespace FalconUDP
 
         private void Pong()
         {
-            EnqueueSend(PacketType.Pong, SendOptions.Reliable, null);
-            ForceFlushSendChannelNow(SendOptions.Reliable); // pongs must be sent immediatly as RTT is measured
+            EnqueueSend(PacketType.Pong, SendOptions.None, null);
+            ForceFlushSendChannelNow(SendOptions.None); // pongs must be sent immediatly as RTT is measured
         }
 
         private void DiscoverReply()
