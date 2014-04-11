@@ -49,10 +49,10 @@ namespace FalconUDP
         /// Number of bytes written to this Packet.
         /// </summary>
         public int BytesWritten { get; private set; }
-
-           
+   
         // do not construct, get from a pool
         internal Packet()
+            : base()
         {
         }
         
@@ -73,8 +73,20 @@ namespace FalconUDP
             BytesWritten += size;
         }
 
+        internal override void OnBorrow()
+        {
+            // NOTE: This should fully reset this Packet as is called when re-used from the pool.
+            pos = Offset;
+            BytesWritten = 0;
+            IsReadOnly = false;
+            ElapsedMillisecondsSinceSent = 0;
+            DatagramSeq = 0;
+
+            base.OnBorrow();
+        }
+
         /// <summary>
-        /// Resets the pos, marks are read only and sets the peer id from.
+        /// Resets the pos, marks as read only and sets the peer id from.
         /// </summary>
         /// <param name="peerId">Falcon Peer Id packet received from.</param>
         internal void ResetAndMakeReadOnly(int peerId)
@@ -82,17 +94,6 @@ namespace FalconUDP
             pos = Offset;
             IsReadOnly = true;
             PeerId = peerId;
-        }
-
-        internal void Init()
-        {
-            // NOTE: This should fully reset this Packet as is called when re-used from the pool.
-
-            pos = Offset;
-            BytesWritten = 0;
-            IsReadOnly = false;
-            ElapsedMillisecondsSinceSent = 0;
-            DatagramSeq = 0;
         }
 
         internal byte[] ToBytes()

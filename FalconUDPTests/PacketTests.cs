@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace FalconUDPTests
 {
-    [TestClass()]
+    [TestClass]
     public class PacketTests
     {
         #region Additional test attributes
@@ -38,12 +38,17 @@ namespace FalconUDPTests
         //
         #endregion
 
+        private static Packet PacketProducer()
+        {
+            return new Packet();
+        }
+
         [TestMethod]
         public void WriteReadBytesTest()
         {
             const int PACKET_SIZE = 10000;
 
-            var pool = new PacketPool(PACKET_SIZE, 1);
+            var pool = new BufferPool<Packet>(PACKET_SIZE, 1, PacketProducer);
             var packet = pool.Borrow();
             var bytes = new byte[PACKET_SIZE];
             var rand = new Random();
@@ -68,7 +73,7 @@ namespace FalconUDPTests
         {
             const int PACKET_SIZE = 12;
 
-            var pool = new PacketPool(PACKET_SIZE, 1);
+            var pool = new BufferPool<Packet>(PACKET_SIZE, 1, PacketProducer);
             var packet = pool.Borrow();
             var bytes = new byte[PACKET_SIZE + 1];
 
@@ -81,7 +86,7 @@ namespace FalconUDPTests
         {
             const int PACKET_SIZE = 12;
 
-            var pool = new PacketPool(PACKET_SIZE, 1);
+            var pool = new BufferPool<Packet>(PACKET_SIZE, 1, PacketProducer);
             var packet = pool.Borrow();
             var bytes = new byte[4];
 
@@ -97,13 +102,13 @@ namespace FalconUDPTests
             const int PACKET_SIZE = 123;
             const int NUM_OF_LOOPS = 10000;
 
-            var pool = new PacketPool(PACKET_SIZE, 1);
+            var pool = new BufferPool<Packet>(PACKET_SIZE, 1, PacketProducer);
             var packet = pool.Borrow();
             var rand = new Random();
 
             for (var i = 0; i < NUM_OF_LOOPS; i++)
             {
-                packet.Init();
+                //TODOpacket.Init();
                 var bytes = new byte[rand.Next(PACKET_SIZE+1)];
                 rand.NextBytes(bytes);
                 packet.WriteBytes(bytes);

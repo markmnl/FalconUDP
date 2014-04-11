@@ -4,7 +4,7 @@ namespace FalconUDP
 {
     internal static class FalconHelper
     {
-        internal static unsafe void WriteFalconHeader(byte[] dstBuffer, 
+        internal static unsafe int WriteFalconHeader(byte[] dstBuffer, 
             int dstIndex, 
             PacketType type, 
             SendOptions opts, 
@@ -17,9 +17,10 @@ namespace FalconUDP
                 *(ushort*)(ptr + 1) = seq;
                 *(ushort*)(ptr + 3) = payloadSize;
             }
+            return 5;
         }
 
-        internal static unsafe void WriteAdditionalFalconHeader(byte[] dstBuffer,
+        internal static unsafe int WriteAdditionalFalconHeader(byte[] dstBuffer,
             int dstIndex,
             PacketType type,
             SendOptions opts,
@@ -30,9 +31,10 @@ namespace FalconUDP
                 *ptr = (byte)((byte)opts | (byte)type);
                 *(ushort*)(ptr + 1) = payloadSize;
             }
+            return 3;
         }
 
-        internal static void WriteAck(AckDetail ack, 
+        internal static int WriteAck(AckDetail ack, 
             byte[] dstBuffer, 
             int dstIndex)
         {
@@ -41,7 +43,7 @@ namespace FalconUDP
                 ? ushort.MaxValue 
                 : (ushort)ellapsedMilliseconds; // TODO log warning if was greater than MaxValue
 
-            WriteFalconHeader(dstBuffer,
+            return WriteFalconHeader(dstBuffer,
                 dstIndex,
                 ack.Type,
                 ack.Channel,

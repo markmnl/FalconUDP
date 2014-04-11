@@ -1,22 +1,25 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace FalconUDP
 {
-    internal class BufferPool<T> where T: FalconBuffer, new()
+    internal class BufferPool<T> where T: FalconBuffer
     {
         private int bufferSize;
         private int numOfBuffersPerPool;
         private Stack<T> pool;
+        private Func<T> producer; 
 #if DEBUG
         private HashSet<T> leased; 
 #endif
  
-        internal BufferPool(int bufferSize, int initalNumberOfBuffers)
+        internal BufferPool(int bufferSize, int initalNumberOfBuffers, Func<T> producer)
         {
             this.bufferSize = bufferSize;
             this.numOfBuffersPerPool = initalNumberOfBuffers;
             this.pool = new Stack<T>();
+            this.producer = producer;
 #if DEBUG
             this.leased = new HashSet<T>();
 #endif
@@ -28,7 +31,7 @@ namespace FalconUDP
             byte[] backingBuffer = new byte[bufferSize * numOfBuffersPerPool];
             for(int i = 0; i < numOfBuffersPerPool; i++)
             {
-                T buffer = new T();
+                T buffer = producer();
                 buffer.Init(backingBuffer, i * bufferSize, bufferSize);
                 pool.Push(buffer);
             }
@@ -42,6 +45,7 @@ namespace FalconUDP
 #if DEBUG
             leased.Add(buffer);
 #endif
+            buffer.OnBorrow();
             return buffer;
         }
 

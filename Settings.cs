@@ -14,20 +14,18 @@ namespace FalconUDP
         internal const int DiscoverySignalsToEmit               = 3;
         internal const int MaxNumberPeersToDiscover             = 64;     
         internal const int MaxNeccessaryOrdinalSeq              = ushort.MaxValue + OutOfOrderTolerance;
-        internal const float KeepAliveIfInterval                = 5.0f;                             // seconds
-        internal const float KeepAliveIfNoKeepAliveReceived     = KeepAliveIfInterval + ACKTimeout + 1;
+        internal const float KeepAliveInterval                  = 5.0f;                             // seconds
+        internal const float KeepAliveIfNoKeepAliveReceived     = KeepAliveInterval + ACKTimeout + 1;
         internal const float AutoFlushInterval                  = ACKTimeout - 0.4f;                // seconds
         internal const int PingTimeout                          = 2000;                             // milliseconds
         internal const int ReciveBufferSize                     = 8192;
         internal const int SendBufferSize                       = ReciveBufferSize;
 
-        internal const int InitalNumRecvArgsToPool              = 32;
-        internal const int InitalNumSendArgsToPoolPerPeer       = InitalNumRecvArgsToPool;
-        internal const int InitalNumPacketDetailPerPeerToPool   = 6;
-        internal const int InitalNumPacketsToPool               = 320;  
+        internal const int InitalNumDatagramDetailPerPeerToPool = 6;
+        internal const int InitalNumDatagramsPerPeerToPool      = 8;
+        internal const int InitalNumPacketsToPool               = 32;  
         internal const int InitalNumEmitDiscoverySignalTaskToPool = 5;  
-        internal const int InitalNumDiscoverySendArgsToPool     = InitalNumEmitDiscoverySignalTaskToPool * 2;
-        internal const int InitalNumAcksToPoolPerPeer           = InitalNumPacketDetailPerPeerToPool;
+        internal const int InitalNumAcksToPoolPerPeer           = 5;
         internal const int InitalNumPingsToPool                 = 10;
     }
 }

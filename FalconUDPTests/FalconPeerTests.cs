@@ -26,7 +26,7 @@ namespace FalconUDPTests
     {
         private const int START_PORT = 37986;
         private const int TICK_RATE = 20;
-        private const int MAX_REPLY_WAIT_TIME = 500; // milliseconds
+        private const int MAX_REPLY_WAIT_TIME = 5000; // milliseconds
         
         private static int portCount = START_PORT;
         private static Thread ticker;
@@ -260,17 +260,11 @@ namespace FalconUDPTests
 
         #endregion
 
-        #region Starting Up
-
         [TestMethod]
         public void TryStartTest()
         {
             CreateAndStartLocalPeer();
         }
-
-        #endregion
-
-        #region Connecting
 
         [TestMethod]
         public void ConnectToOnePeerTest()
@@ -319,25 +313,25 @@ namespace FalconUDPTests
             }            
         }
 
-        #endregion
-
-        #region Stopping
-        #endregion
-
         [TestMethod]
         public void PingPongOnePeer()
         {
             var host = CreateAndStartLocalPeer();
             host.SetVisibility(true, null, false);
             var otherPeers = ConnectXNumOfPeers(host, 1, null);
-            var otherPeer = otherPeers.First();
             host.SetVisibility(false, null, false);
+            var autoResetEvent = new AutoResetEvent(false);
             
             var pongReceived = false;
             replyReceived = null; // clears any listeners
             replyReceived += (sender, packet) => 
                 {
-                    pongReceived = true;
+                    lock (falconPeerLock) // NOTE: we are already in a lock but no harm
+                    {
+                        pongReceived = true;
+                    }
+
+                    autoResetEvent.Set();
                 };
 
             lock (falconPeerLock)
@@ -345,7 +339,7 @@ namespace FalconUDPTests
                 host.EnqueueSendToAll(SendOptions.ReliableInOrder, GetPingPacket(host));
             }
 
-            Thread.Sleep(MAX_REPLY_WAIT_TIME);
+            autoResetEvent.WaitOne(MAX_REPLY_WAIT_TIME);
 
             Assert.IsTrue(pongReceived, "Pong from Ping not received in time!");
         }
@@ -414,6 +408,8 @@ namespace FalconUDPTests
             allPeers.ForEach(p => p.SetLogLevel(LogLevel.Debug));
 #endif
 
+            Thread.Sleep(MAX_REPLY_WAIT_TIME);
+
             var rand = new Random();
             var numRemotePeers = NUM_OF_PEERS-1;
 
@@ -424,7 +420,7 @@ namespace FalconUDPTests
                     var repliesLock = new object();
                     var packetsSentCount = 0;
                     var packetsReceivedCount = 0;
-                    Debug.WriteLine("---packetsReceivedCount reset---", packetsReceivedCount);
+                    Debug.WriteLine("---packetsReceivedCount reset---");
                     var totalBytesToSend = rand.Next(1, MAX_PACKET_SIZE + 1);
                     var waitHandel = new AutoResetEvent(false);
 

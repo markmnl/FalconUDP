@@ -71,7 +71,7 @@ namespace FalconUDP
  
         internal Socket             Socket;
         internal Stopwatch          Stopwatch;
-        internal PacketPool         PacketPool;
+        internal BufferPool<Packet> PacketPool;
         internal HashSet<IPAddress> LocalAddresses;             // TODO is it possible to have the same addr on diff interface? even so does it matter?
         internal List<PingDetail>   PingsAwaitingPong;
 
@@ -149,7 +149,7 @@ namespace FalconUDP
             this.remotePeersToRemove        = new List<RemotePeer>();
 
             // pools
-            this.PacketPool                 = new PacketPool(Const.MAX_PAYLOAD_SIZE, Settings.InitalNumPacketsToPool);
+            this.PacketPool                 = new BufferPool<Packet>(Const.MAX_PAYLOAD_SIZE, Settings.InitalNumPacketsToPool, PacketProducer);
             this.emitDiscoverySignalTaskPool= new GenericObjectPool<EmitDiscoverySignalTask>(Settings.InitalNumEmitDiscoverySignalTaskToPool);
             this.pingPool                   = new GenericObjectPool<PingDetail>(Settings.InitalNumPingsToPool);
 
@@ -178,6 +178,11 @@ namespace FalconUDP
                 Log(LogLevel.Info, "Initialized");
             }
 #endif
+        }
+
+        private static Packet PacketProducer()
+        {
+            return new Packet();
         }
 
         private void CheckStarted()

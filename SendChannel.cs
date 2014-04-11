@@ -15,7 +15,7 @@ namespace FalconUDP
         private bool isFalconHeaderWritten; // to the current datagram
 
         internal bool IsReliable { get { return isReliable; } }
-        internal bool HasDatagrams
+        internal bool HasDataToSend
         {
             get { return queue.Count > 0 || currentDatagramBytesWritten > 0; }
         }
@@ -27,6 +27,8 @@ namespace FalconUDP
             this.queue          = new Queue<Datagram>();
             this.isReliable     = (channelType & SendOptions.Reliable) == SendOptions.Reliable;
             this.currentDatagram = datagramPool.Borrow();
+            currentDatagram.SendOptions = channelType;
+            currentDatagram.IsResend = false;
             this.currentDatagramBytesWritten = 0;
         }
 
@@ -48,14 +50,14 @@ namespace FalconUDP
 
         internal void EnqueueSend(Datagram datagram)
         {
-
+            queue.Enqueue(datagram);
         }
 
         internal void EnqueueSend(PacketType type, Packet packet)
         {
             // NOTE: packet may be null in the case of Falcon system messages.
 
-            if (packet != null && packet.BytesWritten > Const.MAX_PAYLOAD_SIZE)
+            if (packet != null && packet.BytesWritten > currentDatagram.Count)
             {
                 throw new InvalidOperationException(String.Format("Packet size: {0}, greater than max: {1}", packet.BytesWritten, Const.MAX_PAYLOAD_SIZE));
             }
@@ -71,7 +73,7 @@ namespace FalconUDP
             }
 
             ushort size;
-            if (packet != null)
+            if (packet == null)
                 size = 0;
             else
                 size = (ushort)packet.BytesWritten;
@@ -79,30 +81,32 @@ namespace FalconUDP
             if (!isFalconHeaderWritten)
             {
                 // write the falcon header and set isFalconHeaderWritten
-                FalconHelper.WriteFalconHeader(currentDatagram.BackingBuffer,
+                currentDatagramBytesWritten += FalconHelper.WriteFalconHeader(currentDatagram.BackingBuffer,
                     currentDatagram.Offset,
                     type,
                     channelType,
                     seqCount,
                     size);
-                currentDatagramBytesWritten += Const.FALCON_PACKET_HEADER_SIZE;
                 isFalconHeaderWritten = true;
                 currentDatagram.Seq = seqCount;
             }
             else
             {
                 // write additional header
-                FalconHelper.WriteAdditionalFalconHeader(currentDatagram.BackingBuffer,
+                currentDatagramBytesWritten += FalconHelper.WriteAdditionalFalconHeader(currentDatagram.BackingBuffer,
                     currentDatagramBytesWritten,
                     type,
                     channelType,
                     size);
-                currentDatagramBytesWritten += Const.ADDITIONAL_PACKET_HEADER_SIZE;
             }
 
             if (packet != null)
             {
-                Buffer.BlockCopy(packet.BackingBuffer, 0, currentDatagram.BackingBuffer, currentDatagram.Offset + currentDatagramBytesWritten, packet.BytesWritten);
+                Buffer.BlockCopy(packet.BackingBuffer, 
+                    packet.Offset, 
+                    currentDatagram.BackingBuffer, 
+                    currentDatagram.Offset + currentDatagramBytesWritten, 
+                    packet.BytesWritten);
                 currentDatagramBytesWritten += packet.BytesWritten;
             }
         }

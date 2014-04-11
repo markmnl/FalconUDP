@@ -1,5 +1,6 @@
 TODO
 ----
+- make RemotePeer pools static so a RemotePeer dropping does not turn its pools into garbage
 - settings settable on FalconPeer
 - include packet size and version no. in join request
 - replace SocketAsyncEventArgs usage with BufferSegmant from BufferPool and Packet's can inherit from BufferSegmant

@@ -23,6 +23,12 @@ namespace FalconUDP
             this.originalCount = count;
         }
 
+        // called when when being borrowed from a pool
+        internal virtual void OnBorrow()
+        {
+
+        }
+
         internal void SetCount(int newCount)
         {
             Debug.Assert(newCount > 0, "newCount must be > 0");

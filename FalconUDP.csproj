@@ -74,7 +74,6 @@
     <Compile Include="FalconHelper.cs" />
     <Compile Include="FalconOperationResult.cs" />
     <Compile Include="FalconPeer.cs" />
-    <Compile Include="PacketPool.cs" />
     <Compile Include="PingDetail.cs" />
     <Compile Include="ReceiveChannel.cs" />
     <Compile Include="SendChannel.cs" />
