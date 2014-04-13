@@ -584,7 +584,7 @@ namespace FalconUDP
                             PingDetail detail = localPeer.PingsAwaitingPong.Find(pd => pd.PeerIdPingSentTo == Id);
                             if(detail != null)
                             {
-                                localPeer.RaisePongReceived(this, (int)(localPeer.Stopwatch.ElapsedMilliseconds - detail.EllapsedSeconds));
+                                localPeer.RaisePongReceived(this, TimeSpan.FromSeconds(detail.EllapsedSeconds));
                                 localPeer.RemovePingAwaitingPongDetail(detail);
                             }
                         }

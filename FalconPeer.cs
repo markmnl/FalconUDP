@@ -262,21 +262,12 @@ namespace FalconUDP
                 }
             }
 
-            // process received packets
-            ProcessReceivedPackets();
-
-            // unknown peer
-            unknownPeer.Update(dt);
-
-            // remote peers
-            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
-            {
-                kv.Value.Update(dt);
-            }
-
-            // pings awaiting pong
+            // pings awaiting pong 
             if (PingsAwaitingPong.Count > 0)
             {
+                // NOTE: This must be done before processing recieved packets and updating remote 
+                //       peers so times updated.
+
                 for (int i = 0; i < PingsAwaitingPong.Count; i++)
                 {
                     PingDetail detail = PingsAwaitingPong[i];
@@ -288,6 +279,18 @@ namespace FalconUDP
                         pingPool.Return(detail);
                     }
                 }
+            }
+
+            // process received packets
+            ProcessReceivedPackets();
+
+            // unknown peer
+            unknownPeer.Update(dt);
+
+            // remote peers
+            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+            {
+                kv.Value.Update(dt);
             }
 
             // stats
@@ -680,7 +683,7 @@ namespace FalconUDP
 
                                 if (detail != null)
                                 {
-                                    RaisePongReceivedFromUnknownPeer(fromIPEndPoint, (int)(Stopwatch.ElapsedMilliseconds - detail.EllapsedSeconds));
+                                    RaisePongReceivedFromUnknownPeer(fromIPEndPoint, TimeSpan.FromSeconds(detail.EllapsedSeconds));
                                     RemovePingAwaitingPongDetail(detail);
                                 }
                             }
@@ -785,18 +788,18 @@ namespace FalconUDP
                 PeerDropped(peerId);
         }
 
-        internal void RaisePongReceivedFromUnknownPeer(IPEndPoint ipEndPoint, float rtt)
+        internal void RaisePongReceivedFromUnknownPeer(IPEndPoint ipEndPoint, TimeSpan rtt)
         {
             PongReceivedFromUnknownPeer pongReceivedFromUnknownPeer = PongReceivedFromUnknownPeer;
             if (pongReceivedFromUnknownPeer != null)
-                pongReceivedFromUnknownPeer(ipEndPoint, TimeSpan.FromMilliseconds(rtt));
+                pongReceivedFromUnknownPeer(ipEndPoint, rtt);
         }
 
-        internal void RaisePongReceived(RemotePeer rp, int rtt)
+        internal void RaisePongReceived(RemotePeer rp, TimeSpan rtt)
         {
             PongReceivedFromPeer pongReceived = PongReceivedFromPeer;
             if (pongReceived != null)
-                pongReceived(rp.Id, TimeSpan.FromMilliseconds(rtt));
+                pongReceived(rp.Id, rtt);
         }
 
         internal void RaisePeerDiscovered(IPEndPoint ep)
