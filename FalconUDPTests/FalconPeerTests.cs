@@ -489,23 +489,26 @@ namespace FalconUDPTests
             // NOTE: TIME_TO_WAIT must be > (KeepAliveInterval + AckTimout * AcktRetryAttempts
 
             const int TIME_TO_WAIT = 12000; 
+            const int NUM_OF_PEERS = 5;
 
             var peer1 = CreateAndStartLocalPeer();
             peer1.SetVisibility(true, null, true);
-            var peer2 = CreateAndStartLocalPeer();
+            var otherPeers = ConnectXNumOfPeers(peer1, NUM_OF_PEERS - 1, null);
             
-            ConnectToLocalPeer(peer2, peer1, null);
-
             Thread.Sleep(MAX_REPLY_WAIT_TIME); // allow AcceptJoin's ACK to get through
 
-            // Stop peer2 without saying bye, wait a while and assert peer2 was dropped from peer1
-            // which must be the result of a KeepAlive not being ACK'd since we never sent anything.
-
-            peer2.Stop(false);
+            // Stop other peers without saying bye, wait a while and assert they were dropped from 
+            // peer1 which must be the result of a KeepAlive not being ACK'd since we never sent 
+            // anything.
+            foreach (var otherPeer in otherPeers)
+            {
+                otherPeer.Stop(false);
+            }
 
             Thread.Sleep(TIME_TO_WAIT);
 
-            Assert.AreEqual(peer1.GetAllRemotePeers().Count, 0, "Peer 2 was stopped but is still connected to peer1!");
+            var connectedPeers = peer1.GetAllRemotePeers();
+            Assert.AreEqual(connectedPeers.Count, 0, String.Format("{0} other peers were stopped but are still connected to peer1!", connectedPeers.Count));
         }
 
         [TestMethod]
