@@ -490,7 +490,7 @@ namespace FalconUDPTests
         [TestMethod]
         public void KeepAliveTest()
         {
-            // NOTE: TIME_TO_WAIT must be > (KeepAliveInterval + AckTimout * AcktRetryAttempts
+            // NOTE: TIME_TO_WAIT must be > (KeepAliveInterval + AckTimout) * AcktRetryAttempts
 
             const int TIME_TO_WAIT = 12000; 
             const int NUM_OF_PEERS = 5;

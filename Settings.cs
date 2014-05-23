@@ -7,7 +7,7 @@ namespace FalconUDP
     {
         internal static Encoding TextEncoding                   = Encoding.UTF8;                    // encoding to use on system text messages
 
-        internal const float ACKTimeout                         = 1.020f;                           // seconds
+        internal const float ACKTimeout                         = 2.020f;                           // seconds
         internal const int ACKRetryAttempts                     = 2;                                // number of times to retry until assuming peer is dead (used by AwaitingAcceptDetail too)
         internal const int OutOfOrderTolerance                  = 8;                                // packets recveived out-of-order from last received greater than this are dropped indiscrimintly 
         internal const int LatencySampleSize                    = 2;
