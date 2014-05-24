@@ -23,28 +23,29 @@
     <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="AckDetail.cs"/>
-    <Compile Include="AwaitingAcceptDetail.cs"/>
-    <Compile Include="Const.cs"/>
-    <Compile Include="DelayedDatagram.cs"/>
-    <Compile Include="Delegates.cs"/>
-    <Compile Include="EmitDiscoverySignalTask.cs"/>
-    <Compile Include="Enums.cs"/>
-    <Compile Include="FalconHelper.cs"/>
-    <Compile Include="FalconOperationResult.cs"/>
-    <Compile Include="FalconPeer.cs"/>
-    <Compile Include="GenericObjectPool.cs"/>
-    <Compile Include="Packet.cs"/>
-    <Compile Include="PacketDetail.cs"/>
-    <Compile Include="PacketPool.cs"/>
-    <Compile Include="PingDetail.cs"/>
-    <Compile Include="ReceiveChannel.cs"/>
-    <Compile Include="RemotePeer.cs"/>
-    <Compile Include="SendChannel.cs"/>
-    <Compile Include="Settings.cs"/>
-    <Compile Include="SingleRandom.cs"/>
-    <Compile Include="SocketAsyncEventArgsPool.cs"/>
-    <Compile Include="Statistics.cs"/>
+    <Compile Include="AckDetail.cs" />
+    <Compile Include="Const.cs" />
+    <Compile Include="DelayedDatagram.cs" />
+    <Compile Include="Delegates.cs" />
+    <Compile Include="EmitDiscoverySignalTask.cs" />
+    <Compile Include="Enums.cs" />
+    <Compile Include="FalconHelper.cs" />
+    <Compile Include="FalconOperationResult.cs" />
+    <Compile Include="FalconPeer.cs" />
+    <Compile Include="PacketPool.cs" />
+    <Compile Include="PingDetail.cs" />
+    <Compile Include="ReceiveChannel.cs" />
+    <Compile Include="SendChannel.cs" />
+    <Compile Include="Packet.cs" />
+    <Compile Include="PacketDetail.cs" />
+    <Compile Include="AwaitingAcceptDetail.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RemotePeer.cs" />
+    <Compile Include="PoolSizes.cs" />
+    <Compile Include="SingleRandom.cs" />
+    <Compile Include="Statistics.cs" />
+    <Compile Include="GenericObjectPool.cs" />
+    <Compile Include="SocketAsyncEventArgsPool.cs" />
   </ItemGroup>
   <!--<Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />-->
   <Target Name="Build">
