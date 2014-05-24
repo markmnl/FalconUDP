@@ -58,7 +58,7 @@ namespace FalconUDP
             this.unreadPacketCount      = 0;
             this.sentPacketsAwaitingACK = new List<PacketDetail>();
             this.PeerName               = endPoint.ToString();
-            this.roundTripTimes         = new int[Settings.LatencySampleSize];
+            this.roundTripTimes         = new int[localPeer.LatencySampleLength];
             this.delayedDatagrams       = new List<DelayedDatagram>();
             this.keepAliveAndAutoFlush  = keepAliveAndAutoFlush;
             this.allUnreadPackets       = new List<Packet>();
@@ -335,7 +335,7 @@ namespace FalconUDP
                 {
                     PacketDetail pd = sentPacketsAwaitingACK[i];
                     pd.EllapsedSecondsSincePacketSent += dt;
-                    if (pd.EllapsedSecondsSincePacketSent >= Settings.ACKTimeout)
+                    if (pd.EllapsedSecondsSincePacketSent >= localPeer.AckTimeoutSeconds)
                     {                        
                         pd.ResentCount++;
 #if DEBUG
@@ -346,14 +346,14 @@ namespace FalconUDP
 
                         FalconHelper.ReadFalconHeader(pd.Bytes, 0, out type, out opts, out seq, out payloadSize);
 #endif
-                        if (pd.ResentCount > Settings.ACKRetryAttempts)
+                        if (pd.ResentCount > localPeer.MaxResends)
                         {
                             // give-up, assume the peer has disconnected and drop it
                             sentPacketsAwaitingACK.RemoveAt(i);
                             i--;
 #if DEBUG
                             localPeer.Log(LogLevel.Warning, String.Format("Peer failed to ACK {0} re-sends of Reliable packet type: {1}, channel: {2}, seq {3}, payload size: {4}, in time.", 
-                                Settings.ACKRetryAttempts,
+                                localPeer.MaxResends,
                                 type,
                                 opts,
                                 seq,
@@ -367,6 +367,7 @@ namespace FalconUDP
                             // try again..
                             pd.EllapsedSecondsSincePacketSent = 0.0f;
                             ReSend(pd);
+                            ellapasedSecondsSinceLastRealiablePacket = 0.0f; // NOTE: this is reset again when packet actually sent but another Update() may occur before then
 #if DEBUG
                             localPeer.Log(LogLevel.Info, String.Format("Packet to: {0}, type: {1}, channel: {2}, seq {3}, payload size: {4} re-sent as not ACKnowledged in time.", 
                                 PeerName,
@@ -386,7 +387,7 @@ namespace FalconUDP
             {
                 if (IsKeepAliveMaster) // i.e. this remote peer is the keep alive master, not us
                 {
-                    if (ellapasedSecondsSinceLastRealiablePacket >= Settings.KeepAliveIfNoKeepAliveReceived)
+                    if (ellapasedSecondsSinceLastRealiablePacket >= localPeer.KeepAliveIfNoKeepAliveReceivedSeconds)
                     {
                         // This remote peer has not sent a KeepAlive for too long, send a KeepAlive to 
                         // them to see if they are alive!
@@ -395,15 +396,15 @@ namespace FalconUDP
                         ellapasedSecondsSinceLastRealiablePacket = 0.0f;
                     }
                 }
-                else if (ellapasedSecondsSinceLastRealiablePacket >= Settings.KeepAliveIfInterval)
+                else if (ellapasedSecondsSinceLastRealiablePacket >= localPeer.KeepAliveIntervalSeconds)
                 {
                     reliableSendChannel.EnqueueSend(PacketType.KeepAlive, null);
                     ellapasedSecondsSinceLastRealiablePacket = 0.0f; // NOTE: this is reset again when packet actually sent but another Update() may occur before then
                 }
 
-                if (Settings.AutoFlushInterval > 0.0f)
+                if (localPeer.AutoFlushIntervalSeconds > 0.0f)
                 {
-                    if (ellapsedSecondsSinceSendQueuesLastFlushed >= Settings.AutoFlushInterval)
+                    if (ellapsedSecondsSinceSendQueuesLastFlushed >= localPeer.AutoFlushIntervalSeconds)
                     {
                         localPeer.Log(LogLevel.Info, "AutoFlush");
                         FlushSendQueues(); // resets ellapsedSecondsSinceSendQueuesLastFlushed

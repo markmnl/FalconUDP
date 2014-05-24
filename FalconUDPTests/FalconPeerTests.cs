@@ -490,9 +490,6 @@ namespace FalconUDPTests
         [TestMethod]
         public void KeepAliveTest()
         {
-            // NOTE: TIME_TO_WAIT must be > (KeepAliveInterval + AckTimout) * AcktRetryAttempts
-
-            const int TIME_TO_WAIT = 12000; 
             const int NUM_OF_PEERS = 5;
 
             var peer1 = CreateAndStartLocalPeer();
@@ -509,7 +506,10 @@ namespace FalconUDPTests
                 otherPeer.Stop(false);
             }
 
-            Thread.Sleep(TIME_TO_WAIT);
+            // NOTE: Time to wait must be > (KeepAliveInterval x MaxResend) + AckTimout + Any error marine
+            int timeToWait = ((int)(peer1.KeepAliveInterval + peer1.AckTimeout).TotalMilliseconds * peer1.MaxMessageResends);
+            timeToWait += TICK_RATE;
+            Thread.Sleep(timeToWait);
 
             var connectedPeers = peer1.GetAllRemotePeers();
             Assert.AreEqual(connectedPeers.Count, 0, String.Format("{0} other peers were stopped but are still connected to peer1!", connectedPeers.Count));
@@ -546,7 +546,7 @@ namespace FalconUDPTests
                     disableSendFromPeers.Add(peer1);
                 }
 
-                waitHandel.WaitOne(2000);
+                waitHandel.WaitOne(peer1.AutoFlushInterval + TimeSpan.FromMilliseconds(TICK_RATE * 2) + TimeSpan.FromMilliseconds(MAX_REPLY_WAIT_TIME));
 
                 Assert.IsTrue(pongReceived, "Reply pong not received");
             }

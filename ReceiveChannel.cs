@@ -45,8 +45,8 @@ namespace FalconUDP
             // validate seq in range
             if (isFirstPacketInDatagram)
             {
-                ushort min = unchecked((ushort)(lastReceivedPacketSeq - Settings.OutOfOrderTolerance));
-                ushort max = unchecked((ushort)(lastReceivedPacketSeq + Settings.OutOfOrderTolerance));
+                ushort min = unchecked((ushort)(lastReceivedPacketSeq - localPeer.OutOfOrderTolerance));
+                ushort max = unchecked((ushort)(lastReceivedPacketSeq + localPeer.OutOfOrderTolerance));
 
                 // NOTE: Max could be less than min if exceeded MaxValue, likewise min could be 
                 //       greater than max if less than 0. So have to check seq between min - max range 
@@ -65,7 +65,7 @@ namespace FalconUDP
             {
                 ordinalPacketSeq = datagramSeq;
                 int diff = Math.Abs(datagramSeq - (int)lastReceivedPacketSeq);
-                if (diff > Settings.OutOfOrderTolerance)
+                if (diff > localPeer.OutOfOrderTolerance)
                 {
                     if (datagramSeq < lastReceivedPacketSeq) // i.e. seq must have looped since we have already validated seq in range
                     {
@@ -212,7 +212,7 @@ namespace FalconUDP
                 // datagram will be from the old loop (without being dropped), so reset max and 
                 // ordinal seq to the same value as seq they are for.
 
-                if (maxReadDatagramSeq > Settings.MaxNeccessaryOrdinalSeq)
+                if (maxReadDatagramSeq > localPeer.MaxNeededOrindalSeq)
                 {
                     maxReadDatagramSeq -= ushort.MaxValue;
                     lastReceivedPacketSeq -= ushort.MaxValue;
