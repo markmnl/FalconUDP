@@ -74,9 +74,9 @@ namespace FalconUDP
         {
             // NOTE: packet may be null in the case of Falcon system messages.
 
-            if (packet != null && packet.BytesWritten > Const.MAX_PAYLOAD_SIZE)
+            if (packet != null && packet.BytesWritten > FalconPeer.MaxPayloadSize)
             {
-                throw new InvalidOperationException(String.Format("Packet size: {0}, greater than max: {1}", packet.BytesWritten, Const.MAX_PAYLOAD_SIZE));
+                throw new InvalidOperationException(String.Format("Packet size: {0}, greater than max: {1}", packet.BytesWritten, FalconPeer.MaxPayloadSize));
             }
 
             bool isFalconHeaderWritten = currentArgsTotalBufferOffset > currentArgs.Offset;

@@ -42,14 +42,14 @@ namespace FalconUDP
         private LogLevel logLvl;
         private LogCallback logger;
 #endif
-
+        
         internal Socket Socket;
         internal Stopwatch Stopwatch;
         internal PacketPool PacketPool;
         internal HashSet<IPAddress> LocalAddresses;             // TODO is it possible to have the same addr on diff interface? even so does it matter?
         internal List<PingDetail> PingsAwaitingPong;
         internal float AckTimeoutSeconds = 1.02f;
-        internal int MaxResends = 5;
+        internal int MaxResends = 7;
         internal int OutOfOrderTolerance = 8;
         internal int LatencySampleLength = 2;
         internal int MaxNeededOrindalSeq = UInt16.MaxValue + 8; // must be UInt16.MaxValue + OutOfOrderTolerance
@@ -57,12 +57,14 @@ namespace FalconUDP
         internal float KeepAliveIfNoKeepAliveReceivedSeconds = 5.0f + 1.02f;
         internal float AutoFlushIntervalSeconds = 0.5f;
         internal float PingTimeoutSeconds = 2.0f;
+        internal static int MaxDatagramSizeValue = 2048;
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
         internal TimeSpan SimulateDelayTimeSpan { get; private set; }
         internal TimeSpan SimulateDelayJitterTimeSpan { get; set; }
         internal double SimulatePacketLossChance { get; private set; }
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
         internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }
+        internal static int MaxPayloadSize { get { return MaxDatagramSizeValue - Const.FALCON_PACKET_HEADER_SIZE; } }
 
         /// <summary>
         /// Event raised when another FalconUDP peer joined.
@@ -138,7 +140,7 @@ namespace FalconUDP
         /// <summary>
         /// Maximum number of times to re-send an unACKnowledged message before giving up.
         /// </summary>
-        /// <remarks>Defaults to 5.</remarks>
+        /// <remarks>Defaults to 7.</remarks>
         public int MaxMessageResends
         {
             get
@@ -286,6 +288,28 @@ namespace FalconUDP
             }
         }
 
+        /// <summary>
+        /// The maximum message size in bytes FalconUDP can send and recieve.
+        /// </summary>
+        /// <remarks>IMPORTANT: 
+        ///     1) This FalconPeer can only communicate with other Falcon peers with 
+        /// the exact same MaxDatagramSize.
+        ///     3) Must be set before FalconPeer constructed to be used.
+        /// 
+        /// It is reccomended this value, in addition to any underlying protocols' data, be 
+        /// less than the MTU (which on an ethernet network taking into account IP header 
+        /// information, and possible IPSec header information) should be around 1400 bytes).</remarks>
+        public static int MaxDatagramSize 
+        {
+            get { return MaxDatagramSizeValue; }
+            set
+            {
+                if (value <= 0)
+                    throw new ArgumentOutOfRangeException("value must be grreater than 0");
+                MaxDatagramSizeValue = value;
+            }
+        }
+
 #if DEBUG
         /// <summary>
         /// Creates a new FalconPeer.
@@ -321,13 +345,13 @@ namespace FalconUDP
             this.awaitingAcceptDetails = new List<AwaitingAcceptDetail>();
             this.acceptJoinRequests = false;
             this.PingsAwaitingPong = new List<PingDetail>();
-            this.receiveBuffer = new byte[Const.MAX_DATAGRAM_SIZE];
+            this.receiveBuffer = new byte[MaxDatagramSizeValue];
             this.readPacketsList = new List<Packet>();
             this.stopped = true;
             this.remotePeersToRemove = new List<RemotePeer>();
 
             // pools
-            this.PacketPool = new PacketPool(Const.MAX_PAYLOAD_SIZE, PoolSizes.InitalNumPacketsToPool);
+            this.PacketPool = new PacketPool(MaxPayloadSize, PoolSizes.InitalNumPacketsToPool);
             this.emitDiscoverySignalTaskPool = new GenericObjectPool<EmitDiscoverySignalTask>(PoolSizes.InitalNumEmitDiscoverySignalTaskToPool);
             this.pingPool = new GenericObjectPool<PingDetail>(PoolSizes.InitalNumPingsToPool);
 
@@ -603,7 +627,8 @@ namespace FalconUDP
                 Log(LogLevel.Error, String.Format("Datagram dropped from: {0}, smaller than min size.", fromIPEndPoint));
                 return;
             }
-            if (size > Const.MAX_DATAGRAM_SIZE)
+
+            if (size > MaxDatagramSizeValue)
             {
                 Log(LogLevel.Error, String.Format("Datagram dropped from: {0}, greater than max size.", fromIPEndPoint));
                 return;
@@ -1739,11 +1764,11 @@ namespace FalconUDP
         /// <param name="discoveryTasks">Number of discovery tasks to pool</param>
         /// <param name="sendPacketsPerPeer">Number of packets (for use when enquing packets to send) to pool per peer.</param>
         /// <param name="acksPerPeer">Number of ACK packets (for use when sending ACKs) to pool per peer.</param>
-        public static void SetPoolSizes(int packets,
-            int pings,
-            int discoveryTasks,
-            int sendPacketsPerPeer,
-            int acksPerPeer)
+        public static void SetPoolSizes(int packets = 32,
+            int pings = 10,
+            int discoveryTasks = 5,
+            int sendPacketsPerPeer = 20,
+            int acksPerPeer = 20)
         {
             if (packets <= 0)
                 throw new ArgumentOutOfRangeException("packets", "value must be greater than 0");

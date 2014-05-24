@@ -66,7 +66,7 @@ namespace FalconUDP
 
             // pools
             this.packetDetailPool       = new GenericObjectPool<PacketDetail>(PoolSizes.InitalNumPacketDetailPerPeerToPool);
-            this.sendArgsPool           = new SocketAsyncEventArgsPool(Const.MAX_DATAGRAM_SIZE, PoolSizes.InitalNumSendArgsToPoolPerPeer, GetNewSendArgs);
+            this.sendArgsPool           = new SocketAsyncEventArgsPool(FalconPeer.MaxDatagramSizeValue, PoolSizes.InitalNumSendArgsToPoolPerPeer, GetNewSendArgs);
             this.tokenPool              = new GenericObjectPool<SendToken>(PoolSizes.InitalNumSendArgsToPoolPerPeer);
             this.ackPool                = new GenericObjectPool<AckDetail>(PoolSizes.InitalNumAcksToPoolPerPeer);
 
@@ -199,7 +199,7 @@ namespace FalconUDP
         // writes as many enqued as as can fit into datagram
         private void WriteEnquedAcksToDatagram(SocketAsyncEventArgs args, int index)
         {
-            while (enqueudAcks.Count > 0 && (Const.MAX_DATAGRAM_SIZE - (index - args.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
+            while (enqueudAcks.Count > 0 && (FalconPeer.MaxDatagramSizeValue - (index - args.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
             {
                 AckDetail ack = enqueudAcks.Dequeue();
                 FalconHelper.WriteAck(ack, args.Buffer, index);

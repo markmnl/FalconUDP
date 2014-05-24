@@ -14,7 +14,7 @@ namespace FalconUDP
 
         public PacketDetail()
         {
-            Bytes = new byte[Const.MAX_DATAGRAM_SIZE];
+            Bytes = new byte[FalconPeer.MaxDatagramSize];
         }
 
         internal void CopyBytes(byte[] srcBuffer, int srcIndex, int count)
