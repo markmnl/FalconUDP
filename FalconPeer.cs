@@ -327,9 +327,9 @@ namespace FalconUDP
             this.remotePeersToRemove = new List<RemotePeer>();
 
             // pools
-            this.PacketPool = new PacketPool(Const.MAX_PAYLOAD_SIZE, Settings.InitalNumPacketsToPool);
-            this.emitDiscoverySignalTaskPool = new GenericObjectPool<EmitDiscoverySignalTask>(Settings.InitalNumEmitDiscoverySignalTaskToPool);
-            this.pingPool = new GenericObjectPool<PingDetail>(Settings.InitalNumPingsToPool);
+            this.PacketPool = new PacketPool(Const.MAX_PAYLOAD_SIZE, PoolSizes.InitalNumPacketsToPool);
+            this.emitDiscoverySignalTaskPool = new GenericObjectPool<EmitDiscoverySignalTask>(PoolSizes.InitalNumEmitDiscoverySignalTaskToPool);
+            this.pingPool = new GenericObjectPool<PingDetail>(PoolSizes.InitalNumPingsToPool);
 
             // discovery
             this.discoveryTasks = new List<EmitDiscoverySignalTask>();
@@ -1726,6 +1726,42 @@ namespace FalconUDP
                 return true;
 
             return false;
+        }
+
+        /// <summary>
+        /// Sets number of objects to pool in memory to mitigate run-time allocations.
+        /// </summary>
+        /// <remarks>IMPORTANT: Per peer numbers will be used on any newly joint peers, the other 
+        /// falcon wide numbers will only be used when FalconPeer is constructed so need to be set 
+        /// before.</remarks>
+        /// <param name="packets">Number of <see cref="Packet"/>s to pool.</param>
+        /// <param name="pings">Numper of falcon Ping object to pool.</param>
+        /// <param name="discoveryTasks">Number of discovery tasks to pool</param>
+        /// <param name="sendPacketsPerPeer">Number of packets (for use when enquing packets to send) to pool per peer.</param>
+        /// <param name="acksPerPeer">Number of ACK packets (for use when sending ACKs) to pool per peer.</param>
+        public static void SetPoolSizes(int packets,
+            int pings,
+            int discoveryTasks,
+            int sendPacketsPerPeer,
+            int acksPerPeer)
+        {
+            if (packets <= 0)
+                throw new ArgumentOutOfRangeException("packets", "value must be greater than 0");
+            if (pings <= 0)
+                throw new ArgumentOutOfRangeException("pings", "value must be greater than 0");
+            if (discoveryTasks <= 0)
+                throw new ArgumentOutOfRangeException("discoveryTasks", "value must be greater than 0");
+            if (sendPacketsPerPeer <= 0)
+                throw new ArgumentOutOfRangeException("sendPacketsPerPeer", "value must be greater than 0");
+            if (acksPerPeer <= 0)
+                throw new ArgumentOutOfRangeException("acksPerPeer", "value must be greater than 0");
+
+            PoolSizes.InitalNumPacketsToPool = packets;
+            PoolSizes.InitalNumPingsToPool = pings;
+            PoolSizes.InitalNumEmitDiscoverySignalTaskToPool = discoveryTasks;
+            PoolSizes.InitalNumSendArgsToPoolPerPeer = sendPacketsPerPeer;
+            PoolSizes.InitalNumPacketDetailPerPeerToPool = sendPacketsPerPeer;
+            PoolSizes.InitalNumAcksToPoolPerPeer = acksPerPeer;
         }
     }
 }

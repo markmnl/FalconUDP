@@ -65,10 +65,10 @@ namespace FalconUDP
             this.enqueudAcks            = new Queue<AckDetail>();
 
             // pools
-            this.packetDetailPool       = new GenericObjectPool<PacketDetail>(Settings.InitalNumPacketDetailPerPeerToPool);
-            this.sendArgsPool           = new SocketAsyncEventArgsPool(Const.MAX_DATAGRAM_SIZE, Settings.InitalNumSendArgsToPoolPerPeer, GetNewSendArgs);
-            this.tokenPool              = new GenericObjectPool<SendToken>(Settings.InitalNumSendArgsToPoolPerPeer);
-            this.ackPool                = new GenericObjectPool<AckDetail>(Settings.InitalNumAcksToPoolPerPeer);
+            this.packetDetailPool       = new GenericObjectPool<PacketDetail>(PoolSizes.InitalNumPacketDetailPerPeerToPool);
+            this.sendArgsPool           = new SocketAsyncEventArgsPool(Const.MAX_DATAGRAM_SIZE, PoolSizes.InitalNumSendArgsToPoolPerPeer, GetNewSendArgs);
+            this.tokenPool              = new GenericObjectPool<SendToken>(PoolSizes.InitalNumSendArgsToPoolPerPeer);
+            this.ackPool                = new GenericObjectPool<AckDetail>(PoolSizes.InitalNumAcksToPoolPerPeer);
 
             // channels
             this.noneSendChannel            = new SendChannel(SendOptions.None, this.sendArgsPool, this.tokenPool);
