@@ -54,7 +54,7 @@ namespace FalconUDP
         internal int LatencySampleLength = 2;
         internal int MaxNeededOrindalSeq = UInt16.MaxValue + 8; // must be UInt16.MaxValue + OutOfOrderTolerance
         internal float KeepAliveIntervalSeconds = 5.0f;
-        internal float KeepAliveIfNoKeepAliveReceivedSeconds = 5.0f + 1.02f;
+        internal float KeepAliveIfNoKeepAliveReceivedSeconds = ((5.0f * 7.0f) / 2.0f ) - 1.02f;
         internal float AutoFlushIntervalSeconds = 0.5f;
         internal float PingTimeoutSeconds = 2.0f;
         internal static int MaxDatagramSizeValue = 2048;
@@ -133,7 +133,7 @@ namespace FalconUDP
                 if (seconds <= 0.0f)
                     throw new ArgumentOutOfRangeException("value must be greater than 0");
                 AckTimeoutSeconds = seconds;
-                KeepAliveIfNoKeepAliveReceivedSeconds = KeepAliveIntervalSeconds + seconds;
+                UpdateProbeKeepAliveIfNoKeepAlive();
             }
         }
 
@@ -153,6 +153,7 @@ namespace FalconUDP
                 if (value < 0)
                     throw new ArgumentOutOfRangeException("value cannot be less than 0");
                 MaxResends = value;
+                UpdateProbeKeepAliveIfNoKeepAlive();
             }
         }
 
@@ -213,7 +214,7 @@ namespace FalconUDP
                 if (seconds <= 0.0f)
                     throw new ArgumentOutOfRangeException("value must be greater than 0");
                 KeepAliveIntervalSeconds = seconds;
-                KeepAliveIfNoKeepAliveReceivedSeconds = seconds + AckTimeoutSeconds;
+                UpdateProbeKeepAliveIfNoKeepAlive();
             }
         }
 
@@ -392,6 +393,15 @@ namespace FalconUDP
         {
             if (!stopped)
                 throw new InvalidOperationException("FalconPeer already started!");
+        }
+
+        private void UpdateProbeKeepAliveIfNoKeepAlive()
+        {
+            // Updates the amount of time peer who is not the KeepAlive master should send a 
+            // KeepAlive probe after not receiving any reliable message from the KeepAlive master 
+            // to see if the master is still alive!
+
+            KeepAliveIfNoKeepAliveReceivedSeconds = ((KeepAliveIntervalSeconds * MaxResends) / 2.0f) - AckTimeoutSeconds;
         }
 
         private void ProcessReceivedPackets()
