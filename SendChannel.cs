@@ -14,11 +14,10 @@ namespace FalconUDP
         private ushort seqCount;
         private GenericObjectPool<SendToken> tokenPool;
         private SendToken currentToken;
-        private int count;
         private bool isReliable;
 
         internal bool IsReliable { get { return isReliable; } }
-        internal int Count { get { return count; } } // number of packets ready for sending
+        internal bool HasDataToSend { get { return queue.Count > 0 || currentArgsTotalBufferOffset > currentArgs.Offset; } }
         
         public SendChannel(SendOptions channelType, 
             SocketAsyncEventArgsPool argsPool, 
@@ -31,7 +30,6 @@ namespace FalconUDP
             this.currentArgsTotalBufferOffset = this.currentArgs.Offset;
             this.isReliable     = (channelType & SendOptions.Reliable) == SendOptions.Reliable;
             this.tokenPool      = tokenPool;
-            this.count          = 0;
 
             SetCurrentArgsToken();
         }
@@ -59,16 +57,10 @@ namespace FalconUDP
             seqCount++;
         }
 
-        internal void ResetCount()
-        {
-            count = 0;
-        }
-
         // used when args already constructed, e.g. re-sending unACKnowledged packet
         internal void EnqueueSend(SocketAsyncEventArgs args)
         {
             queue.Enqueue(args);
-            count++;
         }
 
         internal void EnqueueSend(PacketType type, Packet packet)
@@ -122,8 +114,6 @@ namespace FalconUDP
 
                 currentArgsTotalBufferOffset += packet.BytesWritten;
             }
-
-            count++;
         }
 
         // Get everything inc. current args if anything written to it
