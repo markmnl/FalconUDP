@@ -211,7 +211,7 @@ namespace FalconUDP
             while (queue.Count > 0)
             {
                 SocketAsyncEventArgs args = queue.Dequeue();
-                SendToken token = (SendToken)args.UserToken; // NOTE: may be null if only ACKs (which will always be on None channel)
+                SendToken token = (SendToken)args.UserToken;
 
                 if (channel.IsReliable)
                 {
@@ -266,8 +266,6 @@ namespace FalconUDP
                 SendDatagram(args);
 
             } // while
-
-            channel.ResetCount();
         }
 
         private void Pong()
@@ -288,6 +286,7 @@ namespace FalconUDP
 
             SendToken token = tokenPool.Borrow();
             token.IsReSend = true;
+            token.SendOptions = detail.ChannelType;
 
             args.UserToken = token;
 
@@ -366,7 +365,7 @@ namespace FalconUDP
 #if DEBUG
                             localPeer.Log(LogLevel.Info, String.Format("Packet to: {0}, type: {1}, channel: {2}, seq {3}, payload size: {4} re-sent as not ACKnowledged in time.", 
                                 PeerName,
-                                type,
+                                type, 
                                 opts,
                                 seq,
                                 payloadSize));
@@ -384,8 +383,8 @@ namespace FalconUDP
                 {
                     if (ellapasedSecondsSinceLastRealiablePacket >= localPeer.KeepAliveIfNoKeepAliveReceivedSeconds)
                     {
-                        // This remote peer has not sent a KeepAlive for too long, send a KeepAlive to 
-                        // them to see if they are alive!
+                        // This remote peer has not sent a reliable message for too long, send a 
+                        // KeepAlive to probe them and they are alive!
 
                         reliableSendChannel.EnqueueSend(PacketType.KeepAlive, null);
                         ellapasedSecondsSinceLastRealiablePacket = 0.0f;
@@ -499,13 +498,13 @@ namespace FalconUDP
         {
             try
             {
-                if (noneSendChannel.Count > 0)
+                if (noneSendChannel.HasDataToSend)
                     FlushSendChannel(noneSendChannel);
-                if (inOrderSendChannel.Count > 0)
+                if (inOrderSendChannel.HasDataToSend)
                     FlushSendChannel(inOrderSendChannel);
-                if (reliableSendChannel.Count > 0)
+                if (reliableSendChannel.HasDataToSend)
                     FlushSendChannel(reliableSendChannel);
-                if (reliableInOrderSendChannel.Count > 0)
+                if (reliableInOrderSendChannel.HasDataToSend)
                     FlushSendChannel(reliableInOrderSendChannel);
 
                 // send any outstanding ACKs
@@ -539,7 +538,6 @@ namespace FalconUDP
         {
             // If we are not the keep alive master, i.e. this remote peer is, and this packet was 
             // sent reliably reset ellpasedMilliseondsAtLastRealiablePacket[Received].
-
             if (IsKeepAliveMaster && opts.HasFlag(SendOptions.Reliable))
             {
                 ellapasedSecondsSinceLastRealiablePacket = 0.0f;
@@ -630,7 +628,7 @@ namespace FalconUDP
 
                         if (detail == null)
                         {
-                            // Possible reasons in order of likelyhood:
+                            // Possible reasons:
                             // 1) ACK has arrived too late and the packet must have already been removed.
                             // 2) ACK duplicated and has already been processed
                             // 3) ACK was unsolicited (i.e. malicious or buggy peer)
