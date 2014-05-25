@@ -34,37 +34,7 @@ namespace FalconUDPTests
         private static event ReplyReceived replyReceived;
         private static FalconPeer peerProcessingReceivedPacketsFor;
         private static object falconPeerLock = new object(); // lock on whenever calling something on a peer
-
-        #region Additional test attributes
-        // 
-        //You can use the following additional attributes as you write your tests:
-        //
-        //Use ClassInitialize to run code before running the first test in the class
-        //[ClassInitialize()]
-        //public static void MyClassInitialize(TestContext testContext)
-        //{
-        //}
-        //
-        //Use ClassCleanup to run code after all tests in a class have run
-        //[ClassCleanup()]
-        //public static void MyClassCleanup()
-        //{
-        //}
-        //
-        //Use TestInitialize to run code before running each test
-        //[TestInitialize()]
-        //public void MyTestInitialize()
-        //{
-        //}
-        //
-        //Use TestCleanup to run code after each test has run
-        //[TestCleanup()]
-        //public void MyTestCleanup()
-        //{
-        //}
-        //
-        #endregion
-        
+                
         public FalconPeerTests()
         {
             activePeers = new List<FalconPeer>();
@@ -745,7 +715,36 @@ namespace FalconUDPTests
         [TestMethod]
         public void SimulatePacketLossTest()
         {
-            // TODO
+            const int NUM_OF_PACKETS            = 1000;
+            const double PACKET_LOSS_PERCENTAGE = 50.0;
+
+            var peer1 = CreateAndStartLocalPeer();
+            var peer2 = CreateAndStartLocalPeer();
+            var count = 0;
+
+            peer1.SetVisibility(true, null, false);
+            
+            ConnectToLocalPeer(peer2, peer1, null);
+
+            peer2.SetSimulatePacketLoss(PACKET_LOSS_PERCENTAGE);
+
+            replyReceived = null; // clears any listeners
+            replyReceived += (sender, packet) =>
+                {
+                    count++;
+                };
+
+            // Send NUM_OF_PACKETS from peer2 to peer1 and assert within 10% PACKET_LOSS_PERCENTAGE
+            // of packets were lost.
+
+            for (var i = 0; i < NUM_OF_PACKETS; i++)
+            {
+                peer2.EnqueueSendToAll(SendOptions.None, GetPingPacket(peer2));
+                peer2.SendEnquedPackets();
+                Thread.Sleep(1);
+            }
+
+            Assert.IsTrue(((count / NUM_OF_PACKETS) * 100.0) - PACKET_LOSS_PERCENTAGE < 10);
         }
     }
 }
