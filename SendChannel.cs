@@ -6,9 +6,6 @@ namespace FalconUDP
 {
     internal class SendChannel
     {
-        internal bool IsReliable { get { return isReliable; } }
-        internal int Count { get { return count; } } // number of packets ready for sending
-
         private Queue<SocketAsyncEventArgs> queue;
         private SendOptions channelType;
         private SocketAsyncEventArgs currentArgs;
@@ -19,6 +16,9 @@ namespace FalconUDP
         private SendToken currentToken;
         private int count;
         private bool isReliable;
+
+        internal bool IsReliable { get { return isReliable; } }
+        internal int Count { get { return count; } } // number of packets ready for sending
         
         public SendChannel(SendOptions channelType, 
             SocketAsyncEventArgsPool argsPool, 
@@ -68,6 +68,7 @@ namespace FalconUDP
         internal void EnqueueSend(SocketAsyncEventArgs args)
         {
             queue.Enqueue(args);
+            count++;
         }
 
         internal void EnqueueSend(PacketType type, Packet packet)

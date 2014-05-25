@@ -5,11 +5,6 @@ namespace FalconUDP
 {
     internal class ReceiveChannel
     {
-        /// <summary>
-        /// Number of unread packets ready for reading
-        /// </summary>
-        internal int Count { get; private set; }
-
         private SortedList<float,Packet> receivedPackets;
         private List<Packet> packetsRead;
         private float lastReceivedPacketSeq;
@@ -19,6 +14,11 @@ namespace FalconUDP
         private RemotePeer remotePeer;
         private bool isReliable;
         private bool isInOrder;
+
+        /// <summary>
+        /// Number of unread packets ready for reading
+        /// </summary>
+        internal int Count { get; private set; }
 
         internal ReceiveChannel(SendOptions channelType, FalconPeer localPeer, RemotePeer remotePeer)
         {
