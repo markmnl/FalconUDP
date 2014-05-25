@@ -20,7 +20,7 @@ namespace FalconUDP
         public bool Success { get; private set; }
 
         /// <summary>
-        /// Failure reason. Always set when <see cref="Success"/> if false.
+        /// Failure reason. Always set when <see cref="Success"/> is false.
         /// </summary>
         public string NonSuccessMessage { get; private set; }
 

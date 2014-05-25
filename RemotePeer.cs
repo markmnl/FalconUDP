@@ -14,14 +14,6 @@ namespace FalconUDP
 
     internal class RemotePeer
     {
-        internal int Id { get; private set; }
-        internal IPEndPoint EndPoint { get { return endPoint; } }
-        internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application
-        internal string PeerName { get; private set; }                          // e.g. IP end point, used for logging
-        internal int Latency { get; private set; }                              // current estimate one-way latency to this remote peer
-
-        internal bool IsKeepAliveMaster;                            // i.e. this remote peer is the master so it will send the KeepAlives, not us!
-
         private int unreadPacketCount;
         private readonly bool keepAliveAndAutoFlush;
         private IPEndPoint endPoint;
@@ -34,13 +26,9 @@ namespace FalconUDP
         private List<DelayedDatagram> delayedDatagrams;
         private Queue<AckDetail> enqueudAcks;
         private List<Packet> allUnreadPackets;
-
-        // pools
         private SocketAsyncEventArgsPool sendArgsPool;
         private GenericObjectPool<SendToken> tokenPool;
         private GenericObjectPool<AckDetail> ackPool;
-        
-        // channels
         private SendChannel noneSendChannel;
         private SendChannel reliableSendChannel;
         private SendChannel inOrderSendChannel;
@@ -49,6 +37,13 @@ namespace FalconUDP
         private ReceiveChannel reliableReceiveChannel;
         private ReceiveChannel inOrderReceiveChannel;
         private ReceiveChannel reliableInOrderReceiveChannel;
+
+        internal bool IsKeepAliveMaster;                                        // i.e. this remote peer is the master so it will send the KeepAlives, not us!
+        internal int Id { get; private set; }
+        internal IPEndPoint EndPoint { get { return endPoint; } }
+        internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application
+        internal string PeerName { get; private set; }                          // e.g. IP end point, used for logging
+        internal int Latency { get; private set; }                              // current estimate one-way latency to this remote peer
              
         internal RemotePeer(FalconPeer localPeer, IPEndPoint endPoint, int peerId, bool keepAliveAndAutoFlush = true)
         {
