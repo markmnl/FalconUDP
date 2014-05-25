@@ -230,17 +230,11 @@ namespace FalconUDPTests
 
         #endregion
 
-        #region Starting Up
-
         [TestMethod]
         public void TryStartTest()
         {
             CreateAndStartLocalPeer();
         }
-
-        #endregion
-
-        #region Connecting
 
         [TestMethod]
         public void ConnectToOnePeerTest()
@@ -288,11 +282,6 @@ namespace FalconUDPTests
                 Assert.AreEqual(allPeers.Count - 1, remotePeers.Count, "Failed to connect to all other peers");
             }            
         }
-
-        #endregion
-
-        #region Stopping
-        #endregion
 
         [TestMethod]
         public void PingPongOnePeer()
@@ -380,6 +369,7 @@ namespace FalconUDPTests
 
             var allPeers = new List<FalconPeer>(otherPeers);
             allPeers.Add(peer1);
+
 #if DEBUG
             allPeers.ForEach(p => p.SetLogLevel(LogLevel.Debug));
 #endif
