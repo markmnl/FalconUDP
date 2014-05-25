@@ -54,14 +54,14 @@ namespace FalconUDP
 
     /// <summary>
     /// Callback to call once discovery operation initated by 
-    /// <see cref="DiscoverFalconPeersAsync(TimeSpan, int, Guid?, DiscoveryCallback, int)"/> has completed.
+    /// <see cref="FalconPeer.DiscoverFalconPeersAsync(TimeSpan, int, Guid?, DiscoveryCallback, int)"/> has completed.
     /// </summary>
     /// <param name="discoveredPeers">Array of all IPEndPoints that replied to discovery request.</param>
     public delegate void DiscoveryCallback(IPEndPoint[] discoveredPeers);
 
     /// <summary>
     /// Callback passed to 
-    /// <see cref="DiscoverFalconPeersAsync(TimeSpan, int, Guid?, DiscoveryCallback, int)"/> 
+    /// <see cref="FalconPeer.DiscoverFalconPeersAsync(TimeSpan, int, Guid?, DiscoveryCallback, int)"/> 
     /// called back once the punch through operation completes.
     /// </summary>
     /// <param name="success">True if received a reply from any one of the end points supplied, 

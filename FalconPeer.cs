@@ -84,10 +84,10 @@ namespace FalconUDP
 
         /// <summary>
         /// Event raised during a discovery operation started by calling either <see cref="DiscoverFalconPeersAsync(TimeSpan, int, Guid?, DiscoveryCallback, int)"/>
-        /// or <see cref="PunchThroughToAsync(IEnumerable<IPEndPoint>, TimeSpan, int, Guid?, PunchThroughCallback)"/>
+        /// or <see cref="PunchThroughToAsync(IEnumerable{IPEndPoint}, TimeSpan, int, Guid?, PunchThroughCallback)"/>
         /// </summary>
-        /// <remarks>This event is raised as soon as reply is received from a discovery request. The callback to <see cref="PunchThroughToAsync(IEnumerable<IPEndPoint>, TimeSpan, int, Guid?, PunchThroughCallback)"/>
-        /// will have the details of any other peers discovered. The callback to <see cref="PunchThroughToAsync(IEnumerable<IPEndPoint>, TimeSpan, int, Guid?, PunchThroughCallback)"/>
+        /// <remarks>This event is raised as soon as reply is received from a discovery request. The callback to <see cref="PunchThroughToAsync(IEnumerable{IPEndPoint}, TimeSpan, int, Guid?, PunchThroughCallback)"/>
+        /// will have the details of any other peers discovered. The callback to <see cref="PunchThroughToAsync(IEnumerable{IPEndPoint}, TimeSpan, int, Guid?, PunchThroughCallback)"/>
         /// will have the details of the first peer that responded which will be the same as the details in this event.</remarks>
         public event PeerDiscovered PeerDiscovered;
 
