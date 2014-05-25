@@ -348,7 +348,7 @@ namespace FalconUDP
 #endif
                         if (pd.ResentCount > localPeer.MaxResends)
                         {
-                            // give-up, assume the peer has disconnected and drop it
+                            // give-up, assume the peer has disconnected (without saying bye) and drop it
                             sentPacketsAwaitingACK.RemoveAt(i);
                             i--;
 #if DEBUG

@@ -28,9 +28,9 @@ namespace FalconUDP
     /// </summary>
     /// <remarks>
     /// Regardless of the SendOption value used packets are never proccessed more than once (in 
-    /// case duplicated), and will be dropped if they our-of-order from the last packet the remote
-    /// peer received from this peer with the same SendOptions by more than 
-    /// Settings.OutOfOrderTolerance.
+    /// case duplicated), and will be dropped if they are our-of-order from the last packet the 
+    /// remote peer received from this peer with the same SendOptions by more than 
+    /// <see cref="FalconPeer.MaxOutOfOrderTolerence"/>.
     /// </remarks>
     [Flags]
     public enum SendOptions : byte
@@ -39,9 +39,10 @@ namespace FalconUDP
         /// Guarantees packet arrival. 
         /// </summary>
         /// <remarks>If the remote peer does not ACKnowledge receipt of packet sent with this flag
-        /// , re-send the packet till it does a maximum of Settings.ACKRetryAttempts times. If 
-        /// after Settings.ACKRetryAttempts re-sends no ACKnowldgement is recieved the remote peer 
-        /// is assumed to have disconnected and is dropped.
+        /// , re-send the packet till it does - a maximum of <see cref="FalconPeer.MaxMessageResends"/> 
+        /// times. If after <see cref="FalconPeer.MaxMessageResends"/> re-sends still no ACKnowldgement 
+        /// is recieved the remote peer is assumed to have disconnected (without saying bye) and is
+        /// dropped.
         /// </remarks>
         Reliable = 16, // 0001 0000
         /// <summary>
@@ -59,13 +60,13 @@ namespace FalconUDP
         /// other packets sent using this, and only this, SendOption.
         /// </summary>
         /// <remarks>Using this option guarantees all packets are received and proccessed in-order. 
-        /// However this involves more overhead: bandwidth because of the ACKs and memory as peers 
-        /// have to hold on to sent packets until they are ACKnowledged, in case they are not and 
-        /// need re-sending.</remarks>
+        /// However this involves more overhead: bandwidth because of the ACKs and memory as 
+        /// senders have to hold on to sent packets until they are ACKnowledged, and, receivers 
+        /// have to hold on to packets for which an earlier packet has not yet arrived.</remarks>
         ReliableInOrder = 48, // 0011 0000
-        /// <summary>No reliability or sequentiality guarantees, packet is sent and forgotten about.</summary>
+        /// <summary>No reliability or sequentiality guarantees.</summary>
         /// <remarks>As with all packets: duplicates and way out-of-order packets will not be 
-        /// proccessed by a FalconUDP recepiant, see <see cref="SendOptions"/>.</remarks>
+        /// proccessed by a FalconUDP recipient, see <see cref="SendOptions"/>.</remarks>
         None = 64, // 0100 0000
     }
 

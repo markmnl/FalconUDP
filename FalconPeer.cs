@@ -83,11 +83,11 @@ namespace FalconUDP
         public event PeerDropped PeerDropped;
 
         /// <summary>
-        /// Event raised during a discovery operation started by calling either <see cref="DiscoverFalconPeersAsync(int, int, Guid?, DiscoveryCallback)"/>
-        /// or <see cref="PunchThroughToAsync(IEnumerable{IPEndPoint},int,int,Guid?,PunchThroughCallback)"/>
+        /// Event raised during a discovery operation started by calling either <see cref="DiscoverFalconPeersAsync(TimeSpan, int, Guid?, DiscoveryCallback, int)"/>
+        /// or <see cref="PunchThroughToAsync(IEnumerable<IPEndPoint>, TimeSpan, int, Guid?, PunchThroughCallback)"/>
         /// </summary>
-        /// <remarks>This event is raised as soon as reply is received from a discovery request. The callback to <see cref="DiscoverFalconPeersAsync(int, int, Guid?, DiscoveryCallback)"/>
-        /// will have the details of any other peers discovered. The callback to <see cref="PunchThroughToAsync(IEnumerable{IPEndPoint},int,int,Guid?,PunchThroughCallback)"/>
+        /// <remarks>This event is raised as soon as reply is received from a discovery request. The callback to <see cref="PunchThroughToAsync(IEnumerable<IPEndPoint>, TimeSpan, int, Guid?, PunchThroughCallback)"/>
+        /// will have the details of any other peers discovered. The callback to <see cref="PunchThroughToAsync(IEnumerable<IPEndPoint>, TimeSpan, int, Guid?, PunchThroughCallback)"/>
         /// will have the details of the first peer that responded which will be the same as the details in this event.</remarks>
         public event PeerDiscovered PeerDiscovered;
 
@@ -294,7 +294,7 @@ namespace FalconUDP
         /// <remarks>IMPORTANT: 
         ///     1) This FalconPeer can only communicate with other Falcon peers with 
         /// the exact same MaxDatagramSize.
-        ///     3) Must be set before FalconPeer constructed to be used.
+        ///     2) Must be set before FalconPeer constructed to be used.
         /// 
         /// It is reccomended this value, in addition to any underlying protocols' data, be 
         /// less than the MTU (which on an ethernet network taking into account IP header 
