@@ -741,5 +741,11 @@ namespace FalconUDPTests
                 Assert.IsTrue(pongReceived, "Reply Pong not received from Ping to known peer in time.");
             }
         }
+
+        [TestMethod]
+        public void SimulatePacketLossTest()
+        {
+            // TODO
+        }
     }
 }
