@@ -32,37 +32,9 @@ namespace FalconUDP
             }
         }
 
-        internal static void WriteAck(AckDetail ack, 
-            byte[] dstBuffer, 
-            int dstIndex)
+        internal static void WriteAck(AckDetail ack, byte[] dstBuffer, int dstIndex)
         {
-            float ellapsedMilliseconds = ack.EllapsedSecondsSinceEnqueud * 1000.0f;
-            ushort stopoverMilliseconds = ellapsedMilliseconds > ushort.MaxValue 
-                ? ushort.MaxValue 
-                : (ushort)ellapsedMilliseconds; // TODO log warning if was greater than MaxValue
-
-            WriteFalconHeader(dstBuffer,
-                dstIndex,
-                ack.Type,
-                ack.Channel,
-                ack.Seq,
-                stopoverMilliseconds);
+            WriteFalconHeader(dstBuffer, dstIndex, PacketType.ACK, ack.Channel, ack.Seq, 0);
         }
-
-#if DEBUG
-        internal static void ReadFalconHeader(byte[] buffer, 
-            int index, 
-            out PacketType type, 
-            out SendOptions opts, 
-            out ushort seq, 
-            out ushort payloadSize)
-        {
-            byte packetDetail = buffer[index];
-            opts = (SendOptions)(byte)(packetDetail & Const.SEND_OPTS_MASK);
-            type = (PacketType)(byte)(packetDetail & Const.PACKET_TYPE_MASK);
-            seq = BitConverter.ToUInt16(buffer, index + 1);
-            payloadSize = BitConverter.ToUInt16(buffer, index + 3);
-        }
-#endif
     }
 }

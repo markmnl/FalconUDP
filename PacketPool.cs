@@ -13,12 +13,12 @@ namespace FalconUDP
     /// </remarks>
     internal class PacketPool
     {
-        private List<byte[]> bigBackingBuffers;
-        private Stack<Packet> pool;
-        private int buffersSize;
-        private int packetsPerBigBuffer;
+        private readonly List<byte[]> bigBackingBuffers;
+        private readonly Stack<Packet> pool;
+        private readonly int buffersSize;
+        private readonly int packetsPerBigBuffer;
 #if DEBUG
-        private List<Packet> leased;
+        private readonly List<Packet> leased;
 #endif
         
         internal PacketPool(int buffersSize, int initalNum)

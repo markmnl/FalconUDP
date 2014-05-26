@@ -7,8 +7,6 @@ namespace FalconUDP
     /// </summary>
     public enum LogLevel
     {
-        /// <summary>All</summary>
-        All,        // must be first in list
         /// <summary>Debug</summary>
         Debug,
         /// <summary>Informational</summary>
@@ -16,11 +14,7 @@ namespace FalconUDP
         /// <summary>Warning</summary>
         Warning,
         /// <summary>Error</summary>
-        Error,
-        /// <summary>Fatal</summary>
-        Fatal,
-        /// <summary>No logging</summary>
-        NoLogging   // must be last in list
+        Error
     }
 
     /// <summary>
@@ -74,9 +68,7 @@ namespace FalconUDP
     internal enum PacketType : byte
     {
         ACK,
-        AntiACK,
         JoinRequest,
-        DropPeer,
         AcceptJoin,
         Ping,
         Pong,

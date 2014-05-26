@@ -21,20 +21,6 @@ namespace FalconUDP
         public int PeerId { get; internal set; }
 
         /// <summary>
-        /// Estimated Elapsed milliseconds since sent. Only set on received packets.
-        /// </summary>
-        /// <remarks>
-        /// One way time taken for the packet to arrive is estimated on time taken to receive ACKs
-        /// from remote peer using the formula:
-        /// 
-        ///     latency = ACK round trip time for last Settings.LatencySampleSize ACKs / (Settings.LatencySampleSize * 2)
-        /// 
-        /// This is then added to the time taken till the packet is read using <see cref="FalconPeer.ProcessReceivedPackets"/>
-        /// ACKs are only sent in response to Reliable packets (which includes KeepAlives).
-        /// </remarks>
-        public int ElapsedMillisecondsSinceSent { get; internal set; }
-
-        /// <summary>
         /// Number bytes remaining to be read from this Packet from the current pos.
         /// </summary>
         public int BytesRemaining { get { return BytesWritten - (pos - offset); } }
@@ -45,7 +31,6 @@ namespace FalconUDP
         public int BytesWritten { get; private set; }
 
         internal bool IsReadOnly;
-        internal long ElapsedTimeAtReceived;
         internal ushort DatagramSeq;
 
         private byte[] backingBuffer;
@@ -96,20 +81,19 @@ namespace FalconUDP
             pos = offset;
             BytesWritten = 0;
             IsReadOnly = false;
-            ElapsedMillisecondsSinceSent = 0;
             DatagramSeq = 0;
         }
 
-        internal void CopyBytes(int index, byte[] destination, int dstOffset, int count)
+        internal void CopyBytes(int index, byte[] destination, int dstOffset, int size)
         {
             if (index > BytesWritten)
                 throw new ArgumentOutOfRangeException("index");
-            if (index + count > BytesWritten)
+            if (index + size > BytesWritten)
                 throw new InvalidOperationException("Not enough bytes remain to copy count from index");
-            if (count == 0)
+            if (size == 0)
                 return;
 
-            Buffer.BlockCopy(backingBuffer, offset + index, destination, dstOffset, count);
+            Buffer.BlockCopy(backingBuffer, offset + index, destination, dstOffset, size);
         }
 
         internal byte[] ToBytes()
@@ -136,7 +120,6 @@ namespace FalconUDP
             Buffer.BlockCopy(srcPacket.backingBuffer, srcPacket.offset, dstPacket.backingBuffer, dstPacket.offset, srcPacket.BytesWritten);
             dstPacket.BytesWritten = srcPacket.BytesWritten;
             dstPacket.DatagramSeq = srcPacket.DatagramSeq;
-            dstPacket.ElapsedMillisecondsSinceSent = srcPacket.ElapsedMillisecondsSinceSent;
             if (reset)
             {
                 dstPacket.ResetAndMakeReadOnly(srcPacket.PeerId);

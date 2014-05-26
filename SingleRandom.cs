@@ -4,7 +4,7 @@ namespace FalconUDP
 {
     internal static class SingleRandom
     {
-        private static Random random;
+        private static readonly Random random;
 
         static SingleRandom()
         {

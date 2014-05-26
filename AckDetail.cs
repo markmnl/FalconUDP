@@ -4,15 +4,13 @@
     {
         internal ushort Seq;
         internal SendOptions Channel;
-        internal PacketType Type;
-        internal float EllapsedSecondsSinceEnqueud;
+        internal float EllapsedSecondsSinceEnqueued;
 
-        internal void Init(ushort seq, SendOptions channel, PacketType type)
+        internal void Init(ushort seq, SendOptions channel)
         {
             this.Seq = seq;
             this.Channel = channel;
-            this.Type = type;
-            this.EllapsedSecondsSinceEnqueud = 0.0f;
+            this.EllapsedSecondsSinceEnqueued = 0.0f;
         }
     }
 }

@@ -1,12 +1,13 @@
 TODO
 ----
-- include packet size and version no. in join request
-- replace SocketAsyncEventArgs usage with BufferSegmant from BufferPool and Packet's can inherit from BufferSegmant
-- consider determining addresses to broadcast to at time of discovery not at startup (could have changed, though it does take a little time)
-- pool RemotePeers and they should get their buffers from common pool
+- include packet size and version no. in join request so incompatiable falcon peers cannot join eachother
+- consider determining addresses to broadcast to at time of discovery not at startup (could have changed, though it does take time to calc this)
+- pool RemotePeers and they should refernce pools on FalconPeer rather than having their own
+- Default MaxDatagramSize to 1400 bytes
 
 One day
 -------
 - IPv6 and other underlying protocols support
 - WinRT port
+- Optimistic Reliable congestion controlled delivery
 

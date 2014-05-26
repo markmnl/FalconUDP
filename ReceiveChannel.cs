@@ -5,15 +5,15 @@ namespace FalconUDP
 {
     internal class ReceiveChannel
     {
-        private SortedList<float,Packet> receivedPackets;
-        private List<Packet> packetsRead;
+        private readonly SortedList<float,Packet> receivedPackets;
+        private readonly List<Packet> packetsRead;
+        private readonly SendOptions channelType;
+        private readonly FalconPeer localPeer;
+        private readonly RemotePeer remotePeer;
+        private readonly bool isReliable;
+        private readonly bool isInOrder;
         private float lastReceivedPacketSeq;
         private int maxReadDatagramSeq;
-        private SendOptions channelType;
-        private FalconPeer localPeer;
-        private RemotePeer remotePeer;
-        private bool isReliable;
-        private bool isInOrder;
 
         /// <summary>
         /// Number of unread packets ready for reading
@@ -72,18 +72,18 @@ namespace FalconUDP
                         ordinalPacketSeq += ushort.MaxValue;
                     }
                 }
+
+                // check not duplicate, this ASSUMES we haven't received 65534 datagrams between reads!
+                if (receivedPackets.ContainsKey(ordinalPacketSeq))
+                {
+                    localPeer.Log(LogLevel.Warning, String.Format("Duplicate packet from: {0} dropped.", remotePeer.PeerName));
+                    return false;
+                }
             }
             else
             {
                 // lastReceived Seq will be ordinal seq for previous packet in datagram
-                ordinalPacketSeq = lastReceivedPacketSeq + 0.001f; // HERE BE DRAGONS using float.Epsilon does not work?!?!
-            }
-
-            // check not duplicate, this ASSUMES we haven't received 65534 datagrams between reads!
-            if (receivedPackets.ContainsKey(ordinalPacketSeq))
-            {
-                localPeer.Log(LogLevel.Warning, String.Format("Duplicate packet from: {0} dropped.", remotePeer.PeerName));
-                return false;
+                ordinalPacketSeq = lastReceivedPacketSeq + 0.001f; // TODO user machine espsilon
             }
 
             // if datagram required to be in order check after max read, if not drop it
@@ -91,8 +91,6 @@ namespace FalconUDP
             {
                 if (ordinalPacketSeq < maxReadDatagramSeq)
                 {
-                    if (isReliable)
-                        remotePeer.ACK(datagramSeq, PacketType.AntiACK, channelType);
                     return false;
                 }
             }
@@ -102,7 +100,7 @@ namespace FalconUDP
             // if datagram requries ACK - send it!
             if (isFirstPacketInDatagram && isReliable)
             {
-                remotePeer.ACK(datagramSeq, PacketType.ACK, channelType);
+                remotePeer.ACK(datagramSeq, channelType);
             }
 
             switch (type)
@@ -110,8 +108,6 @@ namespace FalconUDP
                 case PacketType.Application:
                     {
                         Packet packet = localPeer.PacketPool.Borrow();
-                        packet.ElapsedMillisecondsSinceSent = remotePeer.Latency;
-                        packet.ElapsedTimeAtReceived = localPeer.Stopwatch.ElapsedMilliseconds;
                         packet.WriteBytes(buffer, index, count);
                         packet.ResetAndMakeReadOnly(remotePeer.Id);
                         packet.DatagramSeq = datagramSeq;
@@ -217,13 +213,6 @@ namespace FalconUDP
                     maxReadDatagramSeq -= ushort.MaxValue;
                     lastReceivedPacketSeq -= ushort.MaxValue;
                 }
-
-                // add time spent since recieved to latency estimate to ElapsedMillisecondsSinceSent
-                packetsRead.ForEach(p =>
-                    {
-                        p.ElapsedMillisecondsSinceSent += (int)(localPeer.Stopwatch.ElapsedMilliseconds - p.ElapsedTimeAtReceived);
-                    });
-
             }
 
             return packetsRead;

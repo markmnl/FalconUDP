@@ -8,8 +8,8 @@
        [1]     }
        [2]     } Sequence number as unsigned 16 bit integer
   
-       [5]     } 
-       [6]     } Payload Size as unsigned 16 bit integer
+       [3]     } 
+       [4]     } Payload Size as unsigned 16 bit integer
        
        [n]     }
        ...     } Payload (if any, i.e. size > 0)
@@ -43,14 +43,13 @@
        [7]     }  
  
 
-    ACKs and AntiACKs
-   -----------------
-   ACKs and AntiACKs are special, they are the same size as a FalonUDP header and have seq,
-   Send Options and Packet Type stored at the same place, however the values have different 
-   meanings. A FalconUDP packet can start with an ACK or AntiACK or have them after any application 
-   packet within.
+   ACKs
+   ----
+   ACKs are special, they are the same size as a FalonUDP header and have seq, Send Options and 
+   Packet Type stored at the same place, however the values have different meanings. A FalconUDP
+   packet can start with an ACK or AntiACK or have them after any application packet within.
 
-   What each FalconUDP header value means in an ACK or AntiACK:
+   What each FalconUDP header value means in an ACK:
    
    PacketType   = Will always be ACK or AntiACK
    Sequence No. = Sequence ACK or AntiACK is for
@@ -66,6 +65,6 @@
    Additional packets are only appended in a Falcon packet if they fit wholley within 
    without packet exceeding MAX_PACKET_SIZE.
 
-   Additional packets have to have the same SendOptions as byte [2] in the Falcon header.
+   Additional packets have to have the same SendOptions as byte [1] in the Falcon header.
 
 
