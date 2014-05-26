@@ -43,14 +43,13 @@
        [7]     }  
  
 
-   ACKs and AntiACKs
-   -----------------
-   ACKs and AntiACKs are special, they are the same size as a FalonUDP header and have seq,
-   Send Options and Packet Type stored at the same place, however the values have different 
-   meanings. A FalconUDP packet can start with an ACK or AntiACK or have them after any application 
-   packet within.
+   ACKs
+   ----
+   ACKs are special, they are the same size as a FalonUDP header and have seq, Send Options and 
+   Packet Type stored at the same place, however the values have different meanings. A FalconUDP
+   packet can start with an ACK or AntiACK or have them after any application packet within.
 
-   What each FalconUDP header value means in an ACK or AntiACK:
+   What each FalconUDP header value means in an ACK:
    
    PacketType   = Will always be ACK or AntiACK
    Sequence No. = Sequence ACK or AntiACK is for

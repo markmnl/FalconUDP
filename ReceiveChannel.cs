@@ -91,8 +91,6 @@ namespace FalconUDP
             {
                 if (ordinalPacketSeq < maxReadDatagramSeq)
                 {
-                    if (isReliable)
-                        remotePeer.ACK(datagramSeq, PacketType.AntiACK, channelType);
                     return false;
                 }
             }

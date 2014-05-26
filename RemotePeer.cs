@@ -536,7 +536,6 @@ namespace FalconUDP
                         return false;
                     }
                 case PacketType.ACK:
-                case PacketType.AntiACK:
                     {
                         // Look for the oldest datagram with the same seq AND channel type
                         // seq is for which we ASSUME the ACK is for.
@@ -561,7 +560,7 @@ namespace FalconUDP
 
                             localPeer.Log(LogLevel.Warning, "Datagram for ACK not found - too late?");
                         }
-                        else // if (type == PacketType.ACK)
+                        else
                         {
                             // remove datagram
                             sentDatagramsAwaitingACK.RemoveAt(datagramIndex);

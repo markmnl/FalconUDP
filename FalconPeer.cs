@@ -368,20 +368,17 @@ namespace FalconUDP
 #if DEBUG
             // log
             this.logLvl = logLevel;
-            if (logLevel != LogLevel.NoLogging)
+            if (logCallback != null)
             {
-                if (logCallback != null)
-                {
-                    logger = logCallback;
-                }
-                else
-                {
-#if !NETFX_CORE
-                    Debug.AutoFlush = true;
-#endif
-                }
-                Log(LogLevel.Info, "Initialized");
+                logger = logCallback;
             }
+            else
+            {
+#if !NETFX_CORE
+                Debug.AutoFlush = true;
+#endif
+            }
+            Log(LogLevel.Info, "Initialized");
 #endif
         }
 
@@ -655,10 +652,10 @@ namespace FalconUDP
             }
 
             // parse header
-            byte packetDetail = buffer[0];
-            SendOptions opts = (SendOptions)(byte)(packetDetail & Const.SEND_OPTS_MASK);
-            PacketType type = (PacketType)(byte)(packetDetail & Const.PACKET_TYPE_MASK);
-            bool isAckPacket = (type == PacketType.ACK || type == PacketType.AntiACK);
+            byte packetDetail   = buffer[0];
+            SendOptions opts    = (SendOptions)(byte)(packetDetail & Const.SEND_OPTS_MASK);
+            PacketType type     = (PacketType)(byte)(packetDetail & Const.PACKET_TYPE_MASK);
+            bool isAckPacket    = type == PacketType.ACK;
             ushort seq = BitConverter.ToUInt16(buffer, 1);
             ushort payloadSize = BitConverter.ToUInt16(buffer, 3);
 
@@ -715,9 +712,9 @@ namespace FalconUDP
                     if (count >= Const.ADDITIONAL_PACKET_HEADER_SIZE)
                     {
                         // parse additional packet header
-                        packetDetail = buffer[index];
-                        type = (PacketType)(packetDetail & Const.PACKET_TYPE_MASK);
-                        isAckPacket = (type == PacketType.ACK || type == PacketType.AntiACK);
+                        packetDetail    = buffer[index];
+                        type            = (PacketType)(packetDetail & Const.PACKET_TYPE_MASK);
+                        isAckPacket     = type == PacketType.ACK;
                         if (isAckPacket)
                         {
                             opts = (SendOptions)(packetDetail & Const.SEND_OPTS_MASK);

@@ -11,7 +11,6 @@ namespace FalconUDP
         internal const byte     SEND_OPTS_MASK                      = 112;                              // 0111 0000 AND'd with packet detail byte returns SendOptions
         internal const byte     PACKET_TYPE_MASK                    = 15;                               // 0000 1111 AND'd with packet detail byte returns PacketType
         internal const byte     ACK_PACKET_DETAIL                   = (byte)((byte)PacketType.ACK | (byte)SendOptions.None);
-        internal const byte     ANTI_ACK_PACKET_DETAIL              = (byte)((byte)PacketType.AntiACK | (byte)SendOptions.None);
         internal static readonly Type PACKET_TYPE_TYPE              = typeof(PacketType);
         internal static readonly Type SEND_OPTIONS_TYPE             = typeof(SendOptions);
         internal static readonly byte[] CLASS_C_SUBNET_MASK         = new byte[] { 255, 255, 255, 0 };
