@@ -11,7 +11,7 @@ namespace FalconUDP
         /// Number of <see cref="Packet"/>s to pool. The optimal number is the maximum number in 
         /// use at any one time - which will be the number received between calls to <see cref="FalconPeer.Update()"/>.
         /// </summary>
-        public int InitalNumPacketsToPool = 32;
+        public int InitalNumPacketsToPool = 64;
         /// <summary>
         /// Number of Pings to pool - an internal object used whenever a Ping is sent. The optimal 
         /// number is the maximum in use at any one time - which will be the number of outstanding 
@@ -31,7 +31,7 @@ namespace FalconUDP
         /// of packets enqueued to send minus the number that can be "packed-in" existing 
         /// datagrams.
         /// </summary>
-        public int InitalNumSendDatagramsToPool = 20;
+        public int InitalNumSendDatagramsToPool = 40;
         /// <summary>
         /// Number of interal data structurs use to save ACKknowledgement details to be sent in 
         /// response to receiving a Reliable message. The optimal number is the maximum number of 
