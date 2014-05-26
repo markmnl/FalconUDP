@@ -43,7 +43,7 @@
        [7]     }  
  
 
-    ACKs and AntiACKs
+   ACKs and AntiACKs
    -----------------
    ACKs and AntiACKs are special, they are the same size as a FalonUDP header and have seq,
    Send Options and Packet Type stored at the same place, however the values have different 
@@ -66,6 +66,6 @@
    Additional packets are only appended in a Falcon packet if they fit wholley within 
    without packet exceeding MAX_PACKET_SIZE.
 
-   Additional packets have to have the same SendOptions as byte [2] in the Falcon header.
+   Additional packets have to have the same SendOptions as byte [1] in the Falcon header.
 
 
