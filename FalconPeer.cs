@@ -334,8 +334,9 @@ namespace FalconUDP
         /// </summary>
         /// <param name="port">Port to listen on.</param>
         /// <param name="processReceivedPacketDelegate">Callback invoked when 
+        /// <param name="poolSizes">Numbers of objects this FalconPeer should pre-allocate</param>
         /// <see cref="ProcessReceivedPackets()"/> called for each packet received.</param>
-        public FalconPeer(int port, ProcessReceivedPacket processReceivedPacketDelegate, FalconPoolSizes poolSizes,)
+        public FalconPeer(int port, ProcessReceivedPacket processReceivedPacketDelegate, FalconPoolSizes poolSizes)
 #endif
         {
             if (!BitConverter.IsLittleEndian)

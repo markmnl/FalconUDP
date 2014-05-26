@@ -191,7 +191,7 @@ namespace FalconUDPTests
 #if DEBUG
             FalconPeer peer = new FalconPeer(port, ProcessReceivedPacket, FalconPoolSizes.Default, null, LogLevel.Debug);
 #else
-            FalconPeer peer = new FalconPeer(port, ProcessReceivedPacket, FalconPoolSizes.Default,);
+            FalconPeer peer = new FalconPeer(port, ProcessReceivedPacket, FalconPoolSizes.Default);
 #endif
             var tr = peer.TryStart(); 
             Assert.IsTrue(tr.Success, tr.NonSuccessMessage);
