@@ -26,7 +26,7 @@ namespace FalconUDP
         private bool acceptJoinRequests;
         private bool replyToAnonymousPings;
         private List<AwaitingAcceptDetail> awaitingAcceptDetails;
-        private long ellapsedTicksAtLastUpdate;
+        private float ellapsedSecondsAtLastUpdate;
         private List<Packet> readPacketsList;
         private List<RemotePeer> remotePeersToRemove;
         private GenericObjectPool<EmitDiscoverySignalTask> emitDiscoverySignalTaskPool;
@@ -1711,9 +1711,8 @@ namespace FalconUDP
             // NOTE: Stopwatch with a frequency of 2338439 will only loop after 16935 days 14 mins 
             //       and 9 seconds!
 
-            long ellapsedTicks = Stopwatch.ElapsedTicks;
-            float ellapsedSeconds = (float)(ellapsedTicks - ellapsedTicksAtLastUpdate) / Stopwatch.Frequency;
-            ellapsedTicksAtLastUpdate = ellapsedTicks;
+            float ellapsedSeconds = (float)Stopwatch.Elapsed.TotalSeconds;
+            ellapsedSecondsAtLastUpdate = ellapsedSeconds - ellapsedSecondsAtLastUpdate;
             Update(ellapsedSeconds);
         }
 
