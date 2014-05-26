@@ -11,6 +11,7 @@ namespace FalconUDP
         internal SendOptions SendOptions;
         internal int ResentCount;
         internal float EllapsedSecondsSincePacketSent;
+        internal float EllapsedSecondsAtSent;
 
         public byte[] BackingBuffer { get; private set; }
         public int Offset { get; private set; }

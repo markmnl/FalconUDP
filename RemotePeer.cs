@@ -13,7 +13,6 @@ namespace FalconUDP
         private readonly List<DelayedDatagram> delayedDatagrams;
         private readonly Queue<AckDetail> enqueudAcks;
         private readonly List<Packet> allUnreadPackets;
-        private readonly GenericObjectPool<AckDetail> ackPool;
         private readonly SendChannel noneSendChannel;
         private readonly SendChannel reliableSendChannel;
         private readonly SendChannel inOrderSendChannel;
@@ -32,7 +31,7 @@ namespace FalconUDP
         internal IPEndPoint EndPoint { get { return endPoint; } }
         internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application
         internal string PeerName { get; private set; }                          // e.g. IP end point, used for logging
-        internal int Latency { get; private set; }                              // current estimate one-way latency to this remote peer
+        internal float Latency { get; private set; }                            // current estimate round-trip-time latency to this remote peer
              
         internal RemotePeer(FalconPeer localPeer, IPEndPoint endPoint, int peerId, bool keepAliveAndAutoFlush = true)
         {
@@ -42,12 +41,11 @@ namespace FalconUDP
             this.unreadPacketCount          = 0;
             this.sentDatagramsAwaitingACK   = new List<Datagram>();
             this.PeerName                   = endPoint.ToString();
-            this.roundTripTimes             = new int[localPeer.LatencySampleLength];
+            this.roundTripTimes             = new float[localPeer.LatencySampleLength];
             this.delayedDatagrams           = new List<DelayedDatagram>();
             this.keepAliveAndAutoFlush      = keepAliveAndAutoFlush;
             this.allUnreadPackets           = new List<Packet>();
             this.enqueudAcks                = new Queue<AckDetail>();
-            this.ackPool                    = new GenericObjectPool<AckDetail>(PoolSizes.InitalNumAcksToPoolPerPeer);
             this.noneSendChannel            = new SendChannel(SendOptions.None, localPeer.SendDatagramsPool);
             this.inOrderSendChannel         = new SendChannel(SendOptions.InOrder, localPeer.SendDatagramsPool);
             this.reliableSendChannel        = new SendChannel(SendOptions.Reliable, localPeer.SendDatagramsPool);
@@ -60,14 +58,13 @@ namespace FalconUDP
 
         #region Latency Calc
         private bool hasUpdateLatencyBeenCalled = false;
-        private int[] roundTripTimes;
+        private float[] roundTripTimes;
         private int roundTripTimesIndex;
-        private int runningRTTTotal;
-        private void UpdateLantency(int rtt)
+        private float runningRTTTotal;
+        private void UpdateLatency(float rtt)
         {
             // If this is the first time this is being called seed entire sample with inital value
-            // and set latency to RTT / 2, it's all we have!
-
+            // and set latency to RTT, it's all we have!
             if (!hasUpdateLatencyBeenCalled)
             {
                 for (int i = 0; i < roundTripTimes.Length; i++)
@@ -75,7 +72,7 @@ namespace FalconUDP
                     roundTripTimes[i] = rtt;
                 }
                 runningRTTTotal = rtt * roundTripTimes.Length;
-                Latency = rtt / 2;
+                Latency = rtt;
                 hasUpdateLatencyBeenCalled = true;
             }
             else
@@ -83,7 +80,7 @@ namespace FalconUDP
                 runningRTTTotal -= roundTripTimes[roundTripTimesIndex]; // subtract oldest RTT from running total
                 roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
                 runningRTTTotal += rtt;                                 // add new RTT to running total
-                Latency = runningRTTTotal / (roundTripTimes.Length * 2);// re-calc average one-way latency
+                Latency = runningRTTTotal / roundTripTimes.Length;      // re-calc average one-way latency
             }
 
             // increment index for next time this is called
@@ -122,6 +119,9 @@ namespace FalconUDP
                     delay.Add(TimeSpan.FromMilliseconds((SingleRandom.Next(0, jitterMilliseconds * 2) - (int)localPeer.SimulateDelayJitterTimeSpan.TotalMilliseconds)));
                 }
 
+                // pretend time sent is now
+                datagram.EllapsedSecondsAtSent = (float)localPeer.Stopwatch.Elapsed.TotalSeconds;
+
                 DelayedDatagram delayedDatagram = new DelayedDatagram
                     {
                         EllapsedSecondsRemainingToDelay = (float)delay.TotalSeconds,
@@ -137,6 +137,12 @@ namespace FalconUDP
                 datagram.Sequence.ToString(), 
                 datagram.SendOptions.ToString(),
                 datagram.Count.ToString()));
+
+            // if reliable and not already delayed update time sent used to mearsure RTT when ACK response received
+            if (datagram.IsReliable && !hasAlreadyBeenDelayed)
+            {
+                datagram.EllapsedSecondsAtSent = (float) localPeer.Stopwatch.Elapsed.TotalSeconds;
+            }
 
             try
             {
@@ -169,7 +175,7 @@ namespace FalconUDP
             {
                 AckDetail ack = enqueudAcks.Dequeue();
                 FalconHelper.WriteAck(ack, datagram.BackingBuffer, index);
-                ackPool.Return(ack);
+                localPeer.AckPool.Return(ack);
                 index += Const.FALCON_PACKET_HEADER_SIZE;
             }
             datagram.Resize(index - datagram.Offset);
@@ -251,7 +257,7 @@ namespace FalconUDP
             {
                 foreach (AckDetail detail in enqueudAcks)
                 {
-                    detail.EllapsedSecondsSinceEnqueud += dt;
+                    detail.EllapsedSecondsSinceEnqueued += dt;
                 }
             }
             //
@@ -376,10 +382,10 @@ namespace FalconUDP
             }
         }
 
-        internal void ACK(ushort seq, PacketType type, SendOptions channelType)
+        internal void ACK(ushort seq, SendOptions channelType)
         {
-            AckDetail ack = ackPool.Borrow();
-            ack.Init(seq, channelType, type);
+            AckDetail ack = localPeer.AckPool.Borrow();
+            ack.Init(seq, channelType);
             enqueudAcks.Enqueue(ack);
         }
 
@@ -536,18 +542,18 @@ namespace FalconUDP
                         // Look for the oldest datagram with the same seq AND channel type
                         // seq is for which we ASSUME the ACK is for.
                         int datagramIndex;
-                        Datagram sendDatagramAwaitingAck = null;
+                        Datagram sentDatagramAwaitingAck = null;
                         for (datagramIndex = 0; datagramIndex < sentDatagramsAwaitingACK.Count; datagramIndex++)
                         {
                             Datagram datagram = sentDatagramsAwaitingACK[datagramIndex];
                             if (datagram.Sequence == seq && datagram.SendOptions == opts)
                             {
-                                sendDatagramAwaitingAck = datagram;
+                                sentDatagramAwaitingAck = datagram;
                                 break;
                             }
                         }   
 
-                        if (sendDatagramAwaitingAck == null)
+                        if (sentDatagramAwaitingAck == null)
                         {
                             // Possible reasons:
                             // 1) ACK has arrived too late and the datagram must have already been removed.
@@ -561,9 +567,12 @@ namespace FalconUDP
                             // remove datagram
                             sentDatagramsAwaitingACK.RemoveAt(datagramIndex);
 
-                            // update latency estimate (payloadSize is stopover time in on remote peer)
-                            // TODO improve accuracy by saving ticks at send and calculating RTT now
-                            UpdateLantency((int)(sendDatagramAwaitingAck.EllapsedSecondsSincePacketSent * 1000 - payloadSize));
+                            // Update latency estimate.
+                            float rtt = ((float)localPeer.Stopwatch.Elapsed.TotalSeconds) - sentDatagramAwaitingAck.EllapsedSecondsAtSent;
+                            UpdateLatency(rtt);
+
+                            // return datagram
+                            localPeer.SendDatagramsPool.Return(sentDatagramAwaitingAck);
                         }
 
                         return true;
@@ -596,6 +605,26 @@ namespace FalconUDP
             unreadPacketCount = 0;
             
             return allUnreadPackets;
+        }
+
+        internal void ReturnLeasedObjects()
+        {
+            // return to objects leased from FalconPeer's pools
+
+            foreach (var datagram in sentDatagramsAwaitingACK)
+            {
+                localPeer.SendDatagramsPool.Return(datagram);
+            }
+
+            foreach (var enqueudAck in enqueudAcks)
+            {
+                localPeer.AckPool.Return(enqueudAck);
+            }
+
+            noneSendChannel.ReturnLeasedOjects();
+            inOrderSendChannel.ReturnLeasedOjects();
+            reliableSendChannel.ReturnLeasedOjects();
+            reliableInOrderSendChannel.ReturnLeasedOjects();
         }
     }
 }

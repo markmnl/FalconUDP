@@ -25,7 +25,7 @@ namespace FalconUDPTests
     public class FalconPeerTests
     {
         private const int START_PORT = 37986;
-        private const int TICK_RATE = 20;
+        private const int TICK_RATE = 10;
         private const int MAX_REPLY_WAIT_TIME = 500; // milliseconds
         
         private static int portCount = START_PORT;
@@ -176,8 +176,6 @@ namespace FalconUDPTests
             }
         }
 
-        #region Helper Methods
-
         private int GetUnusedPortNumber()
         {
             portCount++;
@@ -191,9 +189,9 @@ namespace FalconUDPTests
             if(port == -1)
                 port = GetUnusedPortNumber();
 #if DEBUG
-            FalconPeer peer = new FalconPeer(port, ProcessReceivedPacket, null, LogLevel.Debug);
+            FalconPeer peer = new FalconPeer(port, ProcessReceivedPacket, FalconPoolSizes.Default, null, LogLevel.Debug);
 #else
-            FalconPeer peer = new FalconPeer(port, ProcessReceivedPacket);
+            FalconPeer peer = new FalconPeer(port, ProcessReceivedPacket, FalconPoolSizes.Default,);
 #endif
             var tr = peer.TryStart(); 
             Assert.IsTrue(tr.Success, tr.NonSuccessMessage);
@@ -258,19 +256,11 @@ namespace FalconUDPTests
             return pingPacket;
         }
 
-        #endregion
-
-        #region Starting Up
-
         [TestMethod]
         public void TryStartTest()
         {
             CreateAndStartLocalPeer();
         }
-
-        #endregion
-
-        #region Connecting
 
         [TestMethod]
         public void ConnectToOnePeerTest()
@@ -318,11 +308,6 @@ namespace FalconUDPTests
                 Assert.AreEqual(allPeers.Count - 1, remotePeers.Count, "Failed to connect to all other peers");
             }            
         }
-
-        #endregion
-
-        #region Stopping
-        #endregion
 
         [TestMethod]
         public void PingPongOnePeer()
@@ -562,19 +547,18 @@ namespace FalconUDPTests
         [TestMethod]
         public void SimulateLatencyTest()
         {
-            TimeSpan DELAY = TimeSpan.FromMilliseconds(100);
-            const int OUT_OF_RANGE_TOLERANCE = 10; // NOTE: in DEBUG need wider tolerance to allow for Debug.WriteLine()'s
-            const int NUM_OF_PINGS = 100;
+            TimeSpan        DELAY                   = TimeSpan.FromSeconds(0.2f);
+            const float     OUT_OF_RANGE_TOLERANCE  = 0.05f;
+            const int       NUM_OF_PINGS            = 20;
 
             var peer1 = CreateAndStartLocalPeer();
-            peer1.SetVisibility(true, null, false);
             var peer2 = CreateAndStartLocalPeer();
-            var estimatedLatencies = new int[NUM_OF_PINGS];
+            var estimatedLatencies = new float[NUM_OF_PINGS];
             var count = 0;
             var waitHandel = new AutoResetEvent(false);
-            var sw = new Stopwatch();
-            long ellapsedAtSend = 0;
+            var estimated = 0.0f;
 
+            peer1.SetVisibility(true, null, false);
             ConnectToLocalPeer(peer2, peer1, null);
 
             peer1.SetSimulateLatency(DELAY, TimeSpan.Zero);
@@ -585,30 +569,38 @@ namespace FalconUDPTests
                 {
                     lock (falconPeerLock) // we should already be in one, but no harm
                     {
-                        int actual = (int)(sw.ElapsedMilliseconds - ellapsedAtSend) / 2;
-                        int estimated = packet.ElapsedMillisecondsSinceSent;
-                        Debug.WriteLine("*** Estimated latency: {0}, actual: {1}", estimated, actual);
-                        estimatedLatencies[count] = packet.ElapsedMillisecondsSinceSent;
+                        // Latency is only avalible once the ACK gets through so only start getting
+                        // peer latency 2nd pong till 2nd last.
+                        if (count > 0 && count < NUM_OF_PINGS)
+                        {
+                            estimated = (float) peer1.GetPeerLatency(1).TotalSeconds;
+                            Debug.WriteLine("ESTIMATED: {0}", estimated);
+                            estimatedLatencies[count-1] = estimated;
+                        }
                         count++;
                         waitHandel.Set();
                     }
                 };
 
-            sw.Start();
             for (var i = 0; i < NUM_OF_PINGS; i++)
             {
                 lock (falconPeerLock)
                 {
                     peer1.EnqueueSendToAll(SendOptions.ReliableInOrder, GetPingPacket(peer1));
-                    ellapsedAtSend = sw.ElapsedMilliseconds;
                     peer1.SendEnquedPackets();
                 }
                 waitHandel.WaitOne();
             }
 
-            double avg = estimatedLatencies.Average();
-            double diff = Math.Abs(avg - DELAY.TotalMilliseconds);
-            Assert.IsTrue(diff < OUT_OF_RANGE_TOLERANCE, "Average estimated latency {0} differs from expected: {1} by: {2}ms", avg, DELAY, diff);
+            // wait for final ACK to get through
+            Thread.Sleep(MAX_REPLY_WAIT_TIME);
+            estimated = (float)peer1.GetPeerLatency(1).TotalSeconds;
+            Debug.WriteLine("ESTIMATED: {0}", estimated);
+            estimatedLatencies[NUM_OF_PINGS-1] = estimated;
+
+            float avg   = estimatedLatencies.Average();
+            float diff  = Math.Abs(avg - ((float)DELAY.TotalSeconds * 2.0f));
+            Assert.IsTrue(diff < OUT_OF_RANGE_TOLERANCE, "Average estimated latency {0} differs from expected: {1} by: {2}s", avg, (float)DELAY.TotalSeconds, diff);
         }
 
         [TestMethod]

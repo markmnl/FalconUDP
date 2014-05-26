@@ -7,7 +7,7 @@ namespace FalconUDP
     {
         private readonly Queue<Datagram> queue;
         private readonly SendOptions channelType;
-        private readonly DatagramPool sendBufferPool;
+        private readonly DatagramPool datagramPoolPool;
         private Datagram currentDatagram;
         private int currentDatagramTotalBufferOffset;
         private ushort seqCount;
@@ -19,7 +19,7 @@ namespace FalconUDP
         {
             this.channelType    = channelType;
             this.queue          = new Queue<Datagram>();
-            this.sendBufferPool = sendDatagramPool;
+            this.datagramPoolPool = sendDatagramPool;
             this.IsReliable     = (channelType & SendOptions.Reliable) == SendOptions.Reliable;
 
             GetNewDatagram();
@@ -27,7 +27,7 @@ namespace FalconUDP
 
         private void GetNewDatagram()
         {
-            currentDatagram = sendBufferPool.Borrow();
+            currentDatagram = datagramPoolPool.Borrow();
             currentDatagram.SendOptions = channelType;
             seqCount++;
             currentDatagram.Sequence = seqCount;
@@ -112,6 +112,16 @@ namespace FalconUDP
             }
             
             return queue;
+        }
+
+        internal void ReturnLeasedOjects()
+        {
+            // return leased datagrams to pool
+
+            foreach (var datagram in GetQueue())
+            {
+                datagramPoolPool.Return(datagram);
+            }
         }
     }
 }

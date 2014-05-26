@@ -27,6 +27,7 @@ namespace FalconUDP
         private readonly List<EmitDiscoverySignalTask> discoveryTasks;
         private readonly List<Guid> onlyReplyToDiscoveryRequestsWithToken;
         private readonly RemotePeer unknownPeer;                         // peer re-used to send unsolicited messages to
+        
         private int peerIdCount;
         private string joinPass;
         private PunchThroughCallback punchThroughCallback;
@@ -34,7 +35,7 @@ namespace FalconUDP
         private bool acceptJoinRequests;
         private bool replyToAnonymousPings;
         private float ellapsedSecondsAtLastUpdate;
-        private bool replyToAnyDiscoveryRequests;               // i.e. reply unconditionally without a token
+        private bool replyToAnyDiscoveryRequests;                       // i.e. reply unconditionally with or without a token
         private List<IPEndPoint> broadcastEndPoints;
         private int receiveBufferSize = 8192;
         private int sendBufferSize = 8192;
@@ -42,13 +43,13 @@ namespace FalconUDP
         private LogLevel logLvl;
         private LogCallback logger;
 #endif
-        
+        internal readonly Stopwatch Stopwatch;
+        internal readonly PacketPool PacketPool;
+        internal readonly HashSet<IPAddress> LocalAddresses;
+        internal readonly List<PingDetail> PingsAwaitingPong;
+        internal readonly DatagramPool SendDatagramsPool;
+        internal readonly GenericObjectPool<AckDetail> AckPool;
         internal Socket Socket;
-        internal Stopwatch Stopwatch;
-        internal PacketPool PacketPool;
-        internal HashSet<IPAddress> LocalAddresses;
-        internal List<PingDetail> PingsAwaitingPong;
-        internal DatagramPool SendDatagramsPool;
         internal float AckTimeoutSeconds = 1.02f;
         internal int MaxResends = 7;
         internal int OutOfOrderTolerance = 8;
@@ -319,10 +320,12 @@ namespace FalconUDP
         /// <param name="port">Port to listen on.</param>
         /// <param name="processReceivedPacketDelegate">Callback invoked when 
         /// <see cref="ProcessReceivedPackets()"/> called for each packet received.</param>
+        /// <param name="poolSizes">Numbers of objects this FalconPeer should pre-allocate</param>
         /// <param name="logCallback">Callback to use for logging, if not supplied logs written to Debug.</param>
         /// <param name="logLevel">Severtiy level and more serious levels which to log.</param>
         public FalconPeer(int port,
             ProcessReceivedPacket processReceivedPacketDelegate,
+            FalconPoolSizes poolSizes,
             LogCallback logCallback = null,
             LogLevel logLevel = LogLevel.Warning)
 #else
@@ -332,7 +335,7 @@ namespace FalconUDP
         /// <param name="port">Port to listen on.</param>
         /// <param name="processReceivedPacketDelegate">Callback invoked when 
         /// <see cref="ProcessReceivedPackets()"/> called for each packet received.</param>
-        public FalconPeer(int port, ProcessReceivedPacket processReceivedPacketDelegate)
+        public FalconPeer(int port, ProcessReceivedPacket processReceivedPacketDelegate, FalconPoolSizes poolSizes,)
 #endif
         {
             if (!BitConverter.IsLittleEndian)
@@ -351,12 +354,15 @@ namespace FalconUDP
             this.readPacketsList = new List<Packet>();
             this.stopped = true;
             this.remotePeersToRemove = new List<RemotePeer>();
+            this.LocalAddresses = new HashSet<IPAddress>();
+            this.Stopwatch = new Stopwatch();
 
             // pools
-            this.PacketPool = new PacketPool(MaxPayloadSize, PoolSizes.InitalNumPacketsToPool);
-            this.emitDiscoverySignalTaskPool = new GenericObjectPool<EmitDiscoverySignalTask>(PoolSizes.InitalNumEmitDiscoverySignalTaskToPool);
-            this.pingPool = new GenericObjectPool<PingDetail>(PoolSizes.InitalNumPingsToPool);
-            this.SendDatagramsPool = new DatagramPool(MaxDatagramSize, PoolSizes.InitalNumSendBuffersToPool);
+            this.PacketPool = new PacketPool(MaxPayloadSize, poolSizes.InitalNumPacketsToPool);
+            this.emitDiscoverySignalTaskPool = new GenericObjectPool<EmitDiscoverySignalTask>(poolSizes.InitalNumEmitDiscoverySignalTaskToPool);
+            this.pingPool = new GenericObjectPool<PingDetail>(poolSizes.InitalNumPingsToPool);
+            this.SendDatagramsPool = new DatagramPool(MaxDatagramSize, poolSizes.InitalNumSendDatagramsToPool);
+            this.AckPool = new GenericObjectPool<AckDetail>(poolSizes.InitalNumAcksToPool);
 
             // discovery
             this.discoveryTasks = new List<EmitDiscoverySignalTask>();
@@ -656,8 +662,8 @@ namespace FalconUDP
             SendOptions opts    = (SendOptions)(byte)(packetDetail & Const.SEND_OPTS_MASK);
             PacketType type     = (PacketType)(byte)(packetDetail & Const.PACKET_TYPE_MASK);
             bool isAckPacket    = type == PacketType.ACK;
-            ushort seq = BitConverter.ToUInt16(buffer, 1);
-            ushort payloadSize = BitConverter.ToUInt16(buffer, 3);
+            ushort seq          = BitConverter.ToUInt16(buffer, 1);
+            ushort payloadSize  = BitConverter.ToUInt16(buffer, 3);
 
             // check the header makes sense (anyone could send us UDP datagrams)
             if (!Enum.IsDefined(Const.SEND_OPTIONS_TYPE, opts)
@@ -832,8 +838,8 @@ namespace FalconUDP
 
                                 // create the new peer, send ACK, call the callback
                                 rp = AddPeer(fromIPEndPoint, detail.UserDataPacket);
-                                rp.ACK(seq, PacketType.ACK, opts);
-                                rp.IsKeepAliveMaster = true; // the acceptor of our join request is the keep-alive-master by default
+                                rp.ACK(seq, opts);
+                                rp.IsKeepAliveMaster = true; // the acceptor is the keep-alive-master
                                 if (detail.Callback != null)
                                 {
                                     FalconOperationResult<int> result = new FalconOperationResult<int>(true, null, null, rp.Id);
@@ -950,6 +956,8 @@ namespace FalconUDP
             {
                 Log(LogLevel.Info, String.Format("Removed: {0}.", rp.EndPoint));
             }
+
+            rp.ReturnLeasedObjects();
 
             RaisePeerDropped(rp.Id);
         }
@@ -1070,8 +1078,7 @@ namespace FalconUDP
         public FalconOperationResult<object> TryStart()
         {
             // Get local IPv4 address and while doing so broadcast addresses to use for discovery.
-
-            LocalAddresses = new HashSet<IPAddress>();
+            LocalAddresses.Clear();
             broadcastEndPoints = new List<IPEndPoint>();
 
             try
@@ -1135,7 +1142,6 @@ namespace FalconUDP
             }
 
             // start the Stopwatch
-            Stopwatch = new Stopwatch();
             Stopwatch.Start();
 
             Log(LogLevel.Info, String.Format("Started, listening on port: {0}", this.Port));
@@ -1734,10 +1740,11 @@ namespace FalconUDP
         public TimeSpan GetPeerLatency(int peerId)
         {
             RemotePeer rp;
-            if (!peersById.TryGetValue(peerId, out rp))
-                return TimeSpan.Zero;
-
-            return TimeSpan.FromMilliseconds(rp.Latency);
+            if (peersById.TryGetValue(peerId, out rp))
+            {
+                return TimeSpan.FromSeconds(rp.Latency);
+            }
+            return TimeSpan.Zero;
         }
 
         /// <summary>
@@ -1763,41 +1770,6 @@ namespace FalconUDP
                 return true;
 
             return false;
-        }
-
-        /// <summary>
-        /// Sets number of objects to pool in memory to mitigate run-time allocations.
-        /// </summary>
-        /// <remarks>IMPORTANT: Per peer numbers will be used on any newly joint peers, the other 
-        /// falcon wide numbers will only be used when FalconPeer is constructed so need to be set 
-        /// before.</remarks>
-        /// <param name="packets">Number of <see cref="Packet"/>s to pool.</param>
-        /// <param name="pings">Numper of falcon Ping object to pool.</param>
-        /// <param name="discoveryTasks">Number of discovery tasks to pool</param>
-        /// <param name="sendPacketsPerPeer">Number of packets (for use when enquing packets to send) to pool per peer.</param>
-        /// <param name="acksPerPeer">Number of ACK packets (for use when sending ACKs) to pool per peer.</param>
-        public static void SetPoolSizes(int packets = 32,
-            int pings = 10,
-            int discoveryTasks = 5,
-            int sendPacketsPerPeer = 20,
-            int acksPerPeer = 20)
-        {
-            if (packets <= 0)
-                throw new ArgumentOutOfRangeException("packets", "value must be greater than 0");
-            if (pings <= 0)
-                throw new ArgumentOutOfRangeException("pings", "value must be greater than 0");
-            if (discoveryTasks <= 0)
-                throw new ArgumentOutOfRangeException("discoveryTasks", "value must be greater than 0");
-            if (sendPacketsPerPeer <= 0)
-                throw new ArgumentOutOfRangeException("sendPacketsPerPeer", "value must be greater than 0");
-            if (acksPerPeer <= 0)
-                throw new ArgumentOutOfRangeException("acksPerPeer", "value must be greater than 0");
-
-            PoolSizes.InitalNumPacketsToPool = packets;
-            PoolSizes.InitalNumPingsToPool = pings;
-            PoolSizes.InitalNumEmitDiscoverySignalTaskToPool = discoveryTasks;
-            PoolSizes.InitalNumSendBuffersToPool = sendPacketsPerPeer;
-            PoolSizes.InitalNumAcksToPoolPerPeer = acksPerPeer;
         }
     }
 }
