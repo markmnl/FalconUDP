@@ -7,25 +7,25 @@ namespace FalconUDP
 {
     internal class RemotePeer
     {
-        private int unreadPacketCount;
         private readonly bool keepAliveAndAutoFlush;
+        private readonly FalconPeer localPeer;                                  // local peer this remote peer has joined
+        private readonly List<Datagram> sentDatagramsAwaitingACK;
+        private readonly List<DelayedDatagram> delayedDatagrams;
+        private readonly Queue<AckDetail> enqueudAcks;
+        private readonly List<Packet> allUnreadPackets;
+        private readonly GenericObjectPool<AckDetail> ackPool;
+        private readonly SendChannel noneSendChannel;
+        private readonly SendChannel reliableSendChannel;
+        private readonly SendChannel inOrderSendChannel;
+        private readonly SendChannel reliableInOrderSendChannel;
+        private readonly ReceiveChannel noneReceiveChannel;
+        private readonly ReceiveChannel reliableReceiveChannel;
+        private readonly ReceiveChannel inOrderReceiveChannel;
+        private readonly ReceiveChannel reliableInOrderReceiveChannel;
+        private int unreadPacketCount;
         private IPEndPoint endPoint;
-        private FalconPeer localPeer;                               // local peer this remote peer has joined
-        private List<Datagram> sentDatagramsAwaitingACK;
-        private float ellapasedSecondsSinceLastRealiablePacket;     // if this remote peer is the keep alive master; this is since last reliable packet sent to it, otherwise since the last reliable received from it
+        private float ellapasedSecondsSinceLastRealiablePacket;                 // if this remote peer is the keep alive master; this is since last reliable packet sent to it, otherwise since the last reliable received from it
         private float ellapsedSecondsSinceSendQueuesLastFlushed;
-        private List<DelayedDatagram> delayedDatagrams;
-        private Queue<AckDetail> enqueudAcks;
-        private List<Packet> allUnreadPackets;
-        private GenericObjectPool<AckDetail> ackPool;
-        private SendChannel noneSendChannel;
-        private SendChannel reliableSendChannel;
-        private SendChannel inOrderSendChannel;
-        private SendChannel reliableInOrderSendChannel;
-        private ReceiveChannel noneReceiveChannel;
-        private ReceiveChannel reliableReceiveChannel;
-        private ReceiveChannel inOrderReceiveChannel;
-        private ReceiveChannel reliableInOrderReceiveChannel;
 
         internal bool IsKeepAliveMaster;                                        // i.e. this remote peer is the master so it will send the KeepAlives, not us!
         internal int Id { get; private set; }
@@ -36,22 +36,18 @@ namespace FalconUDP
              
         internal RemotePeer(FalconPeer localPeer, IPEndPoint endPoint, int peerId, bool keepAliveAndAutoFlush = true)
         {
-            this.Id                     = peerId;
-            this.localPeer              = localPeer;
-            this.endPoint               = endPoint;
-            this.unreadPacketCount      = 0;
-            this.sentDatagramsAwaitingACK = new List<Datagram>();
-            this.PeerName               = endPoint.ToString();
-            this.roundTripTimes         = new int[localPeer.LatencySampleLength];
-            this.delayedDatagrams       = new List<DelayedDatagram>();
-            this.keepAliveAndAutoFlush  = keepAliveAndAutoFlush;
-            this.allUnreadPackets       = new List<Packet>();
-            this.enqueudAcks            = new Queue<AckDetail>();
-
-            // pools
-            this.ackPool                = new GenericObjectPool<AckDetail>(PoolSizes.InitalNumAcksToPoolPerPeer);
-
-            // channels
+            this.Id                         = peerId;
+            this.localPeer                  = localPeer;
+            this.endPoint                   = endPoint;
+            this.unreadPacketCount          = 0;
+            this.sentDatagramsAwaitingACK   = new List<Datagram>();
+            this.PeerName                   = endPoint.ToString();
+            this.roundTripTimes             = new int[localPeer.LatencySampleLength];
+            this.delayedDatagrams           = new List<DelayedDatagram>();
+            this.keepAliveAndAutoFlush      = keepAliveAndAutoFlush;
+            this.allUnreadPackets           = new List<Packet>();
+            this.enqueudAcks                = new Queue<AckDetail>();
+            this.ackPool                    = new GenericObjectPool<AckDetail>(PoolSizes.InitalNumAcksToPoolPerPeer);
             this.noneSendChannel            = new SendChannel(SendOptions.None, localPeer.SendDatagramsPool);
             this.inOrderSendChannel         = new SendChannel(SendOptions.InOrder, localPeer.SendDatagramsPool);
             this.reliableSendChannel        = new SendChannel(SendOptions.Reliable, localPeer.SendDatagramsPool);
@@ -150,7 +146,7 @@ namespace FalconUDP
             }
             catch (SocketException se)
             {
-                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0}: {1}, sending to peer: {2}", se.ErrorCode, se.Message, PeerName));
+                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0} sending to peer: {1}: {2}, ", se.ErrorCode, PeerName, se.Message));
                 localPeer.RemovePeerOnNextUpdate(this); 
             }
 

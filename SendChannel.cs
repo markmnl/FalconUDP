@@ -1,26 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Net.Sockets;
 
 namespace FalconUDP
 {
     internal class SendChannel
     {
-        private Queue<Datagram> queue;
-        private SendOptions channelType;
+        private readonly Queue<Datagram> queue;
+        private readonly SendOptions channelType;
+        private readonly DatagramPool sendBufferPool;
         private Datagram currentDatagram;
-        private DatagramPool sendBufferPool;
         private int currentDatagramTotalBufferOffset;
         private ushort seqCount;
 
         internal bool IsReliable { get; private set; }
         internal bool HasDataToSend { get { return queue.Count > 0 || currentDatagramTotalBufferOffset > currentDatagram.Offset; } }
         
-        public SendChannel(SendOptions channelType, DatagramPool sendBufferPool)
+        public SendChannel(SendOptions channelType, DatagramPool sendDatagramPool)
         {
             this.channelType    = channelType;
             this.queue          = new Queue<Datagram>();
-            this.sendBufferPool = sendBufferPool;
+            this.sendBufferPool = sendDatagramPool;
             this.IsReliable     = (channelType & SendOptions.Reliable) == SendOptions.Reliable;
 
             GetNewDatagram();
@@ -45,7 +44,7 @@ namespace FalconUDP
             GetNewDatagram();
         }
 
-        // used when args already constructed, e.g. re-sending unACKnowledged packet
+        // used when datagram already constructed, e.g. re-sending unACKnowledged datagram
         internal void EnqueueSend(Datagram datagram)
         {
             queue.Enqueue(datagram);

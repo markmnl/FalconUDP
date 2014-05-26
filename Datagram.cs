@@ -4,7 +4,7 @@ namespace FalconUDP
 {
     internal class Datagram
     {
-        private int originalSize;
+        private readonly int originalSize;
 
         internal bool IsResend;
         internal ushort Sequence;

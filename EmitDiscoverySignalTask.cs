@@ -8,8 +8,9 @@ namespace FalconUDP
 {
     internal class EmitDiscoverySignalTask
     {
-        private List<IPEndPoint> endPointsToSendTo;
-        private List<IPEndPoint> endPointsReceivedReplyFrom;
+        private readonly List<IPEndPoint> endPointsToSendTo;
+        private readonly List<IPEndPoint> endPointsReceivedReplyFrom;
+        private readonly byte[] signal;
         private bool listenForReply; // it is possible to emit discovery signals without bothering about a reply, e.g. to aid another peer joining us in an attempt to traverse NAT 
         private DiscoveryCallback callback;
         private float secondsBetweenEmits;
@@ -19,8 +20,7 @@ namespace FalconUDP
         private int emitCount;
         private Guid? token;
         private float ellapsedSecondsSinceLastEmit;
-        private byte[] signal;
-
+        
         public bool IsAwaitingDiscoveryReply { get { return listenForReply; } }
         public bool TaskEnded { get; private set; }
 
@@ -41,13 +41,11 @@ namespace FalconUDP
 
                 falconPeer.Log(LogLevel.Debug, String.Format("Emitting discovery signal to: {0}, with token: {1}.", ep, token.HasValue ? token.Value.ToString() : "None"));
 
-                //-----------------------------------------------------------------
-                falconPeer.Socket.SendTo(signal, 
-                    0, 
-                    token.HasValue ? signal.Length : Const.DISCOVER_PACKET.Length, 
-                    SocketFlags.None, 
-                    ep);
-                //-----------------------------------------------------------------
+                int count = token.HasValue ? signal.Length : Const.DISCOVER_PACKET.Length;
+
+                //---------------------------------------------------------------
+                falconPeer.Socket.SendTo(signal, 0, count, SocketFlags.None, ep);
+                //---------------------------------------------------------------
             }
         }
 
@@ -93,16 +91,16 @@ namespace FalconUDP
                 Debug.Assert(callback == null, "callback must be null if not listening for a reply");
             Debug.Assert(maxNumOfPeersToDiscover > 0, "max no. of peers to receive a reply must be greater than 0");
 
-            this.TaskEnded = false;
-            this.falconPeer = falconPeer;
-            this.emitCount = 0;
-            this.listenForReply = listenForReply;
-            this.callback = callback;
-            this.secondsBetweenEmits = (durationSeconds / numOfSignalsToEmit);
-            this.totalEmits = numOfSignalsToEmit;
-            this.maxNumberPeersToDiscover = maxNumOfPeersToDiscover;
-            this.token = token;
-            this.ellapsedSecondsSinceLastEmit = 0.0f;
+            this.TaskEnded                      = false;
+            this.falconPeer                     = falconPeer;
+            this.emitCount                      = 0;
+            this.listenForReply                 = listenForReply;
+            this.callback                       = callback;
+            this.secondsBetweenEmits            = (durationSeconds / numOfSignalsToEmit);
+            this.totalEmits                     = numOfSignalsToEmit;
+            this.maxNumberPeersToDiscover       = maxNumOfPeersToDiscover;
+            this.token                          = token;
+            this.ellapsedSecondsSinceLastEmit   = 0.0f;
 
             if (token.HasValue)
             {

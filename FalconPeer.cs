@@ -982,7 +982,7 @@ namespace FalconUDP
         {
             remotePeersToRemove.Add(rp);
         }
-
+        
         [Conditional("DEBUG")]
         internal void Log(LogLevel lvl, string msg)
         {

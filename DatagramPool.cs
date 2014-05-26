@@ -8,10 +8,10 @@ namespace FalconUDP
     {
         private List<byte[]> bigBackingBuffers;
         private Stack<Datagram> pool;
-        private int buffersSize;
-        private int packetsPerBigBuffer;
+        private readonly int buffersSize;
+        private readonly int packetsPerBigBuffer;
 #if DEBUG
-        private List<Datagram> leased;
+        private readonly List<Datagram> leased;
 #endif
 
         internal DatagramPool(int buffersSize, int initalNum)
