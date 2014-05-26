@@ -6,6 +6,6 @@ namespace FalconUDP
     internal class DelayedDatagram
     {
         internal float EllapsedSecondsRemainingToDelay;
-        internal SocketAsyncEventArgs Datagram;
+        internal Datagram Datagram;
     }
 }

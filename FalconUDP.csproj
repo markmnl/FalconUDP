@@ -68,6 +68,8 @@
     <Compile Include="Delegates.cs" />
     <Compile Include="EmitDiscoverySignalTask.cs" />
     <Compile Include="Enums.cs" />
+    <Compile Include="Datagram.cs" />
+    <Compile Include="DatagramPool.cs" />
     <Compile Include="FalconHelper.cs" />
     <Compile Include="FalconOperationResult.cs" />
     <Compile Include="FalconPeer.cs" />
@@ -76,7 +78,6 @@
     <Compile Include="ReceiveChannel.cs" />
     <Compile Include="SendChannel.cs" />
     <Compile Include="Packet.cs" />
-    <Compile Include="PacketDetail.cs" />
     <Compile Include="AwaitingAcceptDetail.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RemotePeer.cs" />
@@ -84,7 +85,6 @@
     <Compile Include="SingleRandom.cs" />
     <Compile Include="Statistics.cs" />
     <Compile Include="GenericObjectPool.cs" />
-    <Compile Include="SocketAsyncEventArgsPool.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Protocol.txt" />

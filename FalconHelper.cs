@@ -48,21 +48,5 @@ namespace FalconUDP
                 ack.Seq,
                 stopoverMilliseconds);
         }
-
-#if DEBUG
-        internal static void ReadFalconHeader(byte[] buffer, 
-            int index, 
-            out PacketType type, 
-            out SendOptions opts, 
-            out ushort seq, 
-            out ushort payloadSize)
-        {
-            byte packetDetail = buffer[index];
-            opts = (SendOptions)(byte)(packetDetail & Const.SEND_OPTS_MASK);
-            type = (PacketType)(byte)(packetDetail & Const.PACKET_TYPE_MASK);
-            seq = BitConverter.ToUInt16(buffer, index + 1);
-            payloadSize = BitConverter.ToUInt16(buffer, index + 3);
-        }
-#endif
     }
 }

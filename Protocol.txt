@@ -8,8 +8,8 @@
        [1]     }
        [2]     } Sequence number as unsigned 16 bit integer
   
-       [5]     } 
-       [6]     } Payload Size as unsigned 16 bit integer
+       [3]     } 
+       [4]     } Payload Size as unsigned 16 bit integer
        
        [n]     }
        ...     } Payload (if any, i.e. size > 0)

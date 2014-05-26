@@ -5,29 +5,18 @@ using System.Net.Sockets;
 
 namespace FalconUDP
 {
-    // token assigned to each SocketAsyncEventArgs.UserToken
-    internal class SendToken
-    {
-        internal SendOptions SendOptions;
-        internal bool IsReSend;
-    }
-
     internal class RemotePeer
     {
         private int unreadPacketCount;
         private readonly bool keepAliveAndAutoFlush;
         private IPEndPoint endPoint;
         private FalconPeer localPeer;                               // local peer this remote peer has joined
-        private GenericObjectPool<PacketDetail> packetDetailPool;
-        private List<PacketDetail> sentPacketsAwaitingACK;
+        private List<Datagram> sentDatagramsAwaitingACK;
         private float ellapasedSecondsSinceLastRealiablePacket;     // if this remote peer is the keep alive master; this is since last reliable packet sent to it, otherwise since the last reliable received from it
         private float ellapsedSecondsSinceSendQueuesLastFlushed;
-        private bool hasEndPointChanged;
         private List<DelayedDatagram> delayedDatagrams;
         private Queue<AckDetail> enqueudAcks;
         private List<Packet> allUnreadPackets;
-        private SocketAsyncEventArgsPool sendArgsPool;
-        private GenericObjectPool<SendToken> tokenPool;
         private GenericObjectPool<AckDetail> ackPool;
         private SendChannel noneSendChannel;
         private SendChannel reliableSendChannel;
@@ -51,7 +40,7 @@ namespace FalconUDP
             this.localPeer              = localPeer;
             this.endPoint               = endPoint;
             this.unreadPacketCount      = 0;
-            this.sentPacketsAwaitingACK = new List<PacketDetail>();
+            this.sentDatagramsAwaitingACK = new List<Datagram>();
             this.PeerName               = endPoint.ToString();
             this.roundTripTimes         = new int[localPeer.LatencySampleLength];
             this.delayedDatagrams       = new List<DelayedDatagram>();
@@ -60,16 +49,13 @@ namespace FalconUDP
             this.enqueudAcks            = new Queue<AckDetail>();
 
             // pools
-            this.packetDetailPool       = new GenericObjectPool<PacketDetail>(PoolSizes.InitalNumPacketDetailPerPeerToPool);
-            this.sendArgsPool           = new SocketAsyncEventArgsPool(FalconPeer.MaxDatagramSizeValue, PoolSizes.InitalNumSendArgsToPoolPerPeer, GetNewSendArgs);
-            this.tokenPool              = new GenericObjectPool<SendToken>(PoolSizes.InitalNumSendArgsToPoolPerPeer);
             this.ackPool                = new GenericObjectPool<AckDetail>(PoolSizes.InitalNumAcksToPoolPerPeer);
 
             // channels
-            this.noneSendChannel            = new SendChannel(SendOptions.None, this.sendArgsPool, this.tokenPool);
-            this.inOrderSendChannel         = new SendChannel(SendOptions.InOrder, this.sendArgsPool, this.tokenPool);
-            this.reliableSendChannel        = new SendChannel(SendOptions.Reliable, this.sendArgsPool, this.tokenPool);
-            this.reliableInOrderSendChannel = new SendChannel(SendOptions.ReliableInOrder, this.sendArgsPool, this.tokenPool);
+            this.noneSendChannel            = new SendChannel(SendOptions.None, localPeer.SendDatagramsPool);
+            this.inOrderSendChannel         = new SendChannel(SendOptions.InOrder, localPeer.SendDatagramsPool);
+            this.reliableSendChannel        = new SendChannel(SendOptions.Reliable, localPeer.SendDatagramsPool);
+            this.reliableInOrderSendChannel = new SendChannel(SendOptions.ReliableInOrder, localPeer.SendDatagramsPool);
             this.noneReceiveChannel         = new ReceiveChannel(SendOptions.None, this.localPeer, this);
             this.inOrderReceiveChannel      = new ReceiveChannel(SendOptions.InOrder, this.localPeer, this);
             this.reliableReceiveChannel     = new ReceiveChannel(SendOptions.Reliable, this.localPeer, this);
@@ -111,15 +97,15 @@ namespace FalconUDP
         }
         #endregion
         
-        // callback used by SocketAsyncEventArgsPool
-        private SocketAsyncEventArgs GetNewSendArgs()
+        private void SendDatagram(Datagram datagram, bool hasAlreadyBeenDelayed = false)
         {
-            SocketAsyncEventArgs args   = new SocketAsyncEventArgs();
-            return args;    
-        }
+            // If we are the keep alive master (i.e. this remote peer is not) and this 
+            // packet is reliable: update ellpasedMilliseondsAtLastRealiablePacket[Sent]
+            if (!IsKeepAliveMaster && datagram.IsReliable)
+            {
+                ellapasedSecondsSinceLastRealiablePacket = 0.0f;
+            }
 
-        private void SendDatagram(SocketAsyncEventArgs args, bool hasAlreadyBeenDelayed = false)
-        {
             // simulate packet loss
             if (localPeer.SimulatePacketLossChance > 0)
             {
@@ -143,127 +129,86 @@ namespace FalconUDP
                 DelayedDatagram delayedDatagram = new DelayedDatagram
                     {
                         EllapsedSecondsRemainingToDelay = (float)delay.TotalSeconds,
-                        Datagram = args
+                        Datagram = datagram
                     };
                 delayedDatagrams.Add(delayedDatagram);
 
                 return;
             }
 
-#if DEBUG
-            ushort seq;
-            PacketType type;
-            SendOptions opts;
-            ushort payloadSize;
-
-            FalconHelper.ReadFalconHeader(args.Buffer, args.Offset, out type, out opts, out seq, out payloadSize);
-
-            localPeer.Log(LogLevel.Debug, String.Format("--> Sending packet to: {0}, type: {1}, channel: {2}, seq {3}, payload size: {4}, total size: {5}...", 
-                endPoint,
-                type, 
-                opts, 
-                seq, 
-                payloadSize,
-                args.Count));
-#endif
+            localPeer.Log(LogLevel.Debug, String.Format("--> Sending datagram to: {0}, seq {1}, channel: {2}, total size: {3}...", 
+                endPoint.ToString(),
+                datagram.Sequence.ToString(), 
+                datagram.SendOptions.ToString(),
+                datagram.Count.ToString()));
 
             try
             {
-                //----------------------------------------------------------------------------------------
-                localPeer.Socket.SendTo(args.Buffer, args.Offset, args.Count, SocketFlags.None, endPoint);
-                //----------------------------------------------------------------------------------------
+                //------------------------------------------------------------------------------------------------------------
+                localPeer.Socket.SendTo(datagram.BackingBuffer, datagram.Offset, datagram.Count, SocketFlags.None, endPoint);
+                //------------------------------------------------------------------------------------------------------------
             }
             catch (SocketException se)
             {
-                localPeer.Log(LogLevel.Error, String.Format("Socket Error: {0} {1}, sending to peer: {2}", se.ErrorCode, se.Message, PeerName));
+                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0}: {1}, sending to peer: {2}", se.ErrorCode, se.Message, PeerName));
                 localPeer.RemovePeerOnNextUpdate(this); 
             }
 
             if (localPeer.IsCollectingStatistics)
             {
-                localPeer.Statistics.AddBytesSent(args.Count);
+                localPeer.Statistics.AddBytesSent(datagram.Count);
             }
 
-            // return args and it's token to pools
-            SendToken token = args.UserToken as SendToken;
-            if (token != null)
-                tokenPool.Return(token);
-            sendArgsPool.Return(args);
+            // return the datagram to pool if we are not waiting for an ACK
+            if (!datagram.IsReliable)
+            {
+                localPeer.SendDatagramsPool.Return(datagram);
+            }
         }
 
         // writes as many enqued as as can fit into datagram
-        private void WriteEnquedAcksToDatagram(SocketAsyncEventArgs args, int index)
+        private void WriteEnquedAcksToDatagram(Datagram datagram, int index)
         {
-            while (enqueudAcks.Count > 0 && (FalconPeer.MaxDatagramSizeValue - (index - args.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
+            while (enqueudAcks.Count > 0 && (datagram.MaxCount - (index - datagram.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
             {
                 AckDetail ack = enqueudAcks.Dequeue();
-                FalconHelper.WriteAck(ack, args.Buffer, index);
+                FalconHelper.WriteAck(ack, datagram.BackingBuffer, index);
                 ackPool.Return(ack);
                 index += Const.FALCON_PACKET_HEADER_SIZE;
             }
-            args.SetBuffer(args.Offset, index - args.Offset);
+            datagram.Resize(index - datagram.Offset);
         }
 
         private void FlushSendChannel(SendChannel channel)
         {
-            Queue<SocketAsyncEventArgs> queue = channel.GetQueue();
+            Queue<Datagram> queue = channel.GetQueue();
 
             while (queue.Count > 0)
             {
-                SocketAsyncEventArgs args = queue.Dequeue();
-                SendToken token = (SendToken)args.UserToken;
+                Datagram datagram = queue.Dequeue();
 
                 if (channel.IsReliable)
                 {
-                    if (token.IsReSend)
+                    if (datagram.IsResend)
                     {
                         // update the time sent TODO include bit in header to indicate is resend so if ACK for previous datagram latency calculated correctly could do packet loss stats too?
-                        ushort seq = BitConverter.ToUInt16(args.Buffer, args.Offset + 1);
-                        for (int i = 0; i < sentPacketsAwaitingACK.Count; i++)
-                        {
-                            PacketDetail detail = sentPacketsAwaitingACK[i];
-                            if (detail.Sequence == seq)
-                            {
-                                detail.EllapsedSecondsSincePacketSent = 0.0f;
-                                break;
-                            }
-                        }
+                        datagram.EllapsedSecondsSincePacketSent = 0.0f;
                     }
                     else // i.e. not a re-send
                     {
-                        // Save detail of this reliable send to measure ACK response time and
+                        // Save to this reliable send to measure ACK response time and
                         // in case needs re-sending.
-
-                        PacketDetail detail = packetDetailPool.Borrow();
-                        detail.ChannelType = token.SendOptions;
-                        detail.EllapsedSecondsSincePacketSent = 0.0f;
-                        detail.Sequence = BitConverter.ToUInt16(args.Buffer, args.Offset + 1);
-                        detail.CopyBytes(args.Buffer, args.Offset, args.Count);
-                        sentPacketsAwaitingACK.Add(detail);                        
+                        sentDatagramsAwaitingACK.Add(datagram);
                     }
-                }
-
-                // If we are the keep alive master (i.e. this remote peer is not) and this 
-                // packet is reliable: update ellpasedMilliseondsAtLastRealiablePacket[Sent]
-
-                if (!IsKeepAliveMaster && channel.IsReliable)
-                {
-                    ellapasedSecondsSinceLastRealiablePacket = 0.0f;
-                }
-
-                // Update the RemoteEndPoint if it has changed (possible when for unknown peer)
-                if (hasEndPointChanged)
-                {
-                    args.RemoteEndPoint = this.endPoint;
                 }
 
                 // append any ACKs awaiting to be sent that will fit in datagram
                 if (enqueudAcks.Count > 0)
                 {
-                    WriteEnquedAcksToDatagram(args, args.Offset + args.Count);
+                    WriteEnquedAcksToDatagram(datagram, datagram.Offset + datagram.Count);
                 }
 
-                SendDatagram(args);
+                SendDatagram(datagram);
 
             } // while
         }
@@ -279,27 +224,20 @@ namespace FalconUDP
             EnqueueSend(PacketType.DiscoverReply, SendOptions.None, null);
         }
 
-        private void ReSend(PacketDetail detail)
+        private void ReSend(Datagram datagram)
         {
-            SocketAsyncEventArgs args = sendArgsPool.Borrow();
-            args.SetBuffer(detail.Bytes, 0, detail.Count);
+            datagram.IsResend = true;
 
-            SendToken token = tokenPool.Borrow();
-            token.IsReSend = true;
-            token.SendOptions = detail.ChannelType;
-
-            args.UserToken = token;
-
-            switch (detail.ChannelType)
+            switch (datagram.SendOptions)
             {
                 case SendOptions.Reliable:
-                    reliableSendChannel.EnqueueSend(args);
+                    reliableSendChannel.EnqueueSend(datagram);
                     break;
                 case SendOptions.ReliableInOrder:
-                    reliableInOrderSendChannel.EnqueueSend(args);
+                    reliableInOrderSendChannel.EnqueueSend(datagram);
                     break;
                 default:
-                    throw new InvalidOperationException(String.Format("{0} packets cannot be re-sent!", detail.ChannelType));
+                    throw new InvalidOperationException(String.Format("{0} datagrams cannot be re-sent!", datagram.SendOptions));
             }
         }
 
@@ -321,55 +259,45 @@ namespace FalconUDP
                 }
             }
             //
-            // Packets awaiting ACKs
+            // Datagrams awaiting ACKs
             //
-            if(sentPacketsAwaitingACK.Count > 0)
+            if(sentDatagramsAwaitingACK.Count > 0)
             {
-                for (int i = 0; i < sentPacketsAwaitingACK.Count; i++)
+                for (int i = 0; i < sentDatagramsAwaitingACK.Count; i++)
                 {
-                    PacketDetail pd = sentPacketsAwaitingACK[i];
-                    pd.EllapsedSecondsSincePacketSent += dt;
-                    if (pd.EllapsedSecondsSincePacketSent >= localPeer.AckTimeoutSeconds)
-                    {                        
-                        pd.ResentCount++;
-#if DEBUG
-                        ushort seq;
-                        PacketType type;
-                        SendOptions opts;
-                        ushort payloadSize;
+                    Datagram datagramAwaitingAck = sentDatagramsAwaitingACK[i];
+                    datagramAwaitingAck.EllapsedSecondsSincePacketSent += dt;
 
-                        FalconHelper.ReadFalconHeader(pd.Bytes, 0, out type, out opts, out seq, out payloadSize);
-#endif
-                        if (pd.ResentCount > localPeer.MaxResends)
+                    if (datagramAwaitingAck.EllapsedSecondsSincePacketSent >= localPeer.AckTimeoutSeconds)
+                    {
+                        datagramAwaitingAck.ResentCount++;
+
+                        if (datagramAwaitingAck.ResentCount > localPeer.MaxResends)
                         {
                             // give-up, assume the peer has disconnected (without saying bye) and drop it
-                            sentPacketsAwaitingACK.RemoveAt(i);
+                            sentDatagramsAwaitingACK.RemoveAt(i);
                             i--;
-#if DEBUG
-                            localPeer.Log(LogLevel.Warning, String.Format("Peer failed to ACK {0} re-sends of Reliable packet type: {1}, channel: {2}, seq {3}, payload size: {4}, in time.", 
-                                localPeer.MaxResends,
-                                type,
-                                opts,
-                                seq,
-                                payloadSize));
-#endif
+                            localPeer.SendDatagramsPool.Return(datagramAwaitingAck);
                             localPeer.RemovePeerOnNextUpdate(this);
-                            packetDetailPool.Return(pd);
+
+                            localPeer.Log(LogLevel.Warning, String.Format("Peer failed to ACK {0} re-sends of Reliable datagram seq {1}, channel {2}. total size: {3}, in time.",
+                                localPeer.MaxResends,
+                                datagramAwaitingAck.Sequence.ToString(),
+                                datagramAwaitingAck.SendOptions.ToString(),
+                                datagramAwaitingAck.Count.ToString()));
                         }
                         else
                         {
                             // try again..
-                            pd.EllapsedSecondsSincePacketSent = 0.0f;
-                            ReSend(pd);
+                            datagramAwaitingAck.EllapsedSecondsSincePacketSent = 0.0f;
+                            ReSend(datagramAwaitingAck);
                             ellapasedSecondsSinceLastRealiablePacket = 0.0f; // NOTE: this is reset again when packet actually sent but another Update() may occur before then
-#if DEBUG
-                            localPeer.Log(LogLevel.Info, String.Format("Packet to: {0}, type: {1}, channel: {2}, seq {3}, payload size: {4} re-sent as not ACKnowledged in time.", 
+
+                            localPeer.Log(LogLevel.Info, String.Format("Datagram to: {0}, seq {1}, channel: {2}, total size: {3} re-sent as not ACKnowledged in time.",
                                 PeerName,
-                                type, 
-                                opts,
-                                seq,
-                                payloadSize));
-#endif
+                                datagramAwaitingAck.Sequence.ToString(),
+                                datagramAwaitingAck.SendOptions.ToString(),
+                                datagramAwaitingAck.Count.ToString()));
                         }
                     }
                 }
@@ -428,7 +356,6 @@ namespace FalconUDP
         {
             endPoint = ip;
             PeerName = ip.ToString();
-            hasEndPointChanged = true;
         }
 
         internal void EnqueueSend(PacketType type, SendOptions opts, Packet packet)
@@ -489,7 +416,7 @@ namespace FalconUDP
             }
             catch (SocketException se)
             {
-                localPeer.Log(LogLevel.Error, String.Format("Socket Exception: {0}, sending to peer: {1}", se.Message, PeerName));
+                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0}: {1}, sending to peer: {2}", se.ErrorCode.ToString(), se.Message, PeerName));
                 localPeer.RemovePeerOnNextUpdate(this);
             }
         }
@@ -512,9 +439,10 @@ namespace FalconUDP
                 {
                     while (enqueudAcks.Count > 0)
                     {    
-                        SocketAsyncEventArgs args = sendArgsPool.Borrow();
-                        WriteEnquedAcksToDatagram(args, args.Offset);
-                        SendDatagram(args);
+                        Datagram datagram = localPeer.SendDatagramsPool.Borrow();
+                        datagram.SendOptions = SendOptions.None;
+                        WriteEnquedAcksToDatagram(datagram, datagram.Offset);
+                        SendDatagram(datagram);
                     }
                 }
             }
@@ -610,48 +538,37 @@ namespace FalconUDP
                 case PacketType.ACK:
                 case PacketType.AntiACK:
                     {
-                        // Look for the oldest PacketDetail with the same seq AND channel type
+                        // Look for the oldest datagram with the same seq AND channel type
                         // seq is for which we ASSUME the ACK is for.
-
-                        int detailIndex;
-                        PacketDetail detail = null;
-
-                        for (detailIndex = 0; detailIndex < sentPacketsAwaitingACK.Count; detailIndex++)
+                        int datagramIndex;
+                        Datagram sendDatagramAwaitingAck = null;
+                        for (datagramIndex = 0; datagramIndex < sentDatagramsAwaitingACK.Count; datagramIndex++)
                         {
-                            PacketDetail pd = sentPacketsAwaitingACK[detailIndex];
-                            if (pd.Sequence == seq && pd.ChannelType == opts)
+                            Datagram datagram = sentDatagramsAwaitingACK[datagramIndex];
+                            if (datagram.Sequence == seq && datagram.SendOptions == opts)
                             {
-                                detail = pd;
+                                sendDatagramAwaitingAck = datagram;
                                 break;
                             }
                         }   
 
-                        if (detail == null)
+                        if (sendDatagramAwaitingAck == null)
                         {
                             // Possible reasons:
-                            // 1) ACK has arrived too late and the packet must have already been removed.
+                            // 1) ACK has arrived too late and the datagram must have already been removed.
                             // 2) ACK duplicated and has already been processed
                             // 3) ACK was unsolicited (i.e. malicious or buggy peer)
 
-                            localPeer.Log(LogLevel.Warning, "Packet for ACK not found - too late?");
+                            localPeer.Log(LogLevel.Warning, "Datagram for ACK not found - too late?");
                         }
-                        else if (type == PacketType.ACK)
+                        else // if (type == PacketType.ACK)
                         {
-                            // remove packet detail
-                            sentPacketsAwaitingACK.RemoveAt(detailIndex);
+                            // remove datagram
+                            sentDatagramsAwaitingACK.RemoveAt(datagramIndex);
 
                             // update latency estimate (payloadSize is stopover time in on remote peer)
-                            UpdateLantency((int)(detail.EllapsedSecondsSincePacketSent * 1000 - payloadSize));
-                        }
-                        else // must be AntiACK
-                        {
-                            // Re-send the unACKnowledged packet right away NOTE: we are not 
-                            // incrementing resent count, we are resetting it, because the remote
-                            // peer must be alive to have sent the AntiACK.
-
-                            detail.EllapsedSecondsSincePacketSent = 0.0f;
-                            detail.ResentCount = 0;
-                            ReSend(detail);
+                            // TODO improve accuracy by saving ticks at send and calculating RTT now
+                            UpdateLantency((int)(sendDatagramAwaitingAck.EllapsedSecondsSincePacketSent * 1000 - payloadSize));
                         }
 
                         return true;

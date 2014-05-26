@@ -48,6 +48,7 @@ namespace FalconUDP
         internal PacketPool PacketPool;
         internal HashSet<IPAddress> LocalAddresses;             // TODO is it possible to have the same addr on diff interface? even so does it matter?
         internal List<PingDetail> PingsAwaitingPong;
+        internal DatagramPool SendDatagramsPool;
         internal float AckTimeoutSeconds = 1.02f;
         internal int MaxResends = 7;
         internal int OutOfOrderTolerance = 8;
@@ -355,6 +356,7 @@ namespace FalconUDP
             this.PacketPool = new PacketPool(MaxPayloadSize, PoolSizes.InitalNumPacketsToPool);
             this.emitDiscoverySignalTaskPool = new GenericObjectPool<EmitDiscoverySignalTask>(PoolSizes.InitalNumEmitDiscoverySignalTaskToPool);
             this.pingPool = new GenericObjectPool<PingDetail>(PoolSizes.InitalNumPingsToPool);
+            this.SendDatagramsPool = new DatagramPool(MaxDatagramSize, PoolSizes.InitalNumSendBuffersToPool);
 
             // discovery
             this.discoveryTasks = new List<EmitDiscoverySignalTask>();
@@ -681,7 +683,7 @@ namespace FalconUDP
             int count = size - Const.FALCON_PACKET_HEADER_SIZE;    // num of bytes remaining to be read
             int index = Const.FALCON_PACKET_HEADER_SIZE;           // index in args.Buffer to read from
 
-            Log(LogLevel.Debug, String.Format("<-- Processing received packet type: {0}, channel: {1}, seq {2}, payload size: {3}...", type, opts, seq, payloadSize));
+            Log(LogLevel.Debug, String.Format("<- Processing received datagram seq {0}, channel: {1}, total size: {2}...", seq.ToString(), opts.ToString(), size.ToString()));
 
             RemotePeer rp;
             if (peersByIp.TryGetValue(fromIPEndPoint, out rp))
@@ -689,6 +691,8 @@ namespace FalconUDP
                 bool isFirstPacketInDatagram = true;
                 do
                 {
+                    Log(LogLevel.Debug, String.Format("<-- Processing received packet type {0}, payload size: {1}...", type.ToString(), payloadSize.ToString()));
+
                     if (!rp.TryAddReceivedPacket(seq,
                         opts,
                         type,
@@ -731,10 +735,10 @@ namespace FalconUDP
                             // validate size
                             if (payloadSize > count)
                             {
-                                Log(LogLevel.Error, String.Format("Dropped last {0} bytes of datagram from {1}, additional size less than min purported: {2}.",
-                                    count,
-                                    fromIPEndPoint,
-                                    payloadSize));
+                                Log(LogLevel.Error, String.Format("Dropped last {0} bytes of datagram from {1}, less than purported packet size: {2}.",
+                                    count.ToString(),
+                                    fromIPEndPoint.ToString(),
+                                    payloadSize.ToString()));
                                 return;
                             }
                         }
@@ -750,6 +754,8 @@ namespace FalconUDP
             }
             else
             {
+                Log(LogLevel.Debug, String.Format("<-- Processing received packet type {0}, payload size: {1}...", type.ToString(), payloadSize.ToString()));
+
                 #region "Proccess datagram from unknown peer"
 
                 // NOTE: Additional packets not possible in any of the valid messages from an 
@@ -1794,8 +1800,7 @@ namespace FalconUDP
             PoolSizes.InitalNumPacketsToPool = packets;
             PoolSizes.InitalNumPingsToPool = pings;
             PoolSizes.InitalNumEmitDiscoverySignalTaskToPool = discoveryTasks;
-            PoolSizes.InitalNumSendArgsToPoolPerPeer = sendPacketsPerPeer;
-            PoolSizes.InitalNumPacketDetailPerPeerToPool = sendPacketsPerPeer;
+            PoolSizes.InitalNumSendBuffersToPool = sendPacketsPerPeer;
             PoolSizes.InitalNumAcksToPoolPerPeer = acksPerPeer;
         }
     }

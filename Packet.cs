@@ -100,16 +100,16 @@ namespace FalconUDP
             DatagramSeq = 0;
         }
 
-        internal void CopyBytes(int index, byte[] destination, int dstOffset, int count)
+        internal void CopyBytes(int index, byte[] destination, int dstOffset, int size)
         {
             if (index > BytesWritten)
                 throw new ArgumentOutOfRangeException("index");
-            if (index + count > BytesWritten)
+            if (index + size > BytesWritten)
                 throw new InvalidOperationException("Not enough bytes remain to copy count from index");
-            if (count == 0)
+            if (size == 0)
                 return;
 
-            Buffer.BlockCopy(backingBuffer, offset + index, destination, dstOffset, count);
+            Buffer.BlockCopy(backingBuffer, offset + index, destination, dstOffset, size);
         }
 
         internal byte[] ToBytes()
