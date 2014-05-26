@@ -31,7 +31,7 @@ namespace FalconUDP
         internal IPEndPoint EndPoint { get { return endPoint; } }
         internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application
         internal string PeerName { get; private set; }                          // e.g. IP end point, used for logging
-        internal float Latency { get; private set; }                            // current estimate round-trip-time latency to this remote peer
+        internal float Latency { get; private set; }                            // current average round-trip-times to this remote peer
              
         internal RemotePeer(FalconPeer localPeer, IPEndPoint endPoint, int peerId, bool keepAliveAndAutoFlush = true)
         {
@@ -104,7 +104,7 @@ namespace FalconUDP
             {
                 if (SingleRandom.NextDouble() < localPeer.SimulatePacketLossChance)
                 {
-                    localPeer.Log(LogLevel.Info, String.Format("Dropped packet to send - simulate packet loss set at: {0}", localPeer.SimulatePacketLossChance));
+                    localPeer.Log(LogLevel.Info, String.Format("DROPPED packet to send - simulate packet loss set at: {0}", localPeer.SimulatePacketLossChance));
                     return;
                 }
             }
@@ -127,6 +127,14 @@ namespace FalconUDP
                         EllapsedSecondsRemainingToDelay = (float)delay.TotalSeconds,
                         Datagram = datagram
                     };
+
+                localPeer.Log(LogLevel.Debug, String.Format("...DELAYED Sending datagram to: {0}, seq {1}, channel: {2}, total size: {3}; by {4}s...",
+                    endPoint.ToString(),
+                    datagram.Sequence.ToString(),
+                    datagram.SendOptions.ToString(),
+                    datagram.Count.ToString(),
+                    delayedDatagram.EllapsedSecondsRemainingToDelay.ToString()));
+
                 delayedDatagrams.Add(delayedDatagram);
 
                 return;
