@@ -1733,11 +1733,13 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Gets the current estimated one-way latency for <paramref name="peerId"/>.
+        /// Gets the current average round trip time from last <see cref="LatencySampleSize"/> 
+        /// reliable messages to <paramref name="peerId"/> till receiving their corresponding
+        /// ACKnowledgment.
         /// </summary>
         /// <param name="peerId">Id of the Falcon Peer connected to this peer.</param>
-        /// <returns>Current one-way estimated latency.</returns>
-        public TimeSpan GetPeerLatency(int peerId)
+        /// <returns>Current average round trip time.</returns>
+        public TimeSpan GetPeerRoundTripTime(int peerId)
         {
             RemotePeer rp;
             if (peersById.TryGetValue(peerId, out rp))
