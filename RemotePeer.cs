@@ -109,6 +109,12 @@ namespace FalconUDP
                 }
             }
 
+            // if reliable and not already delayed update time sent used to measure RTT when ACK response received
+            if (datagram.IsReliable && !hasAlreadyBeenDelayed)
+            {
+                datagram.EllapsedSecondsAtSent = (float)localPeer.Stopwatch.Elapsed.TotalSeconds;
+            }
+
             // simulate delay
             if (localPeer.SimulateDelayTimeSpan > TimeSpan.Zero && !hasAlreadyBeenDelayed)
             {
@@ -118,9 +124,6 @@ namespace FalconUDP
                     int jitterMilliseconds = (int)delay.TotalMilliseconds;
                     delay.Add(TimeSpan.FromMilliseconds((SingleRandom.Next(0, jitterMilliseconds * 2) - (int)localPeer.SimulateDelayJitterTimeSpan.TotalMilliseconds)));
                 }
-
-                // pretend time sent is now
-                datagram.EllapsedSecondsAtSent = (float)localPeer.Stopwatch.Elapsed.TotalSeconds;
 
                 DelayedDatagram delayedDatagram = new DelayedDatagram
                     {
@@ -146,12 +149,6 @@ namespace FalconUDP
                 datagram.SendOptions.ToString(),
                 datagram.Count.ToString()));
 
-            // if reliable and not already delayed update time sent used to mearsure RTT when ACK response received
-            if (datagram.IsReliable && !hasAlreadyBeenDelayed)
-            {
-                datagram.EllapsedSecondsAtSent = (float) localPeer.Stopwatch.Elapsed.TotalSeconds;
-            }
-
             try
             {
                 //------------------------------------------------------------------------------------------------------------
@@ -169,7 +166,7 @@ namespace FalconUDP
                 localPeer.Statistics.AddBytesSent(datagram.Count);
             }
 
-            // return the datagram to pool if we are not waiting for an ACK
+            // return the datagram to pool for re-use if we are not waiting for an ACK
             if (!datagram.IsReliable)
             {
                 localPeer.SendDatagramsPool.Return(datagram);

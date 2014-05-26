@@ -42,9 +42,12 @@ namespace FalconUDP
         {
             applicationPacketAdded = false; // until proven otherwise
 
-            // validate seq in range
+            float ordinalPacketSeq;
+
             if (isFirstPacketInDatagram)
             {
+                // validate seq in range
+                
                 ushort min = unchecked((ushort)(lastReceivedPacketSeq - localPeer.OutOfOrderTolerance));
                 ushort max = unchecked((ushort)(lastReceivedPacketSeq + localPeer.OutOfOrderTolerance));
 
@@ -57,12 +60,7 @@ namespace FalconUDP
                     localPeer.Log(LogLevel.Warning, String.Format("Out-of-order packet from: {0} dropped, out-of-order from last by: {1}.", remotePeer.PeerName, datagramSeq - lastReceivedPacketSeq));
                     return false;
                 }
-            }
 
-            // calc ordinal packet seq
-            float ordinalPacketSeq;
-            if (isFirstPacketInDatagram)
-            {
                 ordinalPacketSeq = datagramSeq;
                 int diff = Math.Abs(datagramSeq - (int)lastReceivedPacketSeq);
                 if (diff > localPeer.OutOfOrderTolerance)
@@ -79,29 +77,29 @@ namespace FalconUDP
                     localPeer.Log(LogLevel.Warning, String.Format("Duplicate packet from: {0} dropped.", remotePeer.PeerName));
                     return false;
                 }
+
+                // if datagram required to be in order check after max read, if not drop it
+                if (isFirstPacketInDatagram && isInOrder)
+                {
+                    if (ordinalPacketSeq < maxReadDatagramSeq)
+                    {
+                        return false;
+                    }
+                }
+
+                // if datagram requries ACK - send it!
+                if (isReliable)
+                {
+                    remotePeer.ACK(datagramSeq, channelType);
+                }
             }
-            else
+            else // i.e. additional packet
             {
                 // lastReceived Seq will be ordinal seq for previous packet in datagram
-                ordinalPacketSeq = lastReceivedPacketSeq + 0.001f; // TODO user machine espsilon
-            }
-
-            // if datagram required to be in order check after max read, if not drop it
-            if (isFirstPacketInDatagram && isInOrder)
-            {
-                if (ordinalPacketSeq < maxReadDatagramSeq)
-                {
-                    return false;
-                }
+                ordinalPacketSeq = lastReceivedPacketSeq + 0.0001f; // TODO use machine espsilon?
             }
 
             lastReceivedPacketSeq = ordinalPacketSeq;
-
-            // if datagram requries ACK - send it!
-            if (isFirstPacketInDatagram && isReliable)
-            {
-                remotePeer.ACK(datagramSeq, channelType);
-            }
 
             switch (type)
             {
