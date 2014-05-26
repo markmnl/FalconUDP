@@ -79,7 +79,7 @@ namespace FalconUDP
                 }
 
                 // if datagram required to be in order check after max read, if not drop it
-                if (isFirstPacketInDatagram && isInOrder)
+                if (isInOrder)
                 {
                     if (ordinalPacketSeq < maxReadDatagramSeq)
                     {
