@@ -1718,8 +1718,9 @@ namespace FalconUDP
             //       and 9 seconds!
 
             float ellapsedSeconds = (float)Stopwatch.Elapsed.TotalSeconds;
-            ellapsedSecondsAtLastUpdate = ellapsedSeconds - ellapsedSecondsAtLastUpdate;
-            Update(ellapsedSeconds);
+            float dt = ellapsedSeconds - ellapsedSecondsAtLastUpdate;
+            ellapsedSecondsAtLastUpdate = ellapsedSeconds;
+            Update(dt);
         }
 
         /// <summary>

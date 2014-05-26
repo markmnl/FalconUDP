@@ -548,7 +548,7 @@ namespace FalconUDPTests
         public void SimulateLatencyTest()
         {
             TimeSpan        DELAY                   = TimeSpan.FromSeconds(0.2f);
-            const float     OUT_OF_RANGE_TOLERANCE  = 0.05f;
+            const float     OUT_OF_RANGE_TOLERANCE  = 0.075f; // the actual delay will be more because of tick time
             const int       NUM_OF_PINGS            = 20;
 
             var peer1 = CreateAndStartLocalPeer();
