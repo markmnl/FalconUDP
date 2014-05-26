@@ -609,7 +609,7 @@ namespace FalconUDP
 
         internal void ReturnLeasedObjects()
         {
-            // return to objects leased from FalconPeer's pools
+            // return objects leased from FalconPeer's pools
 
             foreach (var datagram in sentDatagramsAwaitingACK)
             {
@@ -625,6 +625,8 @@ namespace FalconUDP
             inOrderSendChannel.ReturnLeasedOjects();
             reliableSendChannel.ReturnLeasedOjects();
             reliableInOrderSendChannel.ReturnLeasedOjects();
+
+            allUnreadPackets.Clear(); // NOTE: would have alread been returned to pool when processed in FalconPeer.
         }
     }
 }
