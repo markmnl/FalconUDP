@@ -84,6 +84,8 @@ namespace FalconUDP
             }
             else
             {
+                // TODO limit max additional to 100 so receive channel can distinguish ordinal seq
+
                 // write additional header
                 FalconHelper.WriteAdditionalFalconHeader(currentDatagram.BackingBuffer,
                     currentDatagramTotalBufferOffset,

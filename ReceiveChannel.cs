@@ -96,7 +96,7 @@ namespace FalconUDP
             else // i.e. additional packet
             {
                 // lastReceived Seq will be ordinal seq for previous packet in datagram
-                ordinalPacketSeq = lastReceivedPacketSeq + 0.0001f; // TODO use machine espsilon?
+                ordinalPacketSeq = lastReceivedPacketSeq + 0.01f;
             }
 
             lastReceivedPacketSeq = ordinalPacketSeq;
