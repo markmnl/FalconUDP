@@ -14,27 +14,27 @@ namespace FalconUDP
     /// </summary>
     public class FalconPeer
     {
-        private ProcessReceivedPacket processReceivedPacketDelegate;
-        private IPEndPoint anyAddrEndPoint;                     // end point to receive on (combined with port to create IPEndPoint)
-        private byte[] receiveBuffer;
+        private readonly ProcessReceivedPacket processReceivedPacketDelegate;
+        private readonly IPEndPoint anyAddrEndPoint;                     // end point to receive on (combined with port to create IPEndPoint)
+        private readonly byte[] receiveBuffer;
+        private readonly Dictionary<IPEndPoint, RemotePeer> peersByIp;   // same RemotePeers as peersById
+        private readonly Dictionary<int, RemotePeer> peersById;          // same RemotePeers as peersByIp
+        private readonly List<AwaitingAcceptDetail> awaitingAcceptDetails;
+        private readonly List<Packet> readPacketsList;
+        private readonly List<RemotePeer> remotePeersToRemove;
+        private readonly GenericObjectPool<EmitDiscoverySignalTask> emitDiscoverySignalTaskPool;
+        private readonly GenericObjectPool<PingDetail> pingPool;
+        private readonly List<EmitDiscoverySignalTask> discoveryTasks;
+        private readonly List<Guid> onlyReplyToDiscoveryRequestsWithToken;
+        private readonly RemotePeer unknownPeer;                         // peer re-used to send unsolicited messages to
         private int peerIdCount;
-        private Dictionary<IPEndPoint, RemotePeer> peersByIp;   // same RemotePeers as peersById
-        private Dictionary<int, RemotePeer> peersById;          // same RemotePeers as peersByIp
         private string joinPass;
         private PunchThroughCallback punchThroughCallback;
         private bool stopped;
         private bool acceptJoinRequests;
         private bool replyToAnonymousPings;
-        private List<AwaitingAcceptDetail> awaitingAcceptDetails;
         private float ellapsedSecondsAtLastUpdate;
-        private List<Packet> readPacketsList;
-        private List<RemotePeer> remotePeersToRemove;
-        private GenericObjectPool<EmitDiscoverySignalTask> emitDiscoverySignalTaskPool;
-        private GenericObjectPool<PingDetail> pingPool;
-        private List<EmitDiscoverySignalTask> discoveryTasks;
         private bool replyToAnyDiscoveryRequests;               // i.e. reply unconditionally without a token
-        private List<Guid> onlyReplyToDiscoveryRequestsWithToken;
-        private RemotePeer unknownPeer;                         // peer re-used to send unsolicited messages to
         private List<IPEndPoint> broadcastEndPoints;
         private int receiveBufferSize = 8192;
         private int sendBufferSize = 8192;
@@ -46,7 +46,7 @@ namespace FalconUDP
         internal Socket Socket;
         internal Stopwatch Stopwatch;
         internal PacketPool PacketPool;
-        internal HashSet<IPAddress> LocalAddresses;             // TODO is it possible to have the same addr on diff interface? even so does it matter?
+        internal HashSet<IPAddress> LocalAddresses;
         internal List<PingDetail> PingsAwaitingPong;
         internal DatagramPool SendDatagramsPool;
         internal float AckTimeoutSeconds = 1.02f;
