@@ -582,6 +582,14 @@ namespace FalconUDP
 
                         return true;
                     }
+                case PacketType.AcceptJoin:
+                    {
+                        // Probably our ACK did not get through so the remote peer is re-sending, 
+                        // be sure to ACK this so peer does not drop us.
+                        ACK(seq, opts);
+                        return true;
+                    }
+                    break;
                 default:
                     {
                         localPeer.Log(LogLevel.Warning, String.Format("Packet dropped - unexpected type: {0}, received from authenticated peer: {1}.", type, PeerName));
