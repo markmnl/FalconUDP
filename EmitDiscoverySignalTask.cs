@@ -36,7 +36,7 @@ namespace FalconUDP
             foreach (IPEndPoint ep in endPointsToSendTo)
             {
                 // check we haven't already discovered the peer we are about to try discover!
-                if (endPointsReceivedReplyFrom.Find(dp => dp.Address.Equals(ep.Address) && dp.Port == ep.Port) != null)
+                if (endPointsReceivedReplyFrom.Exists(dp => dp.Address.Equals(ep.Address) && dp.Port == ep.Port))
                     continue;
 
                 falconPeer.Log(LogLevel.Debug, String.Format("Emitting discovery signal to: {0}, with token: {1}.", ep, token.HasValue ? token.Value.ToString() : "None"));
@@ -120,7 +120,7 @@ namespace FalconUDP
         internal void AddDiscoveryReply(IPEndPoint endPointReceivedFrom)
         {
             // check we haven't already discovered this peer
-            if (endPointsReceivedReplyFrom.Find(ep => ep.Address.Equals(endPointReceivedFrom.Address) && ep.Port == endPointReceivedFrom.Port) != null)
+            if (endPointsReceivedReplyFrom.Exists(ep => ep.Address.Equals(endPointReceivedFrom.Address) && ep.Port == endPointReceivedFrom.Port))
                 return;
 
             // raise PeerDiscovered event
