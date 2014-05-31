@@ -561,8 +561,9 @@ namespace FalconUDPTests
             peer1.SetVisibility(true, null, false);
             ConnectToLocalPeer(peer2, peer1, null);
 
-            peer1.SetSimulateLatency(DELAY, TimeSpan.Zero);
-            peer2.SetSimulateLatency(DELAY, TimeSpan.Zero);
+            peer1.SimulateDelayTimeSpan = DELAY;
+            peer2.SimulateDelayTimeSpan = DELAY;
+
              
             replyReceived = null; // clears any listeners
             replyReceived += (sender, packet) =>

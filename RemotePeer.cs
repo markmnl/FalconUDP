@@ -100,9 +100,9 @@ namespace FalconUDP
             }
 
             // simulate packet loss
-            if (localPeer.SimulatePacketLossChance > 0)
+            if (localPeer.SimulatePacketLossProbability > 0.0)
             {
-                if (SingleRandom.NextDouble() < localPeer.SimulatePacketLossChance)
+                if (SingleRandom.NextDouble() < localPeer.SimulatePacketLossProbability)
                 {
                     localPeer.Log(LogLevel.Info, String.Format("DROPPED packet to send - simulate packet loss set at: {0}", localPeer.SimulatePacketLossChance));
                     return;
@@ -116,20 +116,21 @@ namespace FalconUDP
             }
 
             // simulate delay
-            if (localPeer.SimulateDelayTimeSpan > TimeSpan.Zero && !hasAlreadyBeenDelayed)
+            if (localPeer.SimulateLatencySeconds > 0.0f && !hasAlreadyBeenDelayed)
             {
-                TimeSpan delay = localPeer.SimulateDelayTimeSpan;
-                if (localPeer.SimulateDelayJitterTimeSpan > TimeSpan.Zero)
+                float delay = localPeer.SimulateLatencySeconds;
+
+                // jitter
+                if (localPeer.SimulateJitterSeconds > 0.0f)
                 {
-                    int jitterMilliseconds = (int)delay.TotalMilliseconds;
-                    delay.Add(TimeSpan.FromMilliseconds((SingleRandom.Next(0, jitterMilliseconds * 2) - (int)localPeer.SimulateDelayJitterTimeSpan.TotalMilliseconds)));
+                    float jitter = localPeer.SimulateJitterSeconds * (float)SingleRandom.NextDouble();
+                    if (SingleRandom.NextDouble() < 0.5)
+                        jitter *= -1;
+
+                    delay += jitter;
                 }
 
-                DelayedDatagram delayedDatagram = new DelayedDatagram
-                    {
-                        EllapsedSecondsRemainingToDelay = (float)delay.TotalSeconds,
-                        Datagram = datagram
-                    };
+                DelayedDatagram delayedDatagram = new DelayedDatagram(delay, datagram);
 
                 localPeer.Log(LogLevel.Debug, String.Format("...DELAYED Sending datagram to: {0}, seq {1}, channel: {2}, total size: {3}; by {4}s...",
                     endPoint.ToString(),
@@ -316,7 +317,7 @@ namespace FalconUDP
             {
                 if (IsKeepAliveMaster) // i.e. this remote peer is the keep alive master, not us
                 {
-                    if (ellapasedSecondsSinceLastRealiablePacket >= localPeer.KeepAliveIfNoKeepAliveReceivedSeconds)
+                    if (ellapasedSecondsSinceLastRealiablePacket >= localPeer.KeepAliveProbeAfterSeconds)
                     {
                         // This remote peer has not sent a reliable message for too long, send a 
                         // KeepAlive to probe them and they are alive!

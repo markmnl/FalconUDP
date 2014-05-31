@@ -49,21 +49,23 @@ namespace FalconUDP
         internal readonly List<PingDetail> PingsAwaitingPong;
         internal readonly DatagramPool SendDatagramsPool;
         internal readonly GenericObjectPool<AckDetail> AckPool;
-        internal Socket Socket;
-        internal float AckTimeoutSeconds = 1.02f;
-        internal int MaxResends = 7;
-        internal int OutOfOrderTolerance = 8;
-        internal int LatencySampleLength = 2;
-        internal int MaxNeededOrindalSeq = UInt16.MaxValue + 8; // must be UInt16.MaxValue + OutOfOrderTolerance
-        internal float KeepAliveIntervalSeconds = 5.0f;
-        internal float KeepAliveIfNoKeepAliveReceivedSeconds = ((5.0f * 7.0f) / 2.0f ) - 1.02f;
-        internal float AutoFlushIntervalSeconds = 0.5f;
-        internal float PingTimeoutSeconds = 2.0f;
-        internal static int MaxDatagramSizeValue = 2048;
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
-        internal TimeSpan SimulateDelayTimeSpan { get; private set; }
-        internal TimeSpan SimulateDelayJitterTimeSpan { get; set; }
-        internal double SimulatePacketLossChance { get; private set; }
+        internal Socket Socket;
+
+        internal float      AckTimeoutSeconds               = 1.02f;
+        internal int        MaxResends                      = 7;
+        internal int        OutOfOrderTolerance             = 8;
+        internal int        LatencySampleLength             = 2;
+        internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 8; // must be UInt16.MaxValue + OutOfOrderTolerance
+        internal float      KeepAliveIntervalSeconds        = 5.0f;
+        internal float      KeepAliveProbeAfterSeconds      = ((5.0f * 7.0f) / 2.0f ) - 1.02f;
+        internal float      AutoFlushIntervalSeconds        = 0.5f;
+        internal float      PingTimeoutSeconds              = 2.0f;
+        internal float      SimulateLatencySeconds          = 0.0f;
+        internal float      SimulateJitterSeconds           = 0.0f;
+        internal double     SimulatePacketLossProbability   = 0.0;
+        internal static int MaxDatagramSizeValue            = 2048;
+        
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
         internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }
         internal static int MaxPayloadSize { get { return MaxDatagramSizeValue - Const.FALCON_PACKET_HEADER_SIZE; } }
@@ -308,8 +310,59 @@ namespace FalconUDP
             set
             {
                 if (value <= 0)
-                    throw new ArgumentOutOfRangeException("value must be grreater than 0");
+                    throw new ArgumentOutOfRangeException("value must be greater than 0");
                 MaxDatagramSizeValue = value;
+            }
+        }
+
+        /// <summary>
+        /// Get or sets period to delay outgoing sends from when they otherwise would be sent.
+        /// </summary>
+        /// <remarks>Set to 0 (the default) to disable delaying.</remarks>
+        public TimeSpan SimulateDelayTimeSpan 
+        {
+            get { return TimeSpan.FromSeconds(SimulateLatencySeconds); }
+            set 
+            {
+                float seconds = (float)value.TotalSeconds;
+                if (seconds < 0.0f)
+                    throw new ArgumentOutOfRangeException("value cannot be less than 0");
+                SimulateLatencySeconds = seconds;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets maximum period up to this value (inclusive) to add or subtract from 
+        /// <see cref="SimulateDelayTimeSpan"/> when delaying sends that are about to be sent.
+        /// </summary>
+        /// <remarks>Set to 0 (the default) to disable. <see cref="SimulateDelayTimeSpan"/> must 
+        /// be set before this and this value cannot be greater than <see cref="SimulateDelayTimeSpan"/>.</remarks>
+        public TimeSpan SimulateDelayJitterTimeSpan 
+        { 
+            get {return TimeSpan.FromSeconds(SimulateJitterSeconds);}
+            set 
+            {
+                float seconds = (float)value.TotalSeconds;
+                if (seconds < 0.0f)
+                    throw new ArgumentOutOfRangeException("value cannot be less than 0");
+                if(seconds > SimulateLatencySeconds)
+                    throw new ArgumentOutOfRangeException("value cannot be greater than SimulateDelayTimeSpan");
+                SimulateJitterSeconds = seconds;
+            }
+        }
+
+        /// <summary>
+        /// Get or sets probability outgoing sends will be silently dropped to simulate poor 
+        /// network conditions. 0.0 no sends will be dropped, 1.0 all sends will be dropped.
+        /// </summary>
+        public double SimulatePacketLossChance 
+        {
+            get { return SimulatePacketLossProbability; }
+            set
+            {
+                if (value > 1.0 || value < 0.0)
+                    throw new ArgumentOutOfRangeException("value must be between 0.0 and 1.0 inclusive");
+                SimulatePacketLossProbability = value;
             }
         }
 
@@ -407,7 +460,7 @@ namespace FalconUDP
             // KeepAlive probe after not receiving any reliable message from the KeepAlive master 
             // to see if the master is still alive!
 
-            KeepAliveIfNoKeepAliveReceivedSeconds = ((KeepAliveIntervalSeconds * MaxResends) / 2.0f) - AckTimeoutSeconds;
+            KeepAliveProbeAfterSeconds = ((KeepAliveIntervalSeconds * MaxResends) / 2.0f) - AckTimeoutSeconds;
         }
 
         private void ProcessReceivedPackets()
@@ -1639,35 +1692,7 @@ namespace FalconUDP
             }
             return ipEndPoints;
         }
-
-        /// <summary>
-        /// Simulates latency by delaying outgoing packets <paramref name="periodToDelay"/> plus or minus <paramref name="jitterAboveOrBelowDelay"/>
-        /// </summary>
-        /// <param name="periodToDelay">Time span to delay outgoing packets for</param>
-        /// <param name="jitterAboveOrBelowDelay">Time span plus or minus (chosen randomly) to add to <paramref name="periodToDelay"/></param>
-        public void SetSimulateLatency(TimeSpan periodToDelay, TimeSpan jitterAboveOrBelowDelay)
-        {
-            if (periodToDelay < TimeSpan.Zero)
-                throw new ArgumentOutOfRangeException("periodToDelay", "must be equal to 0 (for no delay) or greater than 0 (to simulate delay)");
-            if (jitterAboveOrBelowDelay < TimeSpan.Zero || jitterAboveOrBelowDelay > periodToDelay)
-                throw new ArgumentOutOfRangeException("jitterAboveOrBelowDelay", "cannot be less than 0 or greater than periodToDelay");
-
-            SimulateDelayTimeSpan = periodToDelay;
-            SimulateDelayJitterTimeSpan = jitterAboveOrBelowDelay;
-        }
-
-        /// <summary>
-        /// Simulate packet loss by dropping random outgoing packets.
-        /// </summary>
-        /// <param name="percentageOfPacketsToDrop">A percentage (from 0.0 to 100.0 inclusive) chance to drop an outgoing packet.</param>
-        public void SetSimulatePacketLoss(double percentageOfPacketsToDrop)
-        {
-            if (percentageOfPacketsToDrop < 0 || percentageOfPacketsToDrop > 100)
-                throw new ArgumentOutOfRangeException("percentageOfPacketsToDrop", "must be from 0 to 100, inclusive");
-
-            SimulatePacketLossChance = percentageOfPacketsToDrop / 100;
-        }
-
+        
         /// <summary>
         /// Start collection <see cref="Statistics"/> or resets statistics if already started.
         /// </summary>
