@@ -101,6 +101,33 @@ namespace FalconUDP
 
             lastReceivedPacketSeq = ordinalPacketSeq;
 
+            if (type == PacketType.KeepAlive)
+            {
+                if (!remotePeer.IsKeepAliveMaster)
+                {
+                    // To have received a KeepAlive from this peer who is not the KeepAlive master 
+                    // is only valid when the peer never received a KeepAlive from us for 
+                    // FalconPeer.KeepAliveProbeInterval for which the most common cause would be 
+                    // we disappered though we must be back up again to have received it! 
+
+                    localPeer.Log(LogLevel.Warning, String.Format("Received KeepAlive from: {0} who's not the KeepAlive master!", remotePeer.PeerName));
+                }
+
+                // nothing else to do - would have already ACKd this datagram
+
+                return true;
+            }
+
+            if (type == PacketType.AcceptJoin)
+            {
+                // Probably our ACK did not get through so the remote peer is re-sending, 
+                // nothing else to do - would have already ACKd this datagram.
+
+                return true;
+            }
+
+            // Must be Application packet
+
             Packet packet = localPeer.PacketPool.Borrow();
             packet.WriteBytes(buffer, index, count);
             packet.ResetAndMakeReadOnly(remotePeer.Id);
@@ -170,7 +197,7 @@ namespace FalconUDP
                     Count = 0;
                 }
 
-                // If max read seq > (ushort.MaxValue + Settings.OutOfOrderTolerance) no future 
+                // If max read seq > (ushort.MaxValue + FalconPeer.OutOfOrderTolerance) no future 
                 // datagram will be from the old loop (without being dropped), so reset max and 
                 // ordinal seq to the same value as seq they are for.
 

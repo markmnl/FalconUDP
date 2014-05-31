@@ -482,6 +482,8 @@ namespace FalconUDP
             switch (type)
             {
                 case PacketType.Application:
+                case PacketType.KeepAlive:
+                case PacketType.AcceptJoin:
                     {
                         bool wasAppPacketAdded;
 
@@ -541,23 +543,7 @@ namespace FalconUDP
 
                         return true;
                     }
-                case PacketType.KeepAlive:
-                    {
-                        if (!IsKeepAliveMaster)
-                        {
-                            // To have received a KeepAlive from this peer who is not the KeepAlive
-                            // master is only valid when the peer never received a KeepAlive from 
-                            // us for Settings.KeepAliveAssumeMasterInterval for which the most 
-                            // common cause would be we disappered though we must be back up again 
-                            // to have received it! 
-
-                            localPeer.Log(LogLevel.Warning, String.Format("Received KeepAlive from: {0} who's not the KeepAlive master!", PeerName));
-                        }
-
-                        ACK(seq, opts);
-
-                        return true;
-                    }
+                
                 case PacketType.Ping:
                     {
                         Pong();
@@ -599,16 +585,9 @@ namespace FalconUDP
                         localPeer.RemovePeerOnNextUpdate(this);
                         return false;
                     }
-                case PacketType.AcceptJoin:
-                    {
-                        // Probably our ACK did not get through so the remote peer is re-sending, 
-                        // be sure to ACK this so peer does not drop us.
-                        ACK(seq, opts);
-                        return true;
-                    }
                 default:
                     {
-                        localPeer.Log(LogLevel.Error, String.Format("Packet dropped - unexpected type: {0}, received from authenticated peer: {1}.", type, PeerName));
+                        localPeer.Log(LogLevel.Error, String.Format("Datagram dropped - unexpected type: {0}, received from authenticated peer: {1}.", type, PeerName));
                         return false;
                     }
             }
