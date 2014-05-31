@@ -52,15 +52,15 @@ namespace FalconUDP
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
         internal Socket Socket;
 
-        internal float      AckTimeoutSeconds               = 1.02f;
+        internal float      AckTimeoutSeconds               = 2.0f;
         internal int        MaxResends                      = 7;
         internal int        OutOfOrderTolerance             = 8;
         internal int        LatencySampleLength             = 2;
         internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 8; // must be UInt16.MaxValue + OutOfOrderTolerance
         internal float      KeepAliveIntervalSeconds        = 5.0f;
-        internal float      KeepAliveProbeAfterSeconds      = ((5.0f * 7.0f) / 2.0f ) - 1.02f;
+        internal float      KeepAliveProbeAfterSeconds      = ((5.0f * 7.0f) / 2.0f ) - 2.0f;
         internal float      AutoFlushIntervalSeconds        = 0.5f;
-        internal float      PingTimeoutSeconds              = 2.0f;
+        internal float      PingTimeoutSeconds              = 3.0f;
         internal float      SimulateLatencySeconds          = 0.0f;
         internal float      SimulateJitterSeconds           = 0.0f;
         internal double     SimulatePacketLossProbability   = 0.0;
@@ -123,7 +123,7 @@ namespace FalconUDP
         /// <summary>
         /// Time after which to to re-send a reliable message if not ACKnowledged within.
         /// </summary>
-        /// <remarks>Defaults to 1.02 seconds.</remarks>
+        /// <remarks>Defaults to 2.0 seconds.</remarks>
         public TimeSpan AckTimeout
         {
             get
