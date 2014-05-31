@@ -501,6 +501,46 @@ namespace FalconUDP
 
                         return true;
                     }
+                case PacketType.ACK:
+                    {
+                        // Look for the oldest datagram with the same seq AND channel type
+                        // seq is for which we ASSUME the ACK is for.
+                        int datagramIndex;
+                        Datagram sentDatagramAwaitingAck = null;
+                        for (datagramIndex = 0; datagramIndex < sentDatagramsAwaitingACK.Count; datagramIndex++)
+                        {
+                            Datagram datagram = sentDatagramsAwaitingACK[datagramIndex];
+                            if (datagram.Sequence == seq && datagram.SendOptions == opts)
+                            {
+                                sentDatagramAwaitingAck = datagram;
+                                break;
+                            }
+                        }
+
+                        if (sentDatagramAwaitingAck == null)
+                        {
+                            // Possible reasons:
+                            // 1) ACK has arrived too late and the datagram must have already been removed.
+                            // 2) ACK duplicated and has already been processed
+                            // 3) ACK was unsolicited (i.e. malicious or buggy peer)
+
+                            localPeer.Log(LogLevel.Warning, "Datagram for ACK not found - too late?");
+                        }
+                        else
+                        {
+                            // remove datagram
+                            sentDatagramsAwaitingACK.RemoveAt(datagramIndex);
+
+                            // Update latency estimate.
+                            float rtt = ((float)localPeer.Stopwatch.Elapsed.TotalSeconds) - sentDatagramAwaitingAck.EllapsedSecondsAtSent;
+                            UpdateLatency(rtt);
+
+                            // return datagram
+                            localPeer.SendDatagramsPool.Return(sentDatagramAwaitingAck);
+                        }
+
+                        return true;
+                    }
                 case PacketType.KeepAlive:
                     {
                         if (!IsKeepAliveMaster)
@@ -559,46 +599,6 @@ namespace FalconUDP
                         localPeer.RemovePeerOnNextUpdate(this);
                         return false;
                     }
-                case PacketType.ACK:
-                    {
-                        // Look for the oldest datagram with the same seq AND channel type
-                        // seq is for which we ASSUME the ACK is for.
-                        int datagramIndex;
-                        Datagram sentDatagramAwaitingAck = null;
-                        for (datagramIndex = 0; datagramIndex < sentDatagramsAwaitingACK.Count; datagramIndex++)
-                        {
-                            Datagram datagram = sentDatagramsAwaitingACK[datagramIndex];
-                            if (datagram.Sequence == seq && datagram.SendOptions == opts)
-                            {
-                                sentDatagramAwaitingAck = datagram;
-                                break;
-                            }
-                        }   
-
-                        if (sentDatagramAwaitingAck == null)
-                        {
-                            // Possible reasons:
-                            // 1) ACK has arrived too late and the datagram must have already been removed.
-                            // 2) ACK duplicated and has already been processed
-                            // 3) ACK was unsolicited (i.e. malicious or buggy peer)
-
-                            localPeer.Log(LogLevel.Warning, "Datagram for ACK not found - too late?");
-                        }
-                        else
-                        {
-                            // remove datagram
-                            sentDatagramsAwaitingACK.RemoveAt(datagramIndex);
-
-                            // Update latency estimate.
-                            float rtt = ((float)localPeer.Stopwatch.Elapsed.TotalSeconds) - sentDatagramAwaitingAck.EllapsedSecondsAtSent;
-                            UpdateLatency(rtt);
-
-                            // return datagram
-                            localPeer.SendDatagramsPool.Return(sentDatagramAwaitingAck);
-                        }
-
-                        return true;
-                    }
                 case PacketType.AcceptJoin:
                     {
                         // Probably our ACK did not get through so the remote peer is re-sending, 
@@ -606,7 +606,6 @@ namespace FalconUDP
                         ACK(seq, opts);
                         return true;
                     }
-                    break;
                 default:
                     {
                         localPeer.Log(LogLevel.Error, String.Format("Packet dropped - unexpected type: {0}, received from authenticated peer: {1}.", type, PeerName));
