@@ -1383,7 +1383,7 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Enqueues packet on be sent to <paramref name="peerId"/> next time <see cref="SendEnquedPackets"/> is called.
+        /// Enqueues packet to be sent to <paramref name="peerId"/> next time <see cref="SendEnquedPackets"/> is called.
         /// </summary>
         /// <param name="peerId">Id of the remote peer.</param>
         /// <param name="opts"><see cref="SendOptions"/> to send packet with.</param>
@@ -1519,27 +1519,17 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Removes remote peer.
+        /// Removes remote peer if currently connected.
         /// </summary>
         /// <param name="peerId">Id of the remote peer.</param>
-        /// <param name="logFailure">Log failure to remove peer, i.e. if peer is not connected.</param>
-        /// <param name="sayBye">Say bye to the remote peer? So can drop us straight away instead 
-        /// of waiting to find out we have disconnected.</param>
-        public void TryRemovePeer(int peerId, bool logFailure, bool sayBye)
+        public void RemovePeer(int peerId)
         {
             CheckStarted();
 
             RemotePeer rp;
-            if (!peersById.TryGetValue(peerId, out rp))
+            if (peersById.TryGetValue(peerId, out rp))
             {
-                if (logFailure)
-                {
-                    Log(LogLevel.Error, String.Format("Failed to remove peer with id: {0}, peer unknown.", peerId));
-                }
-            }
-            else
-            {
-                RemovePeer(rp, sayBye);
+                RemovePeer(rp, true);
             }
         }
 
@@ -1547,9 +1537,7 @@ namespace FalconUDP
         /// Removes all remote peers except one with <paramref name="peerId"/>
         /// </summary>
         /// <param name="peerId">Id of peer NOT to remove.</param>
-        /// <param name="sayBye">Say bye to the remote peer? So can drop us straight away instead 
-        /// of waiting to find out we have disconnected.</param>
-        public void RemoveAllPeersExcept(int peerId, bool sayBye)
+        public void RemoveAllPeersExcept(int peerId)
         {
             CheckStarted();
 
@@ -1560,16 +1548,14 @@ namespace FalconUDP
             {
                 if (id == peerId)
                     continue;
-                RemovePeer(peersById[id], sayBye);
+                RemovePeer(peersById[id], true);
             }
         }
 
         /// <summary>
         /// Removes all remote peers.
         /// </summary>
-        /// <param name="sayBye">Say bye to the remote peer? So can drop us straight away instead 
-        /// of waiting to find out we have disconnected.</param>
-        public void RemoveAllPeers(bool sayBye)
+        public void RemoveAllPeers()
         {
             CheckStarted();
 
@@ -1578,7 +1564,7 @@ namespace FalconUDP
 
             foreach (int id in ids)
             {
-                RemovePeer(peersById[id], sayBye);
+                RemovePeer(peersById[id], true);
             }
         }
 
