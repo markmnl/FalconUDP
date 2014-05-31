@@ -473,7 +473,7 @@ namespace FalconUDP
         {
             // If we are not the keep alive master, i.e. this remote peer is, and this packet was 
             // sent reliably reset ellpasedMilliseondsAtLastRealiablePacket[Received].
-            if (IsKeepAliveMaster && opts.HasFlag(SendOptions.Reliable))
+            if (IsKeepAliveMaster && ((opts & SendOptions.Reliable) == SendOptions.Reliable))
             {
                 ellapasedSecondsSinceLastRealiablePacket = 0.0f;
             }

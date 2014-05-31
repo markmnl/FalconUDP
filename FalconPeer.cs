@@ -576,7 +576,7 @@ namespace FalconUDP
 
         private void SendToUnknownPeer(IPEndPoint ep, PacketType type, SendOptions opts, byte[] payload)
         {
-            Debug.Assert(!opts.HasFlag(SendOptions.Reliable), "cannot send reliable messages to unknown peer");
+            Debug.Assert((opts & SendOptions.Reliable) != SendOptions.Reliable, "cannot send reliable messages to unknown peer");
 
             Packet p = PacketPool.Borrow();
             p.WriteBytes(payload);
@@ -667,9 +667,8 @@ namespace FalconUDP
             ushort payloadSize  = BitConverter.ToUInt16(buffer, 3);
 
             // check the header makes sense (anyone could send us UDP datagrams)
-            if (!Enum.IsDefined(Const.SEND_OPTIONS_TYPE, opts)
-                || !Enum.IsDefined(Const.PACKET_TYPE_TYPE, type)
-                || (isAckPacket && !opts.HasFlag(SendOptions.Reliable)))
+            if (!(opts == SendOptions.None || opts == SendOptions.InOrder || opts == SendOptions.Reliable || opts == SendOptions.ReliableInOrder)
+                || (isAckPacket && ((opts & SendOptions.Reliable) != SendOptions.Reliable)))
             {
                 Log(LogLevel.Warning, String.Format("Datagram dropped from peer: {0}, bad header.", fromIPEndPoint));
                 return;
