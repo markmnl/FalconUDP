@@ -482,7 +482,6 @@ namespace FalconUDP
             switch (type)
             {
                 case PacketType.Application:
-                case PacketType.KeepAlive:
                     {
                         bool wasAppPacketAdded;
 
@@ -499,6 +498,23 @@ namespace FalconUDP
 
                         if (wasAppPacketAdded)
                             unreadPacketCount++;
+
+                        return true;
+                    }
+                case PacketType.KeepAlive:
+                    {
+                        if (!IsKeepAliveMaster)
+                        {
+                            // To have received a KeepAlive from this peer who is not the KeepAlive
+                            // master is only valid when the peer never received a KeepAlive from 
+                            // us for Settings.KeepAliveAssumeMasterInterval for which the most 
+                            // common cause would be we disappered though we must be back up again 
+                            // to have received it! 
+
+                            localPeer.Log(LogLevel.Warning, String.Format("Received KeepAlive from: {0} who's not the KeepAlive master!", PeerName));
+                        }
+
+                        ACK(seq, opts);
 
                         return true;
                     }
@@ -593,8 +609,8 @@ namespace FalconUDP
                     break;
                 default:
                     {
-                        localPeer.Log(LogLevel.Warning, String.Format("Packet dropped - unexpected type: {0}, received from authenticated peer: {1}.", type, PeerName));
-                        return true; // the packet is valid just unexpected (we already know type is defined a PacketType value).
+                        localPeer.Log(LogLevel.Error, String.Format("Packet dropped - unexpected type: {0}, received from authenticated peer: {1}.", type, PeerName));
+                        return false;
                     }
             }
         }

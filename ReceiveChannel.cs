@@ -47,7 +47,7 @@ namespace FalconUDP
             if (isFirstPacketInDatagram)
             {
                 // validate seq in range
-                
+
                 ushort min = unchecked((ushort)(lastReceivedPacketSeq - localPeer.OutOfOrderTolerance));
                 ushort max = unchecked((ushort)(lastReceivedPacketSeq + localPeer.OutOfOrderTolerance));
 
@@ -101,80 +101,48 @@ namespace FalconUDP
 
             lastReceivedPacketSeq = ordinalPacketSeq;
 
-            switch (type)
+            Packet packet = localPeer.PacketPool.Borrow();
+            packet.WriteBytes(buffer, index, count);
+            packet.ResetAndMakeReadOnly(remotePeer.Id);
+            packet.DatagramSeq = datagramSeq;
+
+            // Add packet
+            receivedPackets.Add(ordinalPacketSeq, packet);
+
+            if (isReliable)
             {
-                case PacketType.Application:
+                // re-calc number of continuous seq from first
+                Count = 1;
+                int key = receivedPackets[receivedPackets.Keys[0]].DatagramSeq;
+                for (int i = 1; i < receivedPackets.Count; i++)
+                {
+                    int next = receivedPackets[receivedPackets.Keys[i]].DatagramSeq;
+                    if (next == key)
                     {
-                        Packet packet = localPeer.PacketPool.Borrow();
-                        packet.WriteBytes(buffer, index, count);
-                        packet.ResetAndMakeReadOnly(remotePeer.Id);
-                        packet.DatagramSeq = datagramSeq;
+                        // NOTE: This must be an additional packet with the same 
+                        //       datagram seq.
 
-                        // Add packet
-                        receivedPackets.Add(ordinalPacketSeq, packet);
-
-                        if (isReliable)
-                        {
-                            // re-calc number of continuous seq from first
-                            Count = 1;
-                            int key = receivedPackets[receivedPackets.Keys[0]].DatagramSeq;
-                            for (int i = 1; i < receivedPackets.Count; i++)
-                            {
-                                int next = receivedPackets[receivedPackets.Keys[i]].DatagramSeq;
-                                if (next == key)
-                                {
-                                    // NOTE: This must be an additional packet with the same 
-                                    //       datagram seq.
-
-                                    Count++;
-                                }
-                                else if (next == (key + 1))
-                                {
-                                    Count++;
-                                    key = next;
-                                }
-                                else
-                                {
-                                    break;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            Count++;
-                        }
-
-                        applicationPacketAdded = true;
-                        return true;
+                        Count++;
                     }
-                case PacketType.KeepAlive:
+                    else if (next == (key + 1))
                     {
-                        if (!remotePeer.IsKeepAliveMaster)
-                        {
-                            // To have received a KeepAlive from this peer who is not the KeepAlive
-                            // master is only valid when the peer never received a KeepAlive from 
-                            // us for Settings.KeepAliveAssumeMasterInterval for which the most 
-                            // common cause would be we disappered though we must be back up again 
-                            // to have received it! 
-
-                            localPeer.Log(LogLevel.Warning, String.Format("Received KeepAlive from: {0} who's not the KeepAlive master!", remotePeer.EndPoint));
-                        }
-
-                        // nothing else to do we would have already ACK'd this message
-
-                        return true;
+                        Count++;
+                        key = next;
                     }
-                case PacketType.AcceptJoin:
+                    else
                     {
-                        // nothing else to do we would have already ACK'd this msg
-                        return true;
+                        break;
                     }
-                default:
-                    {
-                        localPeer.Log(LogLevel.Warning, String.Format("Dropped datagram, type: {0} from {1} - unexpected type", type, remotePeer.PeerName));
-                        return false;
-                    }
+                }
             }
+            else
+            {
+                Count++;
+            }
+
+            applicationPacketAdded = true;
+
+            return true;
         }
 
         internal List<Packet> Read()
