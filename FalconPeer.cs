@@ -64,7 +64,7 @@ namespace FalconUDP
         internal float      SimulateLatencySeconds          = 0.0f;
         internal float      SimulateJitterSeconds           = 0.0f;
         internal double     SimulatePacketLossProbability   = 0.0;
-        internal static int MaxDatagramSizeValue            = 2048;
+        internal static int MaxDatagramSizeValue            = 1400;
         
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
         internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }
@@ -294,7 +294,8 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// The maximum message size in bytes FalconUDP can send and recieve.
+        /// The maximum datagram size in bytes FalconUDP can send and recieve including FalconUDP 
+        /// header bytes.
         /// </summary>
         /// <remarks>IMPORTANT: 
         ///     1) This FalconPeer can only communicate with other Falcon peers with 
