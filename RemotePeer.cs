@@ -285,14 +285,15 @@ namespace FalconUDP
                             // give-up, assume the peer has disconnected (without saying bye) and drop it
                             sentDatagramsAwaitingACK.RemoveAt(i);
                             i--;
-                            localPeer.SendDatagramsPool.Return(datagramAwaitingAck);
-                            localPeer.RemovePeerOnNextUpdate(this);
 
                             localPeer.Log(LogLevel.Warning, String.Format("Peer failed to ACK {0} re-sends of Reliable datagram seq {1}, channel {2}. total size: {3}, in time.",
                                 localPeer.MaxResends,
                                 datagramAwaitingAck.Sequence.ToString(),
                                 datagramAwaitingAck.SendOptions.ToString(),
                                 datagramAwaitingAck.Count.ToString()));
+
+                            localPeer.SendDatagramsPool.Return(datagramAwaitingAck);
+                            localPeer.RemovePeerOnNextUpdate(this);
                         }
                         else
                         {
