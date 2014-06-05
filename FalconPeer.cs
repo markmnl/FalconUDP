@@ -300,7 +300,7 @@ namespace FalconUDP
         /// <remarks>IMPORTANT: 
         ///     1) This FalconPeer can only communicate with other Falcon peers with 
         /// the exact same MaxDatagramSize.
-        ///     2) Must be set before FalconPeer constructed to be used.
+        ///     2) Must be set before FalconPeer constructed.
         /// 
         /// It is reccomended this value, in addition to any underlying protocols' data, be 
         /// less than the MTU (which on an ethernet network taking into account IP header 
@@ -1184,7 +1184,7 @@ namespace FalconUDP
                 Socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
 #endif
                 Socket.Bind(anyAddrEndPoint);
-                Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, 160); // CS5
+                Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, 184); // EF
                 Socket.Blocking = false;
                 Socket.ReceiveBufferSize = receiveBufferSize;
                 Socket.SendBufferSize = sendBufferSize;
