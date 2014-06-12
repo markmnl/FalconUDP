@@ -8,6 +8,10 @@ using System.Threading;
 
 namespace FalconUDP
 {
+    /// <summary>
+    /// Wraps a <see cref="FalconPeer"/> and creates a Thread to regularly pump it so it can 
+    /// function automonously.
+    /// </summary>
     public class FalconPump
     {
         private readonly FalconPeer falconPeer;
@@ -18,7 +22,6 @@ namespace FalconUDP
         private readonly Queue<Tuple<int, Packet>> peersAdded;
         private readonly Queue<int> peersRemoved;
         private readonly Queue<IPEndPoint> peersDiscovered;
-        private readonly Queue<Tuple<IPEndPoint, string>> joinRequests; 
         private bool stopped;
 
         public event PeerAdded PeerAdded;
@@ -40,7 +43,6 @@ namespace FalconUDP
             this.peersAdded                 = new Queue<Tuple<int, Packet>>();
             this.peersRemoved               = new Queue<int>();
             this.peersDiscovered            = new Queue<IPEndPoint>();
-            this.joinRequests               = new Queue<Tuple<IPEndPoint, string>>();
             this.tickInterval               = tickInterval;
             this.tickLockObject             = new object();
             this.thread                     = new Thread(Run);
@@ -123,9 +125,43 @@ namespace FalconUDP
 
         public void JoinAsync(IPEndPoint ipEndPoint, string pass)
         {
-            joinRequests.Enqueue(Tuple.Create(ipEndPoint, pass));
+            lock(tickLockObject)
+            {
+                falconPeer.TryJoinPeerAsync(ipEndPoint, pass);
+            }
         }
-        
+
+        public void DiscoverFalconPeersAsync(TimeSpan timeSpan, int port, Guid? token, DiscoveryCallback callback, int signalsToEmit = 3)
+        {
+            lock (tickLockObject)
+            {
+                falconPeer.DiscoverFalconPeersAsync(timeSpan, port, token, callback, signalsToEmit);
+            }
+        }
+
+        public void PunchThroughToAsync(IEnumerable<IPEndPoint> endPoints,
+            TimeSpan timeSpan,
+            int numOfRequests,
+            Guid? token,
+            PunchThroughCallback callback)
+        {
+            lock (tickLockObject)
+            {
+                falconPeer.PunchThroughToAsync(endPoints, timeSpan, numOfRequests, token, callback);
+            }
+        }
+
+        public void AssistPunchThroughFromAsync(IPEndPoint publicEndPoint, 
+            TimeSpan timeSpan, 
+            int numOfRequests, 
+            Guid? replyToDiscoveryRequestsWithToken)
+        {
+            lock (tickLockObject)
+            {
+                falconPeer.AssistPunchThroughFromAsync(publicEndPoint, timeSpan, numOfRequests, replyToDiscoveryRequestsWithToken);
+            }
+        }
+
         public bool Read(PacketReader reader)
         {
             bool packetAssigned = false;
