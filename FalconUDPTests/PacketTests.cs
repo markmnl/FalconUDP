@@ -89,11 +89,12 @@ namespace FalconUDPTests
         [TestMethod]
         public void TestReadWriteVariableLengthInt32()
         {
+            int[] valuesToTest = { 0, 1, 127, 128, 16383, 16384, 2097151, 2097152, 268435455, 268435456, Int32.MaxValue };
             var pool = new PacketPool(5, 1);
             var packet = pool.Borrow();
 
             int valueAsRead;
-            for(int i = 0; i < Int32.MaxValue && i >= 0; i+=127)
+            foreach(int i in valuesToTest)
             {
                 packet.WriteVariableLengthInt32(i);
                 packet.ResetAndMakeReadOnly(-1);
@@ -101,12 +102,6 @@ namespace FalconUDPTests
                 Assert.AreEqual(i, valueAsRead, "Value written: {0}, not as read: {1}", i, valueAsRead);
                 packet.Init();
             }
-
-            // test MaxValue too which the above loop did not
-            packet.WriteVariableLengthInt32(Int32.MaxValue);
-            packet.ResetAndMakeReadOnly(-1);
-            valueAsRead = packet.ReadVariableLengthInt32();
-            Assert.AreEqual(Int32.MaxValue, valueAsRead, "Value written: {0}, not as read: {1}", Int32.MaxValue, valueAsRead);
         }
     }
 }
