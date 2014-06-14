@@ -5,39 +5,9 @@ using System.Linq;
 
 namespace FalconUDPTests
 {
-    [TestClass()]
+    [TestClass]
     public class PacketTests
     {
-        #region Additional test attributes
-        // 
-        //You can use the following additional attributes as you write your tests:
-        //
-        //Use ClassInitialize to run code before running the first test in the class
-        //[ClassInitialize()]
-        //public static void MyClassInitialize(TestContext testContext)
-        //{
-        //}
-        //
-        //Use ClassCleanup to run code after all tests in a class have run
-        //[ClassCleanup()]
-        //public static void MyClassCleanup()
-        //{
-        //}
-        //
-        //Use TestInitialize to run code before running each test
-        //[TestInitialize()]
-        //public void MyTestInitialize()
-        //{
-        //}
-        //
-        //Use TestCleanup to run code after each test has run
-        //[TestCleanup()]
-        //public void MyTestCleanup()
-        //{
-        //}
-        //
-        #endregion
-
         [TestMethod]
         public void WriteReadBytesTest()
         {
@@ -114,6 +84,29 @@ namespace FalconUDPTests
                 Assert.AreEqual(bytes.Length - numOfBytesToRead, packet.BytesRemaining);
                 Assert.IsTrue(Enumerable.SequenceEqual(bytes.Take(numOfBytesToRead), readBytes.Take(numOfBytesToRead)), "Bytes written not the same when read!");
             }
+        }
+
+        [TestMethod]
+        public void TestReadWriteVariableLengthInt32()
+        {
+            var pool = new PacketPool(5, 1);
+            var packet = pool.Borrow();
+
+            int valueAsRead;
+            for(int i = 0; i < Int32.MaxValue && i >= 0; i+=127)
+            {
+                packet.WriteVariableLengthInt32(i);
+                packet.ResetAndMakeReadOnly(-1);
+                valueAsRead = packet.ReadVariableLengthInt32();
+                Assert.AreEqual(i, valueAsRead, "Value written: {0}, not as read: {1}", i, valueAsRead);
+                packet.Init();
+            }
+
+            // test MaxValue too which the above loop did not
+            packet.WriteVariableLengthInt32(Int32.MaxValue);
+            packet.ResetAndMakeReadOnly(-1);
+            valueAsRead = packet.ReadVariableLengthInt32();
+            Assert.AreEqual(Int32.MaxValue, valueAsRead, "Value written: {0}, not as read: {1}", Int32.MaxValue, valueAsRead);
         }
     }
 }

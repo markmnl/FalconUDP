@@ -328,6 +328,36 @@ namespace FalconUDP
         }
 
         /// <summary>
+        /// Reads a variable lengh <c>Int32</c> from Packet which depending on value takes up 1 to 5 bytes.
+        /// TODO negative values not supported
+        /// </summary>
+        /// <returns><see cref="Int32"/></returns>
+        /// <remarks>
+        /// <para>
+        /// The number of bytes the value will take:
+        /// 0 - 127                 : 1 byte
+        /// 128 - 16383             : 2 bytes
+        /// 16384 - 2097151         : 3 bytes
+        /// 2097152 - 268435455     : 4 bytes
+        /// 268435456 -  2147483647 : 5 bytes
+        /// </para>
+        /// </remarks>
+        public int ReadVariableLengthInt32()
+        {
+            byte currentByte;
+            int value = 0;
+            int shift = 0;
+            do
+            {
+                currentByte = ReadByte();
+                value |= (currentByte & 0x7F) << shift;
+                shift += 7;
+            } while ((currentByte & 128) != 0);
+
+            return value;
+        }
+
+        /// <summary>
         /// Writes a <see cref="Byte"/> to this Packet.
         /// </summary>
         /// <param name="value">value to write</param>
@@ -567,6 +597,35 @@ namespace FalconUDP
         public void WriteGuid(Guid guid)
         {
             WriteBytes(guid.ToByteArray());
+        }
+
+        /// <summary>
+        /// Writes <paramref name="value"/> to 1 to 5 bytes depending on value.
+        /// </summary>
+        /// <param name="value"><see cref="Int32"/> to write</param>
+        /// <remarks>
+        /// <para>
+        /// The number of bytes the value will take:
+        /// 0 - 127                 : 1 byte
+        /// 128 - 16383             : 2 bytes
+        /// 16384 - 2097151         : 3 bytes
+        /// 2097152 - 268435455     : 4 bytes
+        /// 268435456 -  2147483647 : 5 bytes
+        /// </para>
+        /// </remarks>
+        public void  WriteVariableLengthInt32(int value)
+        {
+            if(value < 0)
+                throw new ArgumentOutOfRangeException("value", "value cannot be less than 0");
+
+            do
+            {
+                byte currentByte = (byte) (value & 0x7F);
+                value >>= 7;
+                if (value > 0)
+                    currentByte |= 128;
+                WriteByte(currentByte);
+            } while (value > 0);
         }
     }
 }
