@@ -538,6 +538,9 @@ namespace FalconUDP
                             float rtt = ((float)localPeer.Stopwatch.Elapsed.TotalSeconds) - sentDatagramAwaitingAck.EllapsedSecondsAtSent;
                             UpdateLatency(rtt);
 
+                            localPeer.Log(LogLevel.Debug, String.Format("ACK from: {0}, channel: {1}, seq: {2}, RTT: {3}s", PeerName, opts.ToString(), seq.ToString(), rtt.ToString()));
+                            localPeer.Log(LogLevel.Debug, String.Format("Latency now: {0}s", Latency.ToString()));
+
                             // return datagram
                             localPeer.SendDatagramsPool.Return(sentDatagramAwaitingAck);
                         }
