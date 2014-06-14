@@ -32,13 +32,14 @@ namespace FalconUDP
         }
 
         // returns true if datagram is valid, otherwise it should be dropped any additional packets in it should not be processed
-        internal bool TryAddReceivedPacket(ushort datagramSeq,
-            PacketType type,
-            byte[] buffer,
-            int index,
-            int count,
-            bool isFirstPacketInDatagram,
-            out bool applicationPacketAdded)
+        internal bool TryAddReceivedPacket(
+            ushort      datagramSeq,
+            PacketType  type,
+            byte[]      buffer,
+            int         index,
+            int         count,
+            bool        isFirstPacketInDatagram,
+            out bool    applicationPacketAdded)
         {
             applicationPacketAdded = false; // until proven otherwise
 
