@@ -465,13 +465,14 @@ namespace FalconUDP
         }
 
         // returns true if caller should continue adding any additional packets in datagram
-        internal bool TryAddReceivedPacket(ushort seq, 
+        internal bool TryAddReceivedPacket(
+            ushort      seq, 
             SendOptions opts, 
-            PacketType type, 
-            byte[] buffer,
-            int index,
-            int payloadSize,
-            bool isFirstPacketInDatagram)
+            PacketType  type, 
+            byte[]      buffer,
+            int         index,
+            int         payloadSize,
+            bool        isFirstPacketInDatagram)
         {
             // If we are not the keep alive master, i.e. this remote peer is, and this packet was 
             // sent reliably reset ellpasedMilliseondsAtLastRealiablePacket[Received].

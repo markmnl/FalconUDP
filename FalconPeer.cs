@@ -67,7 +67,7 @@ namespace FalconUDP
         internal static int MaxDatagramSizeValue            = 1400;
         
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
-        internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }
+        internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }  
         internal static int MaxPayloadSize { get { return MaxDatagramSizeValue - Const.FALCON_PACKET_HEADER_SIZE; } }
 
         /// <summary>
