@@ -39,7 +39,11 @@ namespace FalconUDP
             this.Id                         = peerId;
             this.localPeer                  = localPeer;
             this.endPoint                   = endPoint;
+#if DEBUG
             this.PeerName                   = endPoint.ToString();
+#else
+            this.PeerName                   = String.Empty;
+#endif
             this.unreadPacketCount          = 0;
             this.sentDatagramsAwaitingACK   = new List<Datagram>();
             this.roundTripTimes             = new float[localPeer.LatencySampleLength];
