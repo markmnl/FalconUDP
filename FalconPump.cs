@@ -9,8 +9,8 @@ using System.Threading;
 namespace FalconUDP
 {
     /// <summary>
-    /// Wraps a <see cref="FalconPeer"/> and creates a Thread to regularly pump it so it can 
-    /// function automonously.
+    /// Wraps a <see cref="FalconPeer"/> and creates a Thread to regularly pump a FalconPeer so it 
+    /// can function automonously.
     /// </summary>
     public class FalconPump
     {
@@ -92,6 +92,7 @@ namespace FalconUDP
                 {
                     if (stopped)
                     {
+                        falconPeer.Stop();
                         return;
                     }
                     falconPeer.Update();
@@ -162,9 +163,34 @@ namespace FalconUDP
             }
         }
 
+        public void DropPeer(int peerId)
+        {
+            lock(tickLockObject)
+            {
+                falconPeer.RemovePeer(peerId);
+            }
+        }
+
+        public void DropAllPeers()
+        {
+            lock(tickLockObject)
+            {
+                falconPeer.RemoveAllPeers();
+            }
+        }
+
+        public void DropAllPeersExcept(int peerId)
+        {
+            lock(tickLockObject)
+            {
+                falconPeer.RemoveAllPeersExcept(peerId);
+            }
+        }
+
         public bool Read(PacketReader reader)
         {
             bool packetAssigned = false;
+
             lock (tickLockObject)
             {
                 // Take the opportunity to see if any peers have been added, removed or discovered and
@@ -232,6 +258,7 @@ namespace FalconUDP
                     packetAssigned = true;
                 }
             } // lock
+
             return packetAssigned;
         }
 
