@@ -39,9 +39,9 @@ namespace FalconUDP
             this.Id                         = peerId;
             this.localPeer                  = localPeer;
             this.endPoint                   = endPoint;
+            this.PeerName                   = endPoint.ToString();
             this.unreadPacketCount          = 0;
             this.sentDatagramsAwaitingACK   = new List<Datagram>();
-            this.PeerName                   = endPoint.ToString();
             this.roundTripTimes             = new float[localPeer.LatencySampleLength];
             this.delayedDatagrams           = new List<DelayedDatagram>();
             this.keepAliveAndAutoFlush      = keepAliveAndAutoFlush;
@@ -370,7 +370,12 @@ namespace FalconUDP
         internal void UpdateEndPoint(IPEndPoint ip)
         {
             endPoint = ip;
+#if DEBUG 
             PeerName = ip.ToString();
+#else
+            // PeerName is not used in Release builds so do don't create the garbage 
+            PeerName = String.Empty;
+#endif
         }
 
         internal void EnqueueSend(PacketType type, SendOptions opts, Packet packet)
