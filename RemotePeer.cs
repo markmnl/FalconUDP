@@ -31,6 +31,7 @@ namespace FalconUDP
         internal IPEndPoint EndPoint { get { return endPoint; } }
         internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application
         internal string PeerName { get; private set; }                          // e.g. IP end point, used for logging
+
         internal float Latency { get; private set; }                            // current average round-trip-times to this remote peer
              
         internal RemotePeer(FalconPeer localPeer, IPEndPoint endPoint, int peerId, bool keepAliveAndAutoFlush = true)
@@ -86,7 +87,12 @@ namespace FalconUDP
             // increment index for next time this is called
             roundTripTimesIndex++;
             if (roundTripTimesIndex == roundTripTimes.Length)
+            {
                 roundTripTimesIndex = 0;
+
+                // TODO Take this opportunity to re-calc average from all values as running total 
+                // could have drifted becuase of lack of precision.
+            }
         }
         #endregion
         
