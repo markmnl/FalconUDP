@@ -91,8 +91,8 @@ namespace FalconUDP
                     roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
 
                     // Recalc running total from all in sample to remove any drift introduced.
-                    runningRTTTotal = 0;
-                    foreach (int roundTripTime in roundTripTimes)
+                    runningRTTTotal = 0.0f;
+                    foreach (float roundTripTime in roundTripTimes)
                     {
                         runningRTTTotal += roundTripTime;
                     }

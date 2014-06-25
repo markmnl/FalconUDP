@@ -549,7 +549,7 @@ namespace FalconUDPTests
         {
             TimeSpan        DELAY                   = TimeSpan.FromSeconds(0.2f);
             const float     OUT_OF_RANGE_TOLERANCE  = 0.075f; // the actual delay will be more because of tick time
-            const int       NUM_OF_PINGS            = 20;
+            const int       NUM_OF_PINGS            = 200;
 
             var peer1 = CreateAndStartLocalPeer();
             var peer2 = CreateAndStartLocalPeer();
