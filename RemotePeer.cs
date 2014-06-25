@@ -62,12 +62,16 @@ namespace FalconUDP
         }
 
         #region Latency Calc
+        private const int ReCalcLatencyAt = 100;
         private bool hasUpdateLatencyBeenCalled = false;
         private float[] roundTripTimes;
         private int roundTripTimesIndex;
         private float runningRTTTotal;
+        private int updateLatencyCountSinceRecalc;
         private void UpdateLatency(float rtt)
         {
+            updateLatencyCountSinceRecalc++;
+
             // If this is the first time this is being called seed entire sample with inital value
             // and set latency to RTT, it's all we have!
             if (!hasUpdateLatencyBeenCalled)
@@ -82,10 +86,25 @@ namespace FalconUDP
             }
             else
             {
-                runningRTTTotal -= roundTripTimes[roundTripTimesIndex]; // subtract oldest RTT from running total
-                roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
-                runningRTTTotal += rtt;                                 // add new RTT to running total
-                Latency = runningRTTTotal / roundTripTimes.Length;      // re-calc average one-way latency
+                if(updateLatencyCountSinceRecalc == ReCalcLatencyAt)
+                {
+                    roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
+
+                    // Recalc running total from all in sample to remove any drift introduced.
+                    runningRTTTotal = 0;
+                    foreach (int roundTripTime in roundTripTimes)
+                    {
+                        runningRTTTotal += roundTripTime;
+                    }
+                    updateLatencyCountSinceRecalc = 0;
+                }
+                else
+                {
+                    runningRTTTotal -= roundTripTimes[roundTripTimesIndex]; // subtract oldest RTT from running total
+                    roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
+                    runningRTTTotal += rtt;                                 // add new RTT to running total
+                }
+                Latency = runningRTTTotal / roundTripTimes.Length;          // re-calc average RTT from running total
             }
 
             // increment index for next time this is called
@@ -93,9 +112,6 @@ namespace FalconUDP
             if (roundTripTimesIndex == roundTripTimes.Length)
             {
                 roundTripTimesIndex = 0;
-
-                // TODO Take this opportunity to re-calc average from all values as running total 
-                // could have drifted becuase of lack of precision.
             }
         }
         #endregion
