@@ -135,7 +135,7 @@ namespace FalconUDP
                 CheckNotStarted();
                 float seconds = (float)value.TotalSeconds;
                 if (seconds <= 0.0f)
-                    throw new ArgumentOutOfRangeException("value must be greater than 0");
+                    throw new ArgumentOutOfRangeException("value", "must be greater than 0");
                 AckTimeoutSeconds = seconds;
                 UpdateProbeKeepAliveIfNoKeepAlive();
             }
@@ -155,7 +155,7 @@ namespace FalconUDP
             {
                 CheckNotStarted();
                 if (value < 0)
-                    throw new ArgumentOutOfRangeException("value cannot be less than 0");
+                    throw new ArgumentOutOfRangeException("value", "cannot be less than 0");
                 MaxResends = value;
                 UpdateProbeKeepAliveIfNoKeepAlive();
             }
@@ -173,7 +173,7 @@ namespace FalconUDP
             {
                 CheckNotStarted();
                 if (value < 0)
-                    throw new ArgumentOutOfRangeException("value cannot be less than 0");
+                    throw new ArgumentOutOfRangeException("value", "cannot be less than 0");
                 OutOfOrderTolerance = value;
                 MaxNeededOrindalSeq = UInt16.MaxValue + value;
             }
@@ -191,7 +191,7 @@ namespace FalconUDP
             {
                 CheckNotStarted();
                 if (value < 1)
-                    throw new ArgumentOutOfRangeException("value cannot be less than 1");
+                    throw new ArgumentOutOfRangeException("value", "cannot be less than 1");
                 LatencySampleLength = value;
             }
         }
@@ -216,7 +216,7 @@ namespace FalconUDP
                 CheckNotStarted();
                 float seconds = (float)value.TotalSeconds;
                 if (seconds <= 0.0f)
-                    throw new ArgumentOutOfRangeException("value must be greater than 0");
+                    throw new ArgumentOutOfRangeException("value", "must be greater than 0");
                 KeepAliveIntervalSeconds = seconds;
                 UpdateProbeKeepAliveIfNoKeepAlive();
             }
@@ -239,7 +239,7 @@ namespace FalconUDP
                 CheckNotStarted();
                 float seconds = (float)value.TotalSeconds;
                 if (seconds < 0.0f)
-                    throw new ArgumentOutOfRangeException("value cannot be less than 0");
+                    throw new ArgumentOutOfRangeException("value", "cannot be less than 0");
                 AutoFlushIntervalSeconds = seconds;
             }
         }
@@ -255,7 +255,7 @@ namespace FalconUDP
             {
                 CheckNotStarted();
                 if (value <= 0)
-                    throw new ArgumentOutOfRangeException("value must be greater than 0");
+                    throw new ArgumentOutOfRangeException("value", "must be greater than 0");
                 receiveBufferSize = value;
             }
         }
@@ -271,7 +271,7 @@ namespace FalconUDP
             {
                 CheckNotStarted();
                 if (value <= 0)
-                    throw new ArgumentOutOfRangeException("value must be greater than 0");
+                    throw new ArgumentOutOfRangeException("value", "must be greater than 0");
                 sendBufferSize = value;
             }
         }
@@ -288,7 +288,7 @@ namespace FalconUDP
                 CheckNotStarted();
                 float seconds = (float)value.TotalSeconds;
                 if (seconds <= 0.0f)
-                    throw new ArgumentOutOfRangeException("value must be greater than 0");
+                    throw new ArgumentOutOfRangeException("value", "must be greater than 0");
                 PingTimeoutSeconds = seconds;
             }
         }
@@ -311,7 +311,7 @@ namespace FalconUDP
             set
             {
                 if (value <= 0)
-                    throw new ArgumentOutOfRangeException("value must be greater than 0");
+                    throw new ArgumentOutOfRangeException("value", "must be greater than 0");
                 MaxDatagramSizeValue = value;
             }
         }
@@ -327,7 +327,7 @@ namespace FalconUDP
             {
                 float seconds = (float)value.TotalSeconds;
                 if (seconds < 0.0f)
-                    throw new ArgumentOutOfRangeException("value cannot be less than 0");
+                    throw new ArgumentOutOfRangeException("value", "cannot be less than 0");
                 SimulateLatencySeconds = seconds;
             }
         }
@@ -345,9 +345,9 @@ namespace FalconUDP
             {
                 float seconds = (float)value.TotalSeconds;
                 if (seconds < 0.0f)
-                    throw new ArgumentOutOfRangeException("value cannot be less than 0");
+                    throw new ArgumentOutOfRangeException("value", "cannot be less than 0");
                 if(seconds > SimulateLatencySeconds)
-                    throw new ArgumentOutOfRangeException("value cannot be greater than SimulateDelayTimeSpan");
+                    throw new ArgumentOutOfRangeException("value", "cannot be greater than SimulateDelayTimeSpan");
                 SimulateJitterSeconds = seconds;
             }
         }
@@ -362,7 +362,7 @@ namespace FalconUDP
             set
             {
                 if (value > 1.0 || value < 0.0)
-                    throw new ArgumentOutOfRangeException("value must be between 0.0 and 1.0 inclusive");
+                    throw new ArgumentOutOfRangeException("value", "must be between 0.0 and 1.0 inclusive");
                 SimulatePacketLossProbability = value;
             }
         }

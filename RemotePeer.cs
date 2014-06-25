@@ -31,6 +31,7 @@ namespace FalconUDP
         internal IPEndPoint EndPoint { get { return endPoint; } }
         internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application
         internal string PeerName { get; private set; }                          // e.g. IP end point, used for logging
+
         internal float Latency { get; private set; }                            // current average round-trip-times to this remote peer
              
         internal RemotePeer(FalconPeer localPeer, IPEndPoint endPoint, int peerId, bool keepAliveAndAutoFlush = true)
@@ -38,9 +39,13 @@ namespace FalconUDP
             this.Id                         = peerId;
             this.localPeer                  = localPeer;
             this.endPoint                   = endPoint;
+#if DEBUG
+            this.PeerName                   = endPoint.ToString();
+#else
+            this.PeerName                   = String.Empty;
+#endif
             this.unreadPacketCount          = 0;
             this.sentDatagramsAwaitingACK   = new List<Datagram>();
-            this.PeerName                   = endPoint.ToString();
             this.roundTripTimes             = new float[localPeer.LatencySampleLength];
             this.delayedDatagrams           = new List<DelayedDatagram>();
             this.keepAliveAndAutoFlush      = keepAliveAndAutoFlush;
@@ -57,12 +62,16 @@ namespace FalconUDP
         }
 
         #region Latency Calc
+        private const int ReCalcLatencyAt = 100;
         private bool hasUpdateLatencyBeenCalled = false;
         private float[] roundTripTimes;
         private int roundTripTimesIndex;
         private float runningRTTTotal;
+        private int updateLatencyCountSinceRecalc;
         private void UpdateLatency(float rtt)
         {
+            updateLatencyCountSinceRecalc++;
+
             // If this is the first time this is being called seed entire sample with inital value
             // and set latency to RTT, it's all we have!
             if (!hasUpdateLatencyBeenCalled)
@@ -77,16 +86,33 @@ namespace FalconUDP
             }
             else
             {
-                runningRTTTotal -= roundTripTimes[roundTripTimesIndex]; // subtract oldest RTT from running total
-                roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
-                runningRTTTotal += rtt;                                 // add new RTT to running total
-                Latency = runningRTTTotal / roundTripTimes.Length;      // re-calc average one-way latency
+                if(updateLatencyCountSinceRecalc == ReCalcLatencyAt)
+                {
+                    roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
+
+                    // Recalc running total from all in sample to remove any drift introduced.
+                    runningRTTTotal = 0.0f;
+                    foreach (float roundTripTime in roundTripTimes)
+                    {
+                        runningRTTTotal += roundTripTime;
+                    }
+                    updateLatencyCountSinceRecalc = 0;
+                }
+                else
+                {
+                    runningRTTTotal -= roundTripTimes[roundTripTimesIndex]; // subtract oldest RTT from running total
+                    roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
+                    runningRTTTotal += rtt;                                 // add new RTT to running total
+                }
+                Latency = runningRTTTotal / roundTripTimes.Length;          // re-calc average RTT from running total
             }
 
             // increment index for next time this is called
             roundTripTimesIndex++;
             if (roundTripTimesIndex == roundTripTimes.Length)
+            {
                 roundTripTimesIndex = 0;
+            }
         }
         #endregion
         
@@ -364,7 +390,12 @@ namespace FalconUDP
         internal void UpdateEndPoint(IPEndPoint ip)
         {
             endPoint = ip;
+#if DEBUG 
             PeerName = ip.ToString();
+#else
+            // PeerName is not used in Release builds so do don't create the garbage 
+            PeerName = String.Empty;
+#endif
         }
 
         internal void EnqueueSend(PacketType type, SendOptions opts, Packet packet)
