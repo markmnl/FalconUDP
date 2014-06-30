@@ -57,8 +57,8 @@ namespace FalconUDP
         internal int        OutOfOrderTolerance             = 8;
         internal int        LatencySampleLength             = 2;
         internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 8; // must be UInt16.MaxValue + OutOfOrderTolerance
-        internal float      KeepAliveIntervalSeconds        = 5.0f;
-        internal float      KeepAliveProbeAfterSeconds      = ((5.0f * 7.0f) / 2.0f ) - 2.0f;
+        internal float      KeepAliveIntervalSeconds        = 10.0f;
+        internal float      KeepAliveProbeAfterSeconds      = ((10.0f * 7.0f) / 2.0f ) - 2.0f;
         internal float      AutoFlushIntervalSeconds        = 0.5f;
         internal float      PingTimeoutSeconds              = 3.0f;
         internal float      SimulateLatencySeconds          = 0.0f;
@@ -200,7 +200,7 @@ namespace FalconUDP
         /// The time span after which to send Falcon KeepAlive's to a remote peer if no reliable 
         /// message sent or received from the peer.
         /// </summary>
-        /// <remarks>Defaults to 5.0 seconds. 
+        /// <remarks>Defaults to 10.0 seconds. 
         /// 
         /// KeepAlive's help determine dropped peers that did not properly "disconnect", and 
         /// update latency estimates (in the same way all reliable messages do).
