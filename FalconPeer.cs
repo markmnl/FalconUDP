@@ -1003,8 +1003,6 @@ namespace FalconUDP
                 // Enqueue Bye and flush send channels so Bye will be last packet peer receives and 
                 // any outstanding sends are sent too.
                 rp.Bye();
-                peersById.Remove(rp.Id);
-                peersByIp.Remove(rp.EndPoint);
                 rp.FlushSendQueues();
                 Log(LogLevel.Info, String.Format("Removed and saying bye to: {0}.", rp.EndPoint));
             }
@@ -1012,6 +1010,9 @@ namespace FalconUDP
             {
                 Log(LogLevel.Info, String.Format("Removed: {0}.", rp.EndPoint));
             }
+
+            peersById.Remove(rp.Id);
+            peersByIp.Remove(rp.EndPoint);
 
             rp.ReturnLeasedObjects();
 

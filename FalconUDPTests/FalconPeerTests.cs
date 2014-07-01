@@ -491,9 +491,9 @@ namespace FalconUDPTests
                 otherPeer.Stop(false);
             }
 
-            // NOTE: Time to wait must be > (KeepAliveInterval x MaxResend) + AckTimout + Any error marine
-            int timeToWait = ((int)(peer1.KeepAliveInterval + peer1.AckTimeout).TotalMilliseconds * peer1.MaxMessageResends);
-            timeToWait += TICK_RATE;
+            // NOTE: Time to wait must be > (KeepAliveInterval * 2) + (MaxResend * AckTimout) + Any error margin
+            int timeToWait = (int)((peer1.KeepAliveInterval.TotalMilliseconds * 2) + (peer1.MaxMessageResends * peer1.AckTimeout.TotalMilliseconds));
+            timeToWait += TICK_RATE * peer1.MaxMessageResends;
             Thread.Sleep(timeToWait);
 
             var connectedPeers = peer1.GetAllRemotePeers();
