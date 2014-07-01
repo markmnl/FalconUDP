@@ -470,11 +470,11 @@ namespace FalconUDP
             readPacketsList.Clear();
 
             // move received packets ready for reading from remote peers into readPacketList
-            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+            foreach (RemotePeer rp in peersById.Values)
             {
-                if (kv.Value.UnreadPacketCount > 0)
+                if (rp.UnreadPacketCount > 0)
                 {
-                    readPacketsList.AddRange(kv.Value.Read());
+                    readPacketsList.AddRange(rp.Read());
                 }
             }
 
@@ -566,9 +566,9 @@ namespace FalconUDP
             unknownPeer.Update(dt);
 
             // remote peers
-            foreach (KeyValuePair<int, RemotePeer> kv in peersById)
+            foreach (RemotePeer rp in peersById.Values)
             {
-                kv.Value.Update(dt);
+                rp.Update(dt);
             }
 
             // stats
@@ -998,12 +998,14 @@ namespace FalconUDP
 
         private void RemovePeer(RemotePeer rp, bool sayBye)
         {
-            peersById.Remove(rp.Id);
-            peersByIp.Remove(rp.EndPoint);
-
             if (sayBye)
             {
-                SendToUnknownPeer(rp.EndPoint, PacketType.Bye, SendOptions.None, null);
+                // Enqueue Bye and flush send channels so Bye will be last packet peer receives and 
+                // any outstanding sends are sent too.
+                rp.Bye();
+                peersById.Remove(rp.Id);
+                peersByIp.Remove(rp.EndPoint);
+                rp.FlushSendQueues();
                 Log(LogLevel.Info, String.Format("Removed and saying bye to: {0}.", rp.EndPoint));
             }
             else

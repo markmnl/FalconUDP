@@ -438,6 +438,11 @@ namespace FalconUDP
             EnqueueSend(PacketType.Ping, SendOptions.None, null);
         }
 
+        internal void Bye()
+        {
+            EnqueueSend(PacketType.Bye, SendOptions.None, null);
+        }
+
         // used for internal sends that need to be sent immediatly only
         internal void ForceFlushSendChannelNow(SendOptions channelType)
         {
