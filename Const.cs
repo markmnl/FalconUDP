@@ -14,8 +14,8 @@ namespace FalconUDP
         internal static readonly Type   PACKET_TYPE_TYPE                    = typeof(PacketType);
         internal static readonly Type   SEND_OPTIONS_TYPE                   = typeof(SendOptions);
         internal static readonly byte[] CLASS_C_SUBNET_MASK                 = new byte[] { 255, 255, 255, 0 };
-        internal static readonly byte[] DISCOVER_PACKET                     = new byte[] { (byte)((byte)PacketType.DiscoverRequest | (byte)SendOptions.None), 0, 0, 0, 0 };
-        internal static readonly byte[] DISCOVER_PACKET_WITH_TOKEN_HEADER   = new byte[] { (byte)((byte)PacketType.DiscoverRequest | (byte)SendOptions.None), 0, 0, DISCOVERY_TOKEN_SIZE, 0 };
+        internal static readonly byte[] DISCOVER_PACKET                     = new byte[] { ((byte)PacketType.DiscoverRequest | (byte)SendOptions.None), 0, 0, 0, 0 };
+        internal static readonly byte[] DISCOVER_PACKET_WITH_TOKEN_HEADER   = new byte[] { ((byte)PacketType.DiscoverRequest | (byte)SendOptions.None), 0, 0, DISCOVERY_TOKEN_SIZE, 0 };
     }
 }
 

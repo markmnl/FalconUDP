@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using FalconUDP;
 
 namespace FalconUDP
 {
@@ -36,7 +37,7 @@ namespace FalconUDP
             foreach (IPEndPoint ep in endPointsToSendTo)
             {
                 // check we haven't already discovered the peer we are about to try discover!
-                if (endPointsReceivedReplyFrom.Exists(dp => dp.Address.Equals(ep.Address) && dp.Port == ep.Port))
+                if (endPointsReceivedReplyFrom.Exists(dp => dp.FastEquals(ep)))
                     continue;
 
                 falconPeer.Log(LogLevel.Debug, String.Format("Emitting discovery signal to: {0}, with token: {1}.", ep, token.HasValue ? token.Value.ToString() : "None"));
@@ -120,7 +121,7 @@ namespace FalconUDP
         internal void AddDiscoveryReply(IPEndPoint endPointReceivedFrom)
         {
             // check we haven't already discovered this peer
-            if (endPointsReceivedReplyFrom.Exists(ep => ep.Address.Equals(endPointReceivedFrom.Address) && ep.Port == endPointReceivedFrom.Port))
+            if (endPointsReceivedReplyFrom.Exists(ep => ep.FastEquals(endPointReceivedFrom)))
                 return;
 
             // raise PeerDiscovered event

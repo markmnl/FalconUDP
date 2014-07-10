@@ -645,7 +645,7 @@ namespace FalconUDP
 
         private bool TryGetAndRemoveWaitingAcceptDetail(IPEndPoint ep, out AwaitingAcceptDetail detail)
         {
-            detail = awaitingAcceptDetails.Find(aad => aad.EndPoint.Address.Equals(ep.Address) && aad.EndPoint.Port == ep.Port);
+            detail = awaitingAcceptDetails.Find(aad => aad.EndPoint.FastEquals(ep));
             if (detail != null)
             {
                 awaitingAcceptDetails.Remove(detail);
@@ -960,8 +960,7 @@ namespace FalconUDP
                             if (HasPingsAwaitingPong)
                             {
                                 PingDetail detail = PingsAwaitingPong.Find(pd => pd.IPEndPointPingSentTo != null
-                                    && pd.IPEndPointPingSentTo.Address.Equals(fromIPEndPoint.Address)
-                                    && pd.IPEndPointPingSentTo.Port == fromIPEndPoint.Port);
+                                    && pd.IPEndPointPingSentTo.FastEquals(fromIPEndPoint));
 
                                 if (detail != null)
                                 {
