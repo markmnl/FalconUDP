@@ -6,14 +6,17 @@ namespace FalconUDP
     internal class ReceiveChannel
     {
         private readonly SortedList<float,Packet> receivedPackets;
+        private readonly List<ushort> datagramsSeqRecentlyRead;
         private readonly List<Packet> packetsRead;
         private readonly SendOptions channelType;
         private readonly FalconPeer localPeer;
         private readonly RemotePeer remotePeer;
         private readonly bool isReliable;
         private readonly bool isInOrder;
+        private readonly int numberOfDatagramSequencesReadToKeep;
         private float lastReceivedPacketSeq;
         private int maxReadDatagramSeq;
+        
 
         /// <summary>
         /// Number of unread packets ready for reading
@@ -29,6 +32,8 @@ namespace FalconUDP
             this.isInOrder      = (channelType & SendOptions.InOrder) == SendOptions.InOrder;
             this.receivedPackets = new SortedList<float,Packet>();
             this.packetsRead    = new List<Packet>();
+            this.numberOfDatagramSequencesReadToKeep = localPeer.MaxOutOfOrderTolerence * 2;
+            this.datagramsSeqRecentlyRead = new List<ushort>(this.numberOfDatagramSequencesReadToKeep);
         }
 
         // returns true if datagram is valid, otherwise it should be dropped any additional packets in it should not be processed
@@ -62,6 +67,20 @@ namespace FalconUDP
                     return false;
                 }
 
+                // validate not duplicate
+
+                if (datagramsSeqRecentlyRead.Contains(datagramSeq))
+                {
+                    localPeer.Log(LogLevel.Warning, String.Format("Duplicate datagram from: {0} dropped.", remotePeer.PeerName));
+                    return false;
+                }
+
+                if (datagramsSeqRecentlyRead.Count == numberOfDatagramSequencesReadToKeep)
+                {
+                    datagramsSeqRecentlyRead.RemoveAt(0);
+                }
+                datagramsSeqRecentlyRead.Add(datagramSeq);
+
                 ordinalPacketSeq = datagramSeq;
                 int diff = Math.Abs(datagramSeq - (int)lastReceivedPacketSeq);
                 if (diff > localPeer.OutOfOrderTolerance)
@@ -70,13 +89,6 @@ namespace FalconUDP
                     {
                         ordinalPacketSeq += ushort.MaxValue;
                     }
-                }
-
-                // check not duplicate, this ASSUMES we haven't received 65534 datagrams between reads!
-                if (receivedPackets.ContainsKey(ordinalPacketSeq))
-                {
-                    localPeer.Log(LogLevel.Warning, String.Format("Duplicate packet from: {0} dropped.", remotePeer.PeerName));
-                    return false;
                 }
 
                 // if datagram required to be in order check after max read, if not drop it
