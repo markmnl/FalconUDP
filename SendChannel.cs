@@ -124,6 +124,7 @@ namespace FalconUDP
             {
                 datagramPoolPool.Return(datagram);
             }
+            datagramPoolPool.Return(currentDatagram);
         }
     }
 }
