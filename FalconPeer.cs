@@ -52,7 +52,7 @@ namespace FalconUDP
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
         internal Socket Socket;
 
-        internal float      AckTimeoutSeconds               = 2.0f;
+        internal float      AckTimeoutSeconds               = 1.2f;
         internal int        MaxResends                      = 7;
         internal int        OutOfOrderTolerance             = 100;
         internal int        LatencySampleLength             = 2;
