@@ -1791,9 +1791,9 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// Helper method returns <see cref="System.Net.NetworkInterface.GetIsNetworkAvailable()"/>.
+        /// Helper method returns <see cref="System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()"/>.
         /// </summary>
-        /// <returns></returns>
+        /// <returns><see cref="System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()"/></returns>
         public static bool GetIsNetworkAvaliable()
         {
             return NetworkInterface.GetIsNetworkAvailable();
