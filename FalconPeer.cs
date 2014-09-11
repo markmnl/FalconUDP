@@ -54,9 +54,9 @@ namespace FalconUDP
 
         internal float      AckTimeoutSeconds               = 2.0f;
         internal int        MaxResends                      = 7;
-        internal int        OutOfOrderTolerance             = 8;
+        internal int        OutOfOrderTolerance             = 100;
         internal int        LatencySampleLength             = 2;
-        internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 8; // must be UInt16.MaxValue + OutOfOrderTolerance
+        internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
         internal float      KeepAliveIntervalSeconds        = 10.0f;
         internal float      KeepAliveProbeAfterSeconds      = ((10.0f * 7.0f) / 2.0f ) - 2.0f;
         internal float      AutoFlushIntervalSeconds        = 0.5f;

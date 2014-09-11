@@ -382,6 +382,11 @@ namespace FalconUDPTests
         [TestMethod]
         public void FalconPeerStressTest()
         {
+            FalconPeerStressTest(0.0);
+        }
+
+        public void FalconPeerStressTest(double simPacketLoss)
+        {
             // NOTE: beware of overflowing the network buffer
             const int NUM_OF_PEERS              = 5;
             const int MAX_PACKET_SIZE           = 100;
@@ -395,15 +400,34 @@ namespace FalconUDPTests
 
             var allPeers = new List<FalconPeer>(otherPeers);
             allPeers.Add(peer1);
-#if DEBUG
-            allPeers.ForEach(p => p.SetLogLevel(LogLevel.Debug));
-#endif
+
+            allPeers.ForEach(p =>
+                {
+    #if DEBUG
+                    p.SetLogLevel(LogLevel.Debug);
+    #endif
+                });
+
 
             var rand = new Random();
             var numRemotePeers = NUM_OF_PEERS-1;
 
             foreach (var peer in allPeers)
             {
+                // Set sim packet loss on peers that will reply and unset it on sender - cannot as 
+                // we are counting replies.
+                if (simPacketLoss > 0.0)
+                {
+                    foreach (var peer2 in allPeers)
+                    {
+                        if (!ReferenceEquals(peer, peer2))
+                        {
+                            peer2.SimulatePacketLossChance = 0.1;
+                        }
+                    }
+                    peer.SimulatePacketLossChance = 0.0;
+                }
+
                 for (var i = 0; i < NUM_ITERATIONS_PER_PEER; i++)
                 {
                     var repliesLock = new object();
@@ -449,7 +473,7 @@ namespace FalconUDPTests
                             rand.NextBytes(bytes);
                             var packet = peer.BorrowPacketFromPool();
                             packet.WriteByte((byte)FalconTestMessageType.RandomBytes);
-                            packet.WriteByte((byte)opts);
+                            packet.WriteByte((byte)opts);   
                             packet.WriteUInt16((ushort)length);
                             packet.WriteBytes(bytes);
                             peer.EnqueueSendToAll(opts, packet);
@@ -459,13 +483,19 @@ namespace FalconUDPTests
                         peer.SendEnquedPackets();
                     }
 
+                    var waitMilliseconds = numRemotePeers * MAX_REPLY_WAIT_TIME;
+                    if (simPacketLoss > 0.0)
+                        waitMilliseconds *= 3; // HACK!
                     //------------------------------------------------------
-                    waitHandel.WaitOne(numRemotePeers * MAX_REPLY_WAIT_TIME);
+                    waitHandel.WaitOne(waitMilliseconds); 
                     //------------------------------------------------------
 
                     lock (repliesLock)
                     {
-                        Assert.AreEqual(packetsSentCount * numRemotePeers, packetsReceivedCount);
+                        if (simPacketLoss == 0.0 || ((opts & SendOptions.Reliable) == SendOptions.Reliable))
+                        {
+                            Assert.AreEqual(packetsSentCount * numRemotePeers, packetsReceivedCount);
+                        }
                         replies.Clear();
                     }
                 }
@@ -738,7 +768,9 @@ namespace FalconUDPTests
         [TestMethod]
         public void SimulatePacketLossTest()
         {
-            // TODO
+            // NOTE: This is not really testing simulating packet loss works, it is testing 
+            //       FalconPeer can deal with it.
+            FalconPeerStressTest(0.1); // 10 %
         }
     }
 }
