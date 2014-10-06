@@ -312,6 +312,7 @@ namespace FalconUDP
 
                             localPeer.SendDatagramsPool.Return(datagramAwaitingAck);
                             localPeer.RemovePeerOnNextUpdate(this);
+                            return;
                         }
                         else
                         {
