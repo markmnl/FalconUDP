@@ -176,17 +176,9 @@ namespace FalconUDP
                 datagram.SendOptions.ToString(),
                 datagram.Count.ToString()));
 
-            try
-            {
-                //------------------------------------------------------------------------------------------------------------
-                localPeer.Socket.SendTo(datagram.BackingBuffer, datagram.Offset, datagram.Count, SocketFlags.None, endPoint);
-                //------------------------------------------------------------------------------------------------------------
-            }
-            catch (SocketException se)
-            {
-                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0} sending to peer: {1}: {2}, ", se.ErrorCode, PeerName, se.Message));
-                localPeer.RemovePeerOnNextUpdate(this); 
-            }
+            //------------------------------------------------------------------------------------------------------------
+            localPeer.Socket.SendTo(datagram.BackingBuffer, datagram.Offset, datagram.Count, SocketFlags.None, endPoint);
+            //------------------------------------------------------------------------------------------------------------
 
             if (localPeer.IsCollectingStatistics)
             {
@@ -373,16 +365,26 @@ namespace FalconUDP
             // 
             if (delayedDatagrams.Count > 0)
             {
-                for (int i = 0; i < delayedDatagrams.Count; i++)
+                try
                 {
-                    DelayedDatagram delayedDatagram = delayedDatagrams[i];
-                    delayedDatagram.EllapsedSecondsRemainingToDelay -= dt;
-                    if (delayedDatagram.EllapsedSecondsRemainingToDelay <= 0.0f)
+                    for (int i = 0; i < delayedDatagrams.Count; i++)
                     {
-                        SendDatagram(delayedDatagram.Datagram, true);
-                        delayedDatagrams.RemoveAt(i);
-                        i--;
+                        DelayedDatagram delayedDatagram = delayedDatagrams[i];
+                        delayedDatagram.EllapsedSecondsRemainingToDelay -= dt;
+                        if (delayedDatagram.EllapsedSecondsRemainingToDelay <= 0.0f)
+                        {
+
+                            SendDatagram(delayedDatagram.Datagram, true);
+                            delayedDatagrams.RemoveAt(i);
+                            i--;
+                        }
                     }
+                }
+                catch (SocketException se)
+                {
+                    localPeer.Log(LogLevel.Error, String.Format("Socket Error {0} sending to peer: {1}: {2}, ", se.ErrorCode, PeerName, se.Message));
+                    localPeer.RemovePeerOnNextUpdate(this);
+                    return;
                 }
             }
         }
