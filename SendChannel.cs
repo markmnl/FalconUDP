@@ -7,7 +7,7 @@ namespace FalconUDP
     {
         private readonly Queue<Datagram> queue;
         private readonly SendOptions channelType;
-        private readonly DatagramPool datagramPoolPool;
+        private readonly DatagramPool datagramPool;
         private Datagram currentDatagram;
         private int currentDatagramTotalBufferOffset;
         private ushort seqCount;
@@ -19,7 +19,7 @@ namespace FalconUDP
         {
             this.channelType    = channelType;
             this.queue          = new Queue<Datagram>();
-            this.datagramPoolPool = sendDatagramPool;
+            this.datagramPool   = sendDatagramPool;
             this.IsReliable     = (channelType & SendOptions.Reliable) == SendOptions.Reliable;
 
             GetNewDatagram();
@@ -27,7 +27,7 @@ namespace FalconUDP
 
         private void GetNewDatagram()
         {
-            currentDatagram = datagramPoolPool.Borrow();
+            currentDatagram = datagramPool.Borrow();
             currentDatagram.SendOptions = channelType;
             seqCount++;
             currentDatagram.Sequence = seqCount;
@@ -36,7 +36,7 @@ namespace FalconUDP
 
         private void EnqueueCurrentDatagram()
         {
-            // Queue current datagram setting relevant fields.
+            // Enqueue current datagram setting relevant fields.
             currentDatagram.Resize(currentDatagramTotalBufferOffset - currentDatagram.Offset);
             queue.Enqueue(currentDatagram);
 
@@ -122,9 +122,9 @@ namespace FalconUDP
 
             foreach (var datagram in GetQueue())
             {
-                datagramPoolPool.Return(datagram);
+                datagramPool.Return(datagram);
             }
-            datagramPoolPool.Return(currentDatagram);
+            datagramPool.Return(currentDatagram);
         }
     }
 }

@@ -41,7 +41,7 @@ namespace FalconUDP
         {
             // can never be greater than original size
             if(Count > originalSize)
-                throw new ArgumentOutOfRangeException("newCount", "cannot be greater than original cout");
+                throw new ArgumentOutOfRangeException("newCount", "cannot be greater than original count");
             Count = newCount;
         }
 
