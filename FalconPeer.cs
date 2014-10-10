@@ -52,13 +52,13 @@ namespace FalconUDP
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
         internal Socket Socket;
 
-        internal float      AckTimeoutSeconds               = 1.2f;
+        internal float      AckTimeoutSeconds               = 1.5f;
         internal int        MaxResends                      = 7;
         internal int        OutOfOrderTolerance             = 100;
         internal int        LatencySampleLength             = 2;
         internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
         internal float      KeepAliveIntervalSeconds        = 10.0f;
-        internal float      KeepAliveProbeAfterSeconds      = ((10.0f * 7.0f) / 2.0f ) - 2.0f;
+        internal float      KeepAliveProbeAfterSeconds      = ((10.0f * 7.0f) / 2.0f ) - 1.5f;
         internal float      AutoFlushIntervalSeconds        = 0.5f;
         internal float      PingTimeoutSeconds              = 3.0f;
         internal float      SimulateLatencySeconds          = 0.0f;
