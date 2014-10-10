@@ -115,16 +115,5 @@ namespace FalconUDP
             
             return queue;
         }
-
-        internal void ReturnLeasedOjects()
-        {
-            // return leased datagrams to pool
-
-            foreach (var datagram in GetQueue())
-            {
-                datagramPool.Return(datagram);
-            }
-            datagramPool.Return(currentDatagram);
-        }
     }
 }

@@ -26,12 +26,12 @@ namespace FalconUDP
         /// </summary>
         public int InitalNumEmitDiscoverySignalTaskToPool = 5;
         /// <summary>
-        /// Number of internal buffers to pool used to store pakcets enqued but not yet sent. The
-        /// optimal number is the maximum number of unsent datagrams at any time which the number 
-        /// of packets enqueued to send minus the number that can be "packed-in" existing 
-        /// datagrams.
+        /// Number of internal buffers to pool used to store packets enqued but not yet sent per 
+        /// peer. The optimal number is the maximum number of unsent datagrams at any time which 
+        /// the number of packets enqueued to send minus the number that can be "packed-in" 
+        /// existing datagrams.
         /// </summary>
-        public int InitalNumSendDatagramsToPool = 40;
+        public int InitalNumSendDatagramsToPoolPerPeer = 4;
         /// <summary>
         /// Number of interal data structurs use to save ACKknowledgement details to be sent in 
         /// response to receiving a Reliable message. The optimal number is the maximum number of 
@@ -48,7 +48,7 @@ namespace FalconUDP
                 InitalNumPacketsToPool = 64,
                 InitalNumPingsToPool = 10,
                 InitalNumEmitDiscoverySignalTaskToPool = 5,
-                InitalNumSendDatagramsToPool = 40,
+                InitalNumSendDatagramsToPoolPerPeer = 40,
                 InitalNumAcksToPool = 20,
             };
     }

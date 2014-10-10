@@ -27,6 +27,7 @@ namespace FalconUDP
         private readonly List<EmitDiscoverySignalTask> discoveryTasks;
         private readonly List<Guid> onlyReplyToDiscoveryRequestsWithToken;
         private readonly RemotePeer unknownPeer;                         // peer re-used to send unsolicited messages to
+        private readonly DatagramPool sendDatagramsPool;
         
         private int peerIdCount;
         private string joinPass;
@@ -47,7 +48,7 @@ namespace FalconUDP
         internal readonly PacketPool PacketPool;
         internal readonly HashSet<IPAddress> LocalAddresses;
         internal readonly List<PingDetail> PingsAwaitingPong;
-        internal readonly DatagramPool SendDatagramsPool;
+        internal readonly FalconPoolSizes PoolSizes;
         internal readonly GenericObjectPool<AckDetail> AckPool;
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
         internal Socket Socket;
@@ -413,10 +414,11 @@ namespace FalconUDP
             this.Stopwatch = new Stopwatch();
 
             // pools
+            this.PoolSizes = poolSizes;
             this.PacketPool = new PacketPool(MaxPayloadSize, poolSizes.InitalNumPacketsToPool);
             this.emitDiscoverySignalTaskPool = new GenericObjectPool<EmitDiscoverySignalTask>(poolSizes.InitalNumEmitDiscoverySignalTaskToPool);
             this.pingPool = new GenericObjectPool<PingDetail>(poolSizes.InitalNumPingsToPool);
-            this.SendDatagramsPool = new DatagramPool(MaxDatagramSize, poolSizes.InitalNumSendDatagramsToPool);
+            this.sendDatagramsPool = new DatagramPool(MaxDatagramSize, poolSizes.InitalNumSendDatagramsToPoolPerPeer);
             this.AckPool = new GenericObjectPool<AckDetail>(poolSizes.InitalNumAcksToPool);
 
             // discovery
