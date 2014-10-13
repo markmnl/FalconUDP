@@ -358,6 +358,76 @@ namespace FalconUDP
         }
 
         /// <summary>
+        /// Reads next <see cref="Byte"/> from current position without advancing current position.
+        /// </summary>
+        /// <returns><see cref="Byte"/> from current position.</returns>
+        public byte PeekByte()
+        {
+            PreRead(sizeof(byte));
+            return backingBuffer[pos];
+        }
+
+        /// <summary>
+        /// Reads next <see cref="UInt16"/> from current position without advancing current position.
+        /// </summary>
+        /// <returns><see cref="UInt16"/> from current position.</returns>
+        public ushort PeekUInt16()
+        {
+            PreRead(sizeof(ushort));
+            return BitConverter.ToUInt16(backingBuffer, pos);
+        }
+
+        /// <summary>
+        /// Reads next <see cref="Int16"/> from current position without advancing current position.
+        /// </summary>
+        /// <returns><see cref="Int16"/> from current position.</returns>
+        public short PeekInt16()
+        {
+            PreRead(sizeof(short));
+            return BitConverter.ToInt16(backingBuffer, pos);
+        }
+
+        /// <summary>
+        /// Reads next <see cref="UInt32"/> from current position without advancing current position.
+        /// </summary>
+        /// <returns><see cref="UInt32"/> from current position.</returns>
+        public uint PeekUInt32()
+        {
+            PreRead(sizeof(uint));
+            return BitConverter.ToUInt32(backingBuffer, pos);
+        }
+
+        /// <summary>
+        /// Reads next <see cref="Int32"/> from current position without advancing current position.
+        /// </summary>
+        /// <returns><see cref="Int32"/> from current position.</returns>
+        public int PeekInt32()
+        {
+            PreRead(sizeof(int));
+            return BitConverter.ToInt32(backingBuffer, pos);
+        }
+
+        /// <summary>
+        /// Reads next <see cref="UInt64"/> from current position without advancing current position.
+        /// </summary>
+        /// <returns><see cref="UInt64"/> from current position.</returns>
+        public ulong PeekUInt64()
+        {
+            PreRead(sizeof(ulong));
+            return BitConverter.ToUInt64(backingBuffer, pos);
+        }
+
+        /// <summary>
+        /// Reads next <see cref="Int64"/> from current position without advancing current position.
+        /// </summary>
+        /// <returns><see cref="Int64"/> from current position.</returns>
+        public long PeekInt64()
+        {
+            PreRead(sizeof(long));
+            return BitConverter.ToInt64(backingBuffer, pos);
+        }
+
+        /// <summary>
         /// Writes a <see cref="Byte"/> to this Packet.
         /// </summary>
         /// <param name="value">value to write</param>
