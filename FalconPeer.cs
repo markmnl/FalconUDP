@@ -1175,7 +1175,9 @@ namespace FalconUDP
             }
 
             if (LocalAddresses.Count == 0)
-                return new FalconOperationResult<object>(false, "No operational IPv4 network interface found.", null);
+            {
+                Log(LogLevel.Warning, "No operational IPv4 network interface found.");
+            }
 
             try
             {
