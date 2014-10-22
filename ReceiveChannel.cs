@@ -60,11 +60,12 @@ namespace FalconUDP
                 }
 
                 // TODO Needs a re-think as doing this means if application is sending fast enough 
-                //      on a Reliable channel (not in-order) re-sending that packet will be 
-                //      out-of-range by this check so repeadly be dropped and eventually cause the 
-                //      remote peer to drop us. The reason we are doing this is so we know when we 
-                //      can reset ordinalSeq and maxReadDatagramSeq. For now set default to 100 
-                //      (previously was 8) to mitigate issue.
+                //      on a Reliable channel re-sending a packet that got dropped will be far 
+                //      behind subsequent sends will be out-of-range by this check so repetadly be 
+                //      dropped and eventually cause the remote peer to drop us. The reason we are 
+                //      doing this is so we know when we can reset ordinalSeq and 
+                //      maxReadDatagramSeq. For now set default to 100 (previously was 8) to 
+                //      mitigate issue.
 
                 // validate seq in range 
 
