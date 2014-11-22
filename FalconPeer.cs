@@ -124,7 +124,7 @@ namespace FalconUDP
         /// <summary>
         /// Time after which to to re-send a reliable message if not ACKnowledged within.
         /// </summary>
-        /// <remarks>Defaults to 2.0 seconds.</remarks>
+        /// <remarks>Default 1.5 seconds.</remarks>
         public TimeSpan AckTimeout
         {
             get
@@ -166,7 +166,7 @@ namespace FalconUDP
         /// Messages received out-of-order from last received greater than this are dropped 
         /// indiscrimintly.
         /// </summary>
-        /// <remarks>Defaults to 8</remarks>
+        /// <remarks>Defaults 100</remarks>
         public int MaxOutOfOrderTolerence
         {
             get { return OutOfOrderTolerance; }
@@ -184,7 +184,7 @@ namespace FalconUDP
         /// The number of most recent round-trip-times (from sending message till receiving 
         /// ACKkowledgment) to each peer used in the latency calculation.
         /// </summary>
-        /// <remarks>Defaults to 2.</remarks>
+        /// <remarks>Default 2.</remarks>
         public int LatencySampleSize
         {
             get { return LatencySampleLength; }
@@ -201,7 +201,7 @@ namespace FalconUDP
         /// The time span after which to send Falcon KeepAlive's to a remote peer if no reliable 
         /// message sent or received from the peer.
         /// </summary>
-        /// <remarks>Defaults to 10.0 seconds. 
+        /// <remarks>Defaults 10.0 seconds. 
         /// 
         /// KeepAlive's help determine dropped peers that did not properly "disconnect", and 
         /// update latency estimates (in the same way all reliable messages do).
