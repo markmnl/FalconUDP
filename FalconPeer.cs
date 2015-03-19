@@ -1188,7 +1188,7 @@ namespace FalconUDP
                 Socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
 #endif
                 Socket.Bind(anyAddrEndPoint);
-                Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, 184); // EF
+                //Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, 184); // EF
                 Socket.Blocking = false;
                 Socket.ReceiveBufferSize = receiveBufferSize;
                 Socket.SendBufferSize = sendBufferSize;
