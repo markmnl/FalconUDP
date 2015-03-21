@@ -14,6 +14,11 @@ namespace FalconUDP
     /// </summary>
     public class FalconPeer
     {
+        /// <summary>
+        /// Maximum FalconUDP datagram size including FalconUDP header.
+        /// </summary>
+        public const int MaxDatagramSize = 1400;
+
         //
         // Configurable Settings REMEMBER to update XML doc if change defaults. We favour fields
         // instead of properties for members accessed frequently outside of this class internally 
@@ -34,8 +39,7 @@ namespace FalconUDP
         internal float      SimulateLatencySeconds          = 0.0f;
         internal float      SimulateJitterSeconds           = 0.0f;
         internal double     SimulatePacketLossProbability   = 0.0;
-        internal static int MaxDatagramSizeValue            = 1400;
-
+        
         private readonly ProcessReceivedPacket processReceivedPacketDelegate;
         private readonly byte[] receiveBuffer;
         private readonly Dictionary<IPEndPoint, RemotePeer> peersByIp;   // same RemotePeers as peersById
@@ -75,7 +79,7 @@ namespace FalconUDP
         
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
         internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }  
-        internal static int MaxPayloadSize { get { return MaxDatagramSizeValue - Const.FALCON_PACKET_HEADER_SIZE; } }
+        internal static int MaxPayloadSize { get { return MaxDatagramSize - Const.FALCON_PACKET_HEADER_SIZE; } }
 
         /// <summary>
         /// Event raised when another FalconUDP peer joined.
@@ -321,30 +325,7 @@ namespace FalconUDP
                 PingTimeoutSeconds = seconds;
             }
         }
-
-        /// <summary>
-        /// The maximum datagram size in bytes FalconUDP can send and recieve including FalconUDP 
-        /// header bytes.
-        /// </summary>
-        /// <remarks>IMPORTANT: 
-        ///     1) This FalconPeer can only communicate with other Falcon peers with 
-        /// the exact same MaxDatagramSize.
-        ///     2) Must be set before FalconPeer constructed.
-        /// 
-        /// It is reccomended this value, in addition to any underlying protocols' data, be 
-        /// less than the MTU (which on an ethernet network taking into account IP header 
-        /// information, and possible IPSec header information) should be around 1400 bytes).</remarks>
-        public static int MaxDatagramSize 
-        {
-            get { return MaxDatagramSizeValue; }
-            set
-            {
-                if (value <= 0)
-                    throw new ArgumentOutOfRangeException("value", "must be greater than 0");
-                MaxDatagramSizeValue = value;
-            }
-        }
-
+        
         /// <summary>
         /// Get or sets period to delay outgoing sends from when they otherwise would be sent.
         /// </summary>
@@ -435,7 +416,7 @@ namespace FalconUDP
             this.awaitingAcceptDetails = new List<AwaitingAcceptDetail>();
             this.acceptJoinRequests = false;
             this.PingsAwaitingPong = new List<PingDetail>();
-            this.receiveBuffer = new byte[MaxDatagramSizeValue];
+            this.receiveBuffer = new byte[MaxDatagramSize];
             this.readPacketsList = new List<Packet>();
             this.stopped = true;
             this.remotePeersToRemove = new List<RemotePeer>();
@@ -727,7 +708,7 @@ namespace FalconUDP
                 return;
             }
 
-            if (size > MaxDatagramSizeValue)
+            if (size > MaxDatagramSize)
             {
                 Log(LogLevel.Error, String.Format("Datagram dropped from: {0}, greater than max size.", fromIPEndPoint));
                 return;
@@ -1753,10 +1734,11 @@ namespace FalconUDP
         }
         
         /// <summary>
-        /// TODO
+        /// Gets <see cref="QualityOfService"/> for <paramref name="peerId"/>.
         /// </summary>
-        /// <param name="peerId"></param>
-        /// <returns></returns>
+        /// <param name="peerId">Id of the remote peer</param>
+        /// <returns><see cref="QualityOfService"/> for remote peer <paramref name="peerId"/> if 
+        /// peer joined. Otherwise <see cref="QualityOfService"/> with values zeroed out.</returns>
         public QualityOfService GetPeerQualityOfService(int peerId)
         {
             RemotePeer rp;
@@ -1766,8 +1748,8 @@ namespace FalconUDP
             }
 
             // Instead of returning null if peer not found (may have just dropped) be kind and 
-            // return unknown quality of service.
-            return QualityOfService.UnkownQualityOfService;
+            // return zeroed out quality of service.
+            return QualityOfService.ZeroedOutQualityOfService;
         }
 
         /// <summary>

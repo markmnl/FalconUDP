@@ -12,7 +12,7 @@ namespace FalconUDP
     {
         private const int ReCalcLatencyAt = 100;
 
-        internal static readonly QualityOfService UnkownQualityOfService = new QualityOfService();
+        internal static readonly QualityOfService ZeroedOutQualityOfService = new QualityOfService();
 
         private readonly double[] roundTripTimes;
         private readonly float resendSampleSizeAsFloat;
