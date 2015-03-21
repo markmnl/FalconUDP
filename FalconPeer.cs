@@ -28,7 +28,7 @@ namespace FalconUDP
         internal int        OutOfOrderTolerance             = 100;
         internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
         internal float      KeepAliveIntervalSeconds        = 10.0f;
-        internal float      KeepAliveProbeAfterSeconds      = ((10.0f * 7.0f) / 2.0f ) - 1.5f;
+        internal float      KeepAliveProbeAfterSeconds      = 19.5f; // after KeepAlive + 3 re-sends
         internal float      AutoFlushIntervalSeconds        = 0.5f;
         internal float      PingTimeoutSeconds              = 3.0f;
         internal float      SimulateLatencySeconds          = 0.0f;
@@ -70,7 +70,6 @@ namespace FalconUDP
         internal readonly HashSet<IPAddress> LocalAddresses;
         internal readonly List<PingDetail> PingsAwaitingPong;
         internal readonly FalconPoolSizes PoolSizes;
-        internal readonly GenericObjectPool<AckDetail> AckPool;
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
         internal IFalconTransceiver Transceiver;
         
@@ -450,7 +449,6 @@ namespace FalconUDP
             this.emitDiscoverySignalTaskPool = new GenericObjectPool<EmitDiscoverySignalTask>(poolSizes.InitalNumEmitDiscoverySignalTaskToPool);
             this.pingPool = new GenericObjectPool<PingDetail>(poolSizes.InitalNumPingsToPool);
             this.sendDatagramsPool = new DatagramPool(MaxDatagramSize, poolSizes.InitalNumSendDatagramsToPoolPerPeer);
-            this.AckPool = new GenericObjectPool<AckDetail>(poolSizes.InitalNumAcksToPool);
 
             // discovery
             this.discoveryTasks = new List<EmitDiscoverySignalTask>();
@@ -494,7 +492,15 @@ namespace FalconUDP
             // KeepAlive probe after not receiving any reliable message from the KeepAlive master 
             // to see if the master is still alive!
 
-            KeepAliveProbeAfterSeconds = ((KeepAliveIntervalSeconds * MaxResends) / 2.0f) - AckTimeoutSeconds;
+            // Calculate to be:
+            //
+            //      KeepAliveInterval + 3 x re-sends + a bit
+            //
+            KeepAliveProbeAfterSeconds = KeepAliveIntervalSeconds + 
+                AckTimeoutSeconds + 
+                AckTimeoutSeconds * 2 + 
+                AckTimeoutSeconds * 3 +
+                0.5f;
         }
 
         private void ProcessReceivedPackets()
@@ -1025,7 +1031,7 @@ namespace FalconUDP
                 // Enqueue Bye and flush send channels so Bye will be last packet peer receives and 
                 // any outstanding sends are sent too.
                 rp.Bye();
-                rp.FlushSendQueues();
+                rp.TryFlushSendQueues();
                 Log(LogLevel.Info, String.Format("Removed and saying bye to: {0}.", rp.EndPoint));
             }
             else
@@ -1035,8 +1041,6 @@ namespace FalconUDP
 
             peersById.Remove(rp.Id);
             peersByIp.Remove(rp.EndPoint);
-
-            rp.ReturnLeasedObjects();
 
             RaisePeerDropped(rp.Id);
         }
@@ -1634,7 +1638,7 @@ namespace FalconUDP
 
             foreach (KeyValuePair<int, RemotePeer> kv in peersById)
             {
-                kv.Value.FlushSendQueues();
+                kv.Value.TryFlushSendQueues();
             }
         }
 

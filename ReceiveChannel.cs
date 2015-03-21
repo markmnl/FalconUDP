@@ -232,5 +232,12 @@ namespace FalconUDP
 
             return packetsRead;
         }
+
+        public void ReturnLeasedPackets()
+        {
+            var packets = Read();
+            foreach (Packet packet in packets)
+                localPeer.ReturnPacketToPool(packet);
+        }
     }
 }

@@ -485,7 +485,7 @@ namespace FalconUDPTests
 
                     var waitMilliseconds = numRemotePeers * MAX_REPLY_WAIT_TIME;
                     if (simPacketLoss > 0.0)
-                        waitMilliseconds *= 3; // HACK!
+                        waitMilliseconds *= 10; // HACK!
                     //------------------------------------------------------
                     waitHandel.WaitOne(waitMilliseconds); 
                     //------------------------------------------------------
@@ -521,8 +521,9 @@ namespace FalconUDPTests
                 otherPeer.Stop(false);
             }
 
-            // NOTE: Time to wait must be > (KeepAliveInterval * 2) + (MaxResend * AckTimout) + Any error margin
-            int timeToWait = (int)((peer1.KeepAliveInterval.TotalMilliseconds * 2) + (peer1.MaxMessageResends * peer1.AckTimeout.TotalMilliseconds));
+            // NOTE: Time to wait must be > (KeepAliveInterval * 2) + 36000 + Any error margin
+            // ASSUMING: AckTimeout of 1.5 and MaxResends of 7
+            int timeToWait = (int)((peer1.KeepAliveInterval.TotalMilliseconds * 2) + 36000);
             timeToWait += TICK_RATE * peer1.MaxMessageResends;
             Thread.Sleep(timeToWait);
 

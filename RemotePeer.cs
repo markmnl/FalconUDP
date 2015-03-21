@@ -12,11 +12,12 @@ namespace FalconUDP
         private readonly DatagramPool sendDatagramsPool;
         private readonly List<Datagram> sentDatagramsAwaitingACK;
         private readonly List<DelayedDatagram> delayedDatagrams;
-        private readonly Queue<AckDetail> enqueudAcks;
+        private readonly List<AckDetail> enqueudAcks;
         private readonly List<Packet> allUnreadPackets;
-        private readonly SendChannel noneSendChannel, reliableSendChannel, inOrderSendChannel, reliableInOrderSendChannel;
-        private readonly ReceiveChannel noneReceiveChannel, reliableReceiveChannel, inOrderReceiveChannel, reliableInOrderReceiveChannel;
         private readonly QualityOfService qualityOfService;
+
+        private SendChannel noneSendChannel, reliableSendChannel, inOrderSendChannel, reliableInOrderSendChannel;
+        private ReceiveChannel noneReceiveChannel, reliableReceiveChannel, inOrderReceiveChannel, reliableInOrderReceiveChannel;
         private int unreadPacketCount;
         private IPEndPoint endPoint;
         private float ellapasedSecondsSinceLastRealiablePacket;                 // if this remote peer is the keep alive master; this is since last reliable packet sent to it, otherwise since the last reliable received from it
@@ -48,17 +49,23 @@ namespace FalconUDP
             this.delayedDatagrams           = new List<DelayedDatagram>();
             this.keepAliveAndAutoFlush      = keepAliveAndAutoFlush;
             this.allUnreadPackets           = new List<Packet>();
-            this.enqueudAcks                = new Queue<AckDetail>();
-            this.noneSendChannel            = new SendChannel(SendOptions.None, sendDatagramsPool);
-            this.inOrderSendChannel         = new SendChannel(SendOptions.InOrder, sendDatagramsPool);
-            this.reliableSendChannel        = new SendChannel(SendOptions.Reliable, sendDatagramsPool);
+            this.enqueudAcks                = new List<AckDetail>();
+
+            CreateSendRecieveChannels();
+        }
+
+        private void CreateSendRecieveChannels()
+        {
+            this.noneSendChannel = new SendChannel(SendOptions.None, sendDatagramsPool);
+            this.inOrderSendChannel = new SendChannel(SendOptions.InOrder, sendDatagramsPool);
+            this.reliableSendChannel = new SendChannel(SendOptions.Reliable, sendDatagramsPool);
             this.reliableInOrderSendChannel = new SendChannel(SendOptions.ReliableInOrder, sendDatagramsPool);
-            this.noneReceiveChannel         = new ReceiveChannel(SendOptions.None, this.localPeer, this);
-            this.inOrderReceiveChannel      = new ReceiveChannel(SendOptions.InOrder, this.localPeer, this);
-            this.reliableReceiveChannel     = new ReceiveChannel(SendOptions.Reliable, this.localPeer, this);
+            this.noneReceiveChannel = new ReceiveChannel(SendOptions.None, this.localPeer, this);
+            this.inOrderReceiveChannel = new ReceiveChannel(SendOptions.InOrder, this.localPeer, this);
+            this.reliableReceiveChannel = new ReceiveChannel(SendOptions.Reliable, this.localPeer, this);
             this.reliableInOrderReceiveChannel = new ReceiveChannel(SendOptions.ReliableInOrder, this.localPeer, this);
         }
-        
+
         private bool TrySendDatagram(Datagram datagram, bool hasAlreadyBeenDelayed = false)
         {
             // If we are the keep alive master (i.e. this remote peer is not) and this 
@@ -119,19 +126,30 @@ namespace FalconUDP
                 datagram.SendOptions.ToString(),
                 datagram.Count.ToString()));
 
-            //-----------------------------------------------------------------------------------------------------------------
-            bool success = localPeer.Transceiver.Send(datagram.BackingBuffer, datagram.Offset, datagram.Count, endPoint, true);
-            //-----------------------------------------------------------------------------------------------------------------
-            
-            if (success && localPeer.IsCollectingStatistics)
-            {
-                localPeer.Statistics.AddBytesSent(datagram.Count);
-            }
+            // Expedite send if less than 5% of reliable packets have to be re-sent
+            bool expedite = qualityOfService.ResendRatio < 0.05f;
 
-            // return the datagram to pool for re-use if we are not waiting for an ACK
-            if (success && !datagram.IsReliable)
+            //-----------------------------------------------------------------------------------------------------------------
+            bool success = localPeer.Transceiver.Send(datagram.BackingBuffer, datagram.Offset, datagram.Count, endPoint, expedite);
+            //-----------------------------------------------------------------------------------------------------------------
+
+            if (success)
             {
-                sendDatagramsPool.Return(datagram);
+                if (localPeer.IsCollectingStatistics)
+                {
+                    localPeer.Statistics.AddBytesSent(datagram.Count);
+                }
+
+                // return the datagram to pool for re-use if we are not waiting for an ACK
+                if (!datagram.IsReliable)
+                {
+                    sendDatagramsPool.Return(datagram);
+                }
+            }
+            else
+            {
+                // something fatal has gone wrong and this peer can no longer be sent to
+                localPeer.RemovePeerOnNextUpdate(this);
             }
 
             return success;
@@ -142,9 +160,10 @@ namespace FalconUDP
         {
             while (enqueudAcks.Count > 0 && (datagram.MaxSize - (index - datagram.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
             {
-                AckDetail ack = enqueudAcks.Dequeue();
+                int lastAckIndex = enqueudAcks.Count - 1;
+                AckDetail ack = enqueudAcks[lastAckIndex];
+                enqueudAcks.RemoveAt(lastAckIndex);
                 FalconHelper.WriteAck(ack, datagram.BackingBuffer, index);
-                localPeer.AckPool.Return(ack);
                 index += Const.FALCON_PACKET_HEADER_SIZE;
             }
             datagram.Resize(index - datagram.Offset);
@@ -191,10 +210,10 @@ namespace FalconUDP
             return true;
         }
 
-        private void Pong()
+        private bool Pong()
         {
             EnqueueSend(PacketType.Pong, SendOptions.None, null);
-            ForceFlushSendChannelNow(SendOptions.None); // pongs must be sent immediatly as RTT is measured
+            return ForceFlushSendChannelNow(SendOptions.None); // pongs must be sent immediatly as RTT is measured
         }
 
         private void DiscoverReply()
@@ -228,16 +247,21 @@ namespace FalconUDP
             //
             ellapasedSecondsSinceLastRealiablePacket += dt;
             ellapsedSecondsSinceSendQueuesLastFlushed += dt;
-            //
-            // Update enqued ACKs stopover time
-            //
-            if (enqueudAcks.Count > 0)
-            {
-                foreach (AckDetail detail in enqueudAcks)
-                {
-                    detail.EllapsedSecondsSinceEnqueued += dt;
-                }
-            }
+            ////
+            //// Update enqued ACKs stopover time
+            ////
+            //if (enqueudAcks.Count > 0)
+            //{
+            //    for(int i = 0; i <enqueudAcks.Count; i++)
+            //    {
+            //        AckDetail oldAck = enqueudAcks[i];
+            //        AckDetail newAck = new AckDetail();
+            //        newAck.Seq = oldAck.Seq;
+            //        newAck.Channel = oldAck.Channel;
+            //        newAck.EllapsedSecondsSinceEnqueued = oldAck.EllapsedSecondsSinceEnqueued + dt;
+            //        enqueudAcks[i] = newAck;
+            //    }
+            //}
             //
             // Datagrams awaiting ACKs
             //
@@ -248,7 +272,17 @@ namespace FalconUDP
                     Datagram datagramAwaitingAck = sentDatagramsAwaitingACK[i];
                     datagramAwaitingAck.EllapsedSecondsSincePacketSent += dt;
 
-                    if (datagramAwaitingAck.EllapsedSecondsSincePacketSent >= localPeer.AckTimeoutSeconds)
+                    // Calculate ack timout based on number of re-sends:
+                    //
+                    //      MIN(ACKTimeout x re-send count, 7.0)
+                    //
+                    float ackTimeout = localPeer.AckTimeoutSeconds;
+                    if (datagramAwaitingAck.IsResend)
+                    {
+                        ackTimeout = Math.Min(localPeer.AckTimeoutSeconds * datagramAwaitingAck.ResentCount, 7.0f);
+                    }
+
+                    if (datagramAwaitingAck.EllapsedSecondsSincePacketSent >= ackTimeout)
                     {
                         datagramAwaitingAck.ResentCount++;
 
@@ -275,11 +309,12 @@ namespace FalconUDP
                             ReSend(datagramAwaitingAck);
                             ellapasedSecondsSinceLastRealiablePacket = 0.0f; // NOTE: this is reset again when packet actually sent but another Update() may occur before then
 
-                            localPeer.Log(LogLevel.Info, String.Format("Datagram to: {0}, seq {1}, channel: {2}, total size: {3} re-sent as not ACKnowledged in time.",
+                            localPeer.Log(LogLevel.Info, String.Format("Datagram to: {0}, seq {1}, channel: {2}, total size: {3} re-sent as not ACKnowledged in {4}s.",
                                 PeerName,
                                 datagramAwaitingAck.Sequence.ToString(),
                                 datagramAwaitingAck.SendOptions.ToString(),
-                                datagramAwaitingAck.Count.ToString()));
+                                datagramAwaitingAck.Count.ToString(),
+                                ackTimeout.ToString()));
                         }
                     }
                 }
@@ -311,7 +346,9 @@ namespace FalconUDP
                     if (ellapsedSecondsSinceSendQueuesLastFlushed >= localPeer.AutoFlushIntervalSeconds)
                     {
                         localPeer.Log(LogLevel.Info, "AutoFlush");
-                        FlushSendQueues(); // resets ellapsedSecondsSinceSendQueuesLastFlushed
+                        bool success = TryFlushSendQueues(); // resets ellapsedSecondsSinceSendQueuesLastFlushed
+                        if(!success)
+                            return;
                     }
                 }
             }
@@ -328,10 +365,7 @@ namespace FalconUDP
                     {
                         bool success = TrySendDatagram(delayedDatagram.Datagram, true);
                         if(!success)
-                        {
-                            localPeer.RemovePeerOnNextUpdate(this);
                             return;
-                        }
                         delayedDatagrams.RemoveAt(i);
                         i--;
                     }
@@ -374,15 +408,15 @@ namespace FalconUDP
 
         internal void ACK(ushort seq, SendOptions channelType)
         {
-            AckDetail ack = localPeer.AckPool.Borrow();
+            AckDetail ack = new AckDetail();
             ack.Init(seq, channelType);
-            enqueudAcks.Enqueue(ack);
+            enqueudAcks.Add(ack);
         }
 
-        internal void Accept()
+        internal bool Accept()
         {
             EnqueueSend(PacketType.AcceptJoin, SendOptions.Reliable, null);
-            ForceFlushSendChannelNow(SendOptions.Reliable);
+            return ForceFlushSendChannelNow(SendOptions.Reliable);
         }
 
         internal void Ping()
@@ -396,7 +430,7 @@ namespace FalconUDP
         }
 
         // used for internal sends that need to be sent immediatly only
-        internal void ForceFlushSendChannelNow(SendOptions channelType)
+        internal bool ForceFlushSendChannelNow(SendOptions channelType)
         {
             SendChannel channel = null;
             switch (channelType)
@@ -407,13 +441,10 @@ namespace FalconUDP
                 case SendOptions.ReliableInOrder: channel = reliableInOrderSendChannel; break;
             }
 
-            bool success = TryFlushSendChannel(channel);
-
-            if(!success)    
-                localPeer.RemovePeerOnNextUpdate(this);
+            return TryFlushSendChannel(channel);
         }
 
-        internal void FlushSendQueues()
+        internal bool TryFlushSendQueues()
         {
             bool success = true;
 
@@ -439,10 +470,9 @@ namespace FalconUDP
                 }
             }
 
-            if(!success)
-                localPeer.RemovePeerOnNextUpdate(this);
-
             ellapsedSecondsSinceSendQueuesLastFlushed = 0.0f;
+
+            return success;
         }
 
         // returns true if caller should continue adding any additional packets in datagram
@@ -549,8 +579,7 @@ namespace FalconUDP
                 
                 case PacketType.Ping:
                     {
-                        Pong();
-                        return true;
+                        return Pong();
                     }
                 case PacketType.Pong:
                     {
@@ -568,9 +597,23 @@ namespace FalconUDP
                     }
                 case PacketType.JoinRequest:
                     {
-                        // Must be hasn't received Accept yet or is joining again! (silly peer)
-                        Accept();
-                        return true;
+                        // Must be hasn't received Accept yet or is joining again - possible when 
+                        // did not say Bye and has restarted again before timed out. Reset channels
+                        // and remove any enqued as it must be starting afresh, then send accept.
+                        noneSendChannel.ReturnLeasedDatagrams();
+                        inOrderSendChannel.ReturnLeasedDatagrams();
+                        reliableSendChannel.ReturnLeasedDatagrams();
+                        reliableInOrderSendChannel.ReturnLeasedDatagrams();
+                        noneReceiveChannel.ReturnLeasedPackets();
+                        inOrderReceiveChannel.ReturnLeasedPackets();
+                        reliableReceiveChannel.ReturnLeasedPackets();
+                        reliableInOrderReceiveChannel.ReturnLeasedPackets();
+
+                        CreateSendRecieveChannels();
+
+                        enqueudAcks.Clear();
+                        
+                        return Accept();
                     }
                 case PacketType.DiscoverRequest:
                     {
@@ -616,18 +659,6 @@ namespace FalconUDP
             unreadPacketCount = 0;
             
             return allUnreadPackets;
-        }
-
-        internal void ReturnLeasedObjects()
-        {
-            // return objects leased from FalconPeer's pools
-            
-            foreach (var enqueudAck in enqueudAcks)
-            {
-                localPeer.AckPool.Return(enqueudAck);
-            }
-
-            allUnreadPackets.Clear(); // NOTE: would have alread been returned to pool when processed in FalconPeer.
         }
     }
 }

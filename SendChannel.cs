@@ -115,5 +115,16 @@ namespace FalconUDP
             
             return queue;
         }
+
+        // NOTE: This makes the channel unusuable.
+        internal void ReturnLeasedDatagrams()
+        {
+            var queue = GetQueue();
+            while (queue.Count > 0)
+            {
+                datagramPool.Return(queue.Dequeue());
+            }
+            datagramPool.Return(currentDatagram);
+        }
     }
 }
