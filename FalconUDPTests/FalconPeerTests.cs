@@ -604,7 +604,7 @@ namespace FalconUDPTests
                         // peer latency 2nd pong till 2nd last.
                         if (count > 0 && count < NUM_OF_PINGS)
                         {
-                            estimated = (float) peer1.GetPeerRoundTripTime(1).TotalSeconds;
+                            estimated = (float) peer1.GetPeerQualityOfService(1).RoudTripTime.TotalSeconds;
                             Debug.WriteLine("ESTIMATED: {0}", estimated);
                             estimatedLatencies[count-1] = estimated;
                         }
@@ -625,7 +625,7 @@ namespace FalconUDPTests
 
             // wait for final ACK to get through
             Thread.Sleep(MAX_REPLY_WAIT_TIME);
-            estimated = (float)peer1.GetPeerRoundTripTime(1).TotalSeconds;
+            estimated = (float)peer1.GetPeerQualityOfService(1).RoudTripTime.TotalSeconds;
             Debug.WriteLine("ESTIMATED: {0}", estimated);
             estimatedLatencies[NUM_OF_PINGS-1] = estimated;
 

@@ -14,14 +14,9 @@ namespace FalconUDP
         private readonly List<DelayedDatagram> delayedDatagrams;
         private readonly Queue<AckDetail> enqueudAcks;
         private readonly List<Packet> allUnreadPackets;
-        private readonly SendChannel noneSendChannel;
-        private readonly SendChannel reliableSendChannel;
-        private readonly SendChannel inOrderSendChannel;
-        private readonly SendChannel reliableInOrderSendChannel;
-        private readonly ReceiveChannel noneReceiveChannel;
-        private readonly ReceiveChannel reliableReceiveChannel;
-        private readonly ReceiveChannel inOrderReceiveChannel;
-        private readonly ReceiveChannel reliableInOrderReceiveChannel;
+        private readonly SendChannel noneSendChannel, reliableSendChannel, inOrderSendChannel, reliableInOrderSendChannel;
+        private readonly ReceiveChannel noneReceiveChannel, reliableReceiveChannel, inOrderReceiveChannel, reliableInOrderReceiveChannel;
+        private readonly QualityOfService qualityOfService;
         private int unreadPacketCount;
         private IPEndPoint endPoint;
         private float ellapasedSecondsSinceLastRealiablePacket;                 // if this remote peer is the keep alive master; this is since last reliable packet sent to it, otherwise since the last reliable received from it
@@ -32,8 +27,8 @@ namespace FalconUDP
         internal IPEndPoint EndPoint { get { return endPoint; } }
         internal int UnreadPacketCount { get { return unreadPacketCount; } }    // number of received packets not yet read by application
         internal string PeerName { get; private set; }                          // e.g. IP end point, used for logging
-
-        internal float Latency { get; private set; }                            // current average round-trip-times to this remote peer
+        internal TimeSpan RoundTripTime { get { return qualityOfService.RoudTripTime;  } }
+        internal QualityOfService QualityOfService { get { return qualityOfService; } }
              
         internal RemotePeer(FalconPeer localPeer, IPEndPoint endPoint, int peerId, bool keepAliveAndAutoFlush = true)
         {
@@ -48,7 +43,8 @@ namespace FalconUDP
             this.unreadPacketCount          = 0;
             this.sendDatagramsPool          = new DatagramPool(FalconPeer.MaxDatagramSize, localPeer.PoolSizes.InitalNumSendDatagramsToPoolPerPeer);
             this.sentDatagramsAwaitingACK   = new List<Datagram>();
-            this.roundTripTimes             = new float[localPeer.LatencySampleLength];
+            this.qualityOfService           = new QualityOfService(localPeer.LatencySampleSize, localPeer.ResendRatioSampleSize);
+            
             this.delayedDatagrams           = new List<DelayedDatagram>();
             this.keepAliveAndAutoFlush      = keepAliveAndAutoFlush;
             this.allUnreadPackets           = new List<Packet>();
@@ -62,61 +58,6 @@ namespace FalconUDP
             this.reliableReceiveChannel     = new ReceiveChannel(SendOptions.Reliable, this.localPeer, this);
             this.reliableInOrderReceiveChannel = new ReceiveChannel(SendOptions.ReliableInOrder, this.localPeer, this);
         }
-
-        #region Latency Calc
-        private const int ReCalcLatencyAt = 100;
-        private bool hasUpdateLatencyBeenCalled = false;
-        private float[] roundTripTimes;
-        private int roundTripTimesIndex;
-        private float runningRTTTotal;
-        private int updateLatencyCountSinceRecalc;
-        private void UpdateLatency(float rtt)
-        {
-            updateLatencyCountSinceRecalc++;
-
-            // If this is the first time this is being called seed entire sample with inital value
-            // and set latency to RTT, it's all we have!
-            if (!hasUpdateLatencyBeenCalled)
-            {
-                for (int i = 0; i < roundTripTimes.Length; i++)
-                {
-                    roundTripTimes[i] = rtt;
-                }
-                runningRTTTotal = rtt * roundTripTimes.Length;
-                Latency = rtt;
-                hasUpdateLatencyBeenCalled = true;
-            }
-            else
-            {
-                if(updateLatencyCountSinceRecalc == ReCalcLatencyAt)
-                {
-                    roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
-
-                    // Recalc running total from all in sample to remove any drift introduced.
-                    runningRTTTotal = 0.0f;
-                    foreach (float roundTripTime in roundTripTimes)
-                    {
-                        runningRTTTotal += roundTripTime;
-                    }
-                    updateLatencyCountSinceRecalc = 0;
-                }
-                else
-                {
-                    runningRTTTotal -= roundTripTimes[roundTripTimesIndex]; // subtract oldest RTT from running total
-                    roundTripTimes[roundTripTimesIndex] = rtt;              // replace oldest RTT in sample with new RTT
-                    runningRTTTotal += rtt;                                 // add new RTT to running total
-                }
-                Latency = runningRTTTotal / roundTripTimes.Length;          // re-calc average RTT from running total
-            }
-
-            // increment index for next time this is called
-            roundTripTimesIndex++;
-            if (roundTripTimesIndex == roundTripTimes.Length)
-            {
-                roundTripTimesIndex = 0;
-            }
-        }
-        #endregion
         
         private void SendDatagram(Datagram datagram, bool hasAlreadyBeenDelayed = false)
         {
@@ -140,7 +81,7 @@ namespace FalconUDP
             // if reliable and not already delayed update time sent used to measure RTT when ACK response received
             if (datagram.IsReliable && !hasAlreadyBeenDelayed)
             {
-                datagram.EllapsedSecondsAtSent = (float)localPeer.Stopwatch.Elapsed.TotalSeconds;
+                datagram.EllapsedAtSent = localPeer.Stopwatch.Elapsed;
             }
 
             // simulate delay
@@ -197,7 +138,7 @@ namespace FalconUDP
         // writes as many enqued as as can fit into datagram
         private void WriteEnquedAcksToDatagram(Datagram datagram, int index)
         {
-            while (enqueudAcks.Count > 0 && (datagram.MaxCount - (index - datagram.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
+            while (enqueudAcks.Count > 0 && (datagram.MaxSize - (index - datagram.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
             {
                 AckDetail ack = enqueudAcks.Dequeue();
                 FalconHelper.WriteAck(ack, datagram.BackingBuffer, index);
@@ -255,6 +196,8 @@ namespace FalconUDP
         private void ReSend(Datagram datagram)
         {
             datagram.IsResend = true;
+
+            qualityOfService.UpdateResentSample(true);
 
             switch (datagram.SendOptions)
             {
@@ -576,12 +519,29 @@ namespace FalconUDP
                             // remove datagram
                             sentDatagramsAwaitingACK.RemoveAt(datagramIndex);
 
-                            // Update latency estimate.
-                            float rtt = ((float)localPeer.Stopwatch.Elapsed.TotalSeconds) - sentDatagramAwaitingAck.EllapsedSecondsAtSent;
-                            UpdateLatency(rtt);
+                            // Update QoS
 
-                            localPeer.Log(LogLevel.Debug, String.Format("ACK from: {0}, channel: {1}, seq: {2}, RTT: {3}s", PeerName, opts.ToString(), seq.ToString(), rtt.ToString()));
-                            localPeer.Log(LogLevel.Debug, String.Format("Latency now: {0}s", Latency.ToString()));
+                            // If the datagram was not re-sent update latency, otherwise we do not 
+                            // know which send this ACK is for so cannot determine latency.
+
+                            // Also update re-sends sample if datagram was not re-sent with: not 
+                            // re-sent. If was re-sent sample would have already been updated when 
+                            // re-sent.
+
+                            if (sentDatagramAwaitingAck.ResentCount == 0)
+                            {
+                                TimeSpan rtt = localPeer.Stopwatch.Elapsed - sentDatagramAwaitingAck.EllapsedAtSent;
+                                qualityOfService.UpdateLatency(rtt);
+                                qualityOfService.UpdateResentSample(false);
+
+                                localPeer.Log(LogLevel.Debug, String.Format("ACK from: {0}, channel: {1}, seq: {2}, RTT: {3}s", PeerName, opts.ToString(), seq.ToString(), rtt.TotalSeconds.ToString()));
+                                localPeer.Log(LogLevel.Debug, String.Format("Latency now: {0}s", qualityOfService.RoudTripTime.TotalSeconds.ToString()));
+                            }
+                            else
+                            {
+                                localPeer.Log(LogLevel.Info, String.Format("ACK for re-sent datagram: {0}, channel: {1}, seq: {2}", PeerName, opts.ToString(), seq.ToString()));
+                            }
+
 
                             // return datagram
                             sendDatagramsPool.Return(sentDatagramAwaitingAck);

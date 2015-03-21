@@ -8,6 +8,7 @@
     <OutputType>Library</OutputType>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <TargetFrameworkProfile>Client</TargetFrameworkProfile>
+    <ProjectGuid>{3B458941-8549-4747-9E91-0612D6489CEF}</ProjectGuid>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <OutputPath>bin\x86\MonoLinuxDebug\</OutputPath>
@@ -41,6 +42,7 @@
     <Compile Include="FalconPeer.cs" />
     <Compile Include="PacketPool.cs" />
     <Compile Include="PingDetail.cs" />
+    <Compile Include="QualityOfService.cs" />
     <Compile Include="ReceiveChannel.cs" />
     <Compile Include="SendChannel.cs" />
     <Compile Include="Packet.cs" />

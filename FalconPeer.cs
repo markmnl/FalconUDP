@@ -14,6 +14,26 @@ namespace FalconUDP
     /// </summary>
     public class FalconPeer
     {
+        //
+        // Configurable Settings REMEMBER to update XML doc if change defaults. We favour fields
+        // instead of properties for members accessed frequently outside of this class internally 
+        // to prevent the method call (perhaps that is too pedantic).
+        //
+        private byte        latencySampleLength             = 2;
+        private ushort      resendRatioSampleLength         = 24;
+        internal float      AckTimeoutSeconds               = 1.5f;
+        internal int        MaxResends                      = 7;
+        internal int        OutOfOrderTolerance             = 100;
+        internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
+        internal float      KeepAliveIntervalSeconds        = 10.0f;
+        internal float      KeepAliveProbeAfterSeconds      = ((10.0f * 7.0f) / 2.0f ) - 1.5f;
+        internal float      AutoFlushIntervalSeconds        = 0.5f;
+        internal float      PingTimeoutSeconds              = 3.0f;
+        internal float      SimulateLatencySeconds          = 0.0f;
+        internal float      SimulateJitterSeconds           = 0.0f;
+        internal double     SimulatePacketLossProbability   = 0.0;
+        internal static int MaxDatagramSizeValue            = 1400;
+
         private readonly ProcessReceivedPacket processReceivedPacketDelegate;
         private readonly IPEndPoint anyAddrEndPoint;                     // end point to receive on (combined with port to create IPEndPoint)
         private readonly byte[] receiveBuffer;
@@ -52,20 +72,6 @@ namespace FalconUDP
         internal readonly GenericObjectPool<AckDetail> AckPool;
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
         internal Socket Socket;
-
-        internal float      AckTimeoutSeconds               = 1.5f;
-        internal int        MaxResends                      = 7;
-        internal int        OutOfOrderTolerance             = 100;
-        internal int        LatencySampleLength             = 2;
-        internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
-        internal float      KeepAliveIntervalSeconds        = 10.0f;
-        internal float      KeepAliveProbeAfterSeconds      = ((10.0f * 7.0f) / 2.0f ) - 1.5f;
-        internal float      AutoFlushIntervalSeconds        = 0.5f;
-        internal float      PingTimeoutSeconds              = 3.0f;
-        internal float      SimulateLatencySeconds          = 0.0f;
-        internal float      SimulateJitterSeconds           = 0.0f;
-        internal double     SimulatePacketLossProbability   = 0.0;
-        internal static int MaxDatagramSizeValue            = 1400;
         
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
         internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }  
@@ -181,19 +187,37 @@ namespace FalconUDP
         }
 
         /// <summary>
-        /// The number of most recent round-trip-times (from sending message till receiving 
-        /// ACKkowledgment) to each peer used in the latency calculation.
+        /// The number of most recent round-trip-times (from sending reliable message till 
+        /// receiving ACKnowledgment) to each peer used in the <see cref="GetPeerRoundTripTime(int)"/> 
+        /// calculation.
         /// </summary>
         /// <remarks>Default 2.</remarks>
-        public int LatencySampleSize
+        public byte LatencySampleSize
         {
-            get { return LatencySampleLength; }
+            get { return latencySampleLength; }
             set
             {
                 CheckNotStarted();
                 if (value < 1)
                     throw new ArgumentOutOfRangeException("value", "cannot be less than 1");
-                LatencySampleLength = value;
+                latencySampleLength = value;
+            }
+        }
+
+        /// <summary>
+        /// The number of most recent reliable messages that had to be re-sent or not to each peer 
+        /// used in the <see cref="GetPeerPacketLoss(int)"/> calculation.
+        /// </summary>
+        /// <remarks>Default 24.</remarks>
+        public ushort ResendRatioSampleSize 
+        {
+            get { return resendRatioSampleLength; }
+            set 
+            {
+                CheckNotStarted();
+                if(value < 1)
+                    throw new ArgumentOutOfRangeException("value", "cannot be less than 1");
+                resendRatioSampleLength = value;
             }
         }
 
@@ -201,14 +225,18 @@ namespace FalconUDP
         /// The time span after which to send Falcon KeepAlive's to a remote peer if no reliable 
         /// message sent or received from the peer.
         /// </summary>
-        /// <remarks>Defaults 10.0 seconds. 
-        /// 
-        /// KeepAlive's help determine dropped peers that did not properly "disconnect", and 
-        /// update latency estimates (in the same way all reliable messages do).
-        /// 
+        /// <remarks>
+        /// <para>Defaults 10.0 seconds.</para> 
+        /// <para>
+        /// KeepAlive's help determine dropped peers that did not properly "disconnect" (i.e. say 
+        /// Bye), update latency estimates and prevent stateful nodes timing-out our route they 
+        /// may hold to a remote peer (e.g. when traversed EIM NAT).</para>
+        /// <para>
         /// Note: Only the peer which accpeted the connection sends KeepAlives to reduce bandwidth
-        /// (the KeepAlive master). If no KeepAlive is received from the KeepAlive master for this 
-        /// interval + AckTimeout the peer that joined will send one to see if he is still alive.</remarks>
+        /// (the KeepAlive master). If no KeepAlive is received from the KeepAlive master for a 
+        /// while the joinee peer (not the KeepAlive master) will send one (probe) to see if the 
+        /// KeepAlive master is still alive!</para>
+        /// </remarks>
         public TimeSpan KeepAliveInterval 
         {
             get { return TimeSpan.FromSeconds(KeepAliveIntervalSeconds); }
@@ -1749,22 +1777,23 @@ namespace FalconUDP
             CheckStarted();
             return Stopwatch.Elapsed;
         }
-
+        
         /// <summary>
-        /// Gets the current average round trip time from last <see cref="LatencySampleSize"/> 
-        /// reliable messages to <paramref name="peerId"/> till receiving their corresponding
-        /// ACKnowledgment.
+        /// TODO
         /// </summary>
-        /// <param name="peerId">Id of the Falcon Peer connected to this peer.</param>
-        /// <returns>Current average round trip time.</returns>
-        public TimeSpan GetPeerRoundTripTime(int peerId)
+        /// <param name="peerId"></param>
+        /// <returns></returns>
+        public QualityOfService GetPeerQualityOfService(int peerId)
         {
             RemotePeer rp;
             if (peersById.TryGetValue(peerId, out rp))
             {
-                return TimeSpan.FromSeconds(rp.Latency);
+                return rp.QualityOfService;
             }
-            return TimeSpan.Zero;
+
+            // Instead of returning null if peer not found (may have just dropped) be kind and 
+            // return unknown quality of service.
+            return QualityOfService.UnkownQualityOfService;
         }
 
         /// <summary>

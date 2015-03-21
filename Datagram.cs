@@ -11,7 +11,7 @@ namespace FalconUDP
         internal SendOptions SendOptions;
         internal int ResentCount;
         internal float EllapsedSecondsSincePacketSent;
-        internal float EllapsedSecondsAtSent;
+        internal TimeSpan EllapsedAtSent;
 
         public byte[] BackingBuffer { get; private set; }
         public int Offset { get; private set; }
@@ -24,7 +24,7 @@ namespace FalconUDP
         {
             get { return (SendOptions & SendOptions.InOrder) == SendOptions.InOrder; }
         }
-        public int MaxCount
+        public int MaxSize
         {
             get { return originalSize; }
         }
