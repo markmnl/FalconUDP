@@ -59,7 +59,7 @@ namespace FalconUDP
             this.reliableInOrderReceiveChannel = new ReceiveChannel(SendOptions.ReliableInOrder, this.localPeer, this);
         }
         
-        private void SendDatagram(Datagram datagram, bool hasAlreadyBeenDelayed = false)
+        private bool TrySendDatagram(Datagram datagram, bool hasAlreadyBeenDelayed = false)
         {
             // If we are the keep alive master (i.e. this remote peer is not) and this 
             // packet is reliable: update ellpasedMilliseondsAtLastRealiablePacket[Sent]
@@ -74,7 +74,7 @@ namespace FalconUDP
                 if (SingleRandom.NextDouble() < localPeer.SimulatePacketLossProbability)
                 {
                     localPeer.Log(LogLevel.Info, String.Format("DROPPED packet to send - simulate packet loss set at: {0}", localPeer.SimulatePacketLossChance));
-                    return;
+                    return true;
                 }
             }
 
@@ -110,7 +110,7 @@ namespace FalconUDP
 
                 delayedDatagrams.Add(delayedDatagram);
 
-                return;
+                return true;
             }
 
             localPeer.Log(LogLevel.Debug, String.Format("--> Sending datagram to: {0}, seq {1}, channel: {2}, total size: {3}...", 
@@ -119,20 +119,22 @@ namespace FalconUDP
                 datagram.SendOptions.ToString(),
                 datagram.Count.ToString()));
 
-            //------------------------------------------------------------------------------------------------------------
-            localPeer.Socket.SendTo(datagram.BackingBuffer, datagram.Offset, datagram.Count, SocketFlags.None, endPoint);
-            //------------------------------------------------------------------------------------------------------------
-
-            if (localPeer.IsCollectingStatistics)
+            //-----------------------------------------------------------------------------------------------------------------
+            bool success = localPeer.Transceiver.Send(datagram.BackingBuffer, datagram.Offset, datagram.Count, endPoint, true);
+            //-----------------------------------------------------------------------------------------------------------------
+            
+            if (success && localPeer.IsCollectingStatistics)
             {
                 localPeer.Statistics.AddBytesSent(datagram.Count);
             }
 
             // return the datagram to pool for re-use if we are not waiting for an ACK
-            if (!datagram.IsReliable)
+            if (success && !datagram.IsReliable)
             {
                 sendDatagramsPool.Return(datagram);
             }
+
+            return success;
         }
 
         // writes as many enqued as as can fit into datagram
@@ -148,8 +150,11 @@ namespace FalconUDP
             datagram.Resize(index - datagram.Offset);
         }
 
-        private void FlushSendChannel(SendChannel channel)
+        private bool TryFlushSendChannel(SendChannel channel)
         {
+            if (!channel.HasDataToSend)
+                return true;
+
             Queue<Datagram> queue = channel.GetQueue();
 
             while (queue.Count > 0)
@@ -177,9 +182,13 @@ namespace FalconUDP
                     WriteEnquedAcksToDatagram(datagram, datagram.Offset + datagram.Count);
                 }
 
-                SendDatagram(datagram);
+                bool success = TrySendDatagram(datagram);
+                if (!success)
+                    return false;
 
             } // while
+
+            return true;
         }
 
         private void Pong()
@@ -311,26 +320,21 @@ namespace FalconUDP
             // 
             if (delayedDatagrams.Count > 0)
             {
-                try
+                for (int i = 0; i < delayedDatagrams.Count; i++)
                 {
-                    for (int i = 0; i < delayedDatagrams.Count; i++)
+                    DelayedDatagram delayedDatagram = delayedDatagrams[i];
+                    delayedDatagram.EllapsedSecondsRemainingToDelay -= dt;
+                    if (delayedDatagram.EllapsedSecondsRemainingToDelay <= 0.0f)
                     {
-                        DelayedDatagram delayedDatagram = delayedDatagrams[i];
-                        delayedDatagram.EllapsedSecondsRemainingToDelay -= dt;
-                        if (delayedDatagram.EllapsedSecondsRemainingToDelay <= 0.0f)
+                        bool success = TrySendDatagram(delayedDatagram.Datagram, true);
+                        if(!success)
                         {
-
-                            SendDatagram(delayedDatagram.Datagram, true);
-                            delayedDatagrams.RemoveAt(i);
-                            i--;
+                            localPeer.RemovePeerOnNextUpdate(this);
+                            return;
                         }
+                        delayedDatagrams.RemoveAt(i);
+                        i--;
                     }
-                }
-                catch (SocketException se)
-                {
-                    localPeer.Log(LogLevel.Error, String.Format("Socket Error {0} sending to peer: {1}: {2}, ", se.ErrorCode, PeerName, se.Message));
-                    localPeer.RemovePeerOnNextUpdate(this);
-                    return;
                 }
             }
         }
@@ -403,47 +407,40 @@ namespace FalconUDP
                 case SendOptions.ReliableInOrder: channel = reliableInOrderSendChannel; break;
             }
 
-            try
-            {
-                FlushSendChannel(channel);
-            }
-            catch (SocketException se)
-            {
-                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0}: {1}, sending to peer: {2}", se.ErrorCode.ToString(), se.Message, PeerName));
+            bool success = TryFlushSendChannel(channel);
+
+            if(!success)    
                 localPeer.RemovePeerOnNextUpdate(this);
-            }
         }
 
         internal void FlushSendQueues()
         {
-            try
-            {
-                if (noneSendChannel.HasDataToSend)
-                    FlushSendChannel(noneSendChannel);
-                if (inOrderSendChannel.HasDataToSend)
-                    FlushSendChannel(inOrderSendChannel);
-                if (reliableSendChannel.HasDataToSend)
-                    FlushSendChannel(reliableSendChannel);
-                if (reliableInOrderSendChannel.HasDataToSend)
-                    FlushSendChannel(reliableInOrderSendChannel);
+            bool success = true;
 
-                // send any outstanding ACKs
-                if (enqueudAcks.Count > 0)
-                {
-                    while (enqueudAcks.Count > 0)
-                    {    
-                        Datagram datagram = sendDatagramsPool.Borrow();
-                        datagram.SendOptions = SendOptions.None;
-                        WriteEnquedAcksToDatagram(datagram, datagram.Offset);
-                        SendDatagram(datagram);
-                    }
+            success = TryFlushSendChannel(noneSendChannel);
+            if (success)
+                success = TryFlushSendChannel(inOrderSendChannel);
+            if(success)
+                success = TryFlushSendChannel(reliableSendChannel);
+            if (success)
+                success = TryFlushSendChannel(reliableInOrderSendChannel);
+
+            // send any outstanding ACKs
+            if (enqueudAcks.Count > 0)
+            {
+                while (enqueudAcks.Count > 0)
+                {    
+                    Datagram datagram = sendDatagramsPool.Borrow();
+                    datagram.SendOptions = SendOptions.None;
+                    WriteEnquedAcksToDatagram(datagram, datagram.Offset);
+                    success = TrySendDatagram(datagram);
+                    if (!success)
+                        break;
                 }
             }
-            catch (SocketException se)
-            {
-                localPeer.Log(LogLevel.Error, String.Format("Socket Exception: {0}, sending to peer: {1}", se.Message, PeerName));
+
+            if(!success)
                 localPeer.RemovePeerOnNextUpdate(this);
-            }
 
             ellapsedSecondsSinceSendQueuesLastFlushed = 0.0f;
         }

@@ -71,10 +71,12 @@
     <Compile Include="Enums.cs" />
     <Compile Include="Datagram.cs" />
     <Compile Include="DatagramPool.cs" />
+    <Compile Include="ExceptionHelper.cs" />
     <Compile Include="FalconExtensions.cs" />
     <Compile Include="FalconHelper.cs" />
     <Compile Include="FalconOperationResult.cs" />
     <Compile Include="FalconPeer.cs" />
+    <Compile Include="IFalconTransceiver.cs" />
     <Compile Include="PacketPool.cs" />
     <Compile Include="PingDetail.cs" />
     <Compile Include="QualityOfService.cs" />
@@ -86,6 +88,7 @@
     <Compile Include="RemotePeer.cs" />
     <Compile Include="PoolSizes.cs" />
     <Compile Include="SingleRandom.cs" />
+    <Compile Include="SocketTransceiver.cs" />
     <Compile Include="Statistics.cs" />
     <Compile Include="GenericObjectPool.cs" />
   </ItemGroup>

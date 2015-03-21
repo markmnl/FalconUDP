@@ -44,9 +44,9 @@ namespace FalconUDP
 
                 int count = token.HasValue ? signal.Length : Const.DISCOVER_PACKET.Length;
 
-                //---------------------------------------------------------------
-                falconPeer.Socket.SendTo(signal, 0, count, SocketFlags.None, ep);
-                //---------------------------------------------------------------
+                //-------------------------------------------------------
+                falconPeer.Transceiver.Send(signal, 0, count, ep, false);
+                //-------------------------------------------------------
             }
         }
 

@@ -21,6 +21,8 @@ namespace FalconUDP
         //
         private byte        latencySampleLength             = 2;
         private ushort      resendRatioSampleLength         = 24;
+        private int         receiveBufferSize               = 8192;
+        private int         sendBufferSize                  = 8192;
         internal float      AckTimeoutSeconds               = 1.5f;
         internal int        MaxResends                      = 7;
         internal int        OutOfOrderTolerance             = 100;
@@ -35,7 +37,6 @@ namespace FalconUDP
         internal static int MaxDatagramSizeValue            = 1400;
 
         private readonly ProcessReceivedPacket processReceivedPacketDelegate;
-        private readonly IPEndPoint anyAddrEndPoint;                     // end point to receive on (combined with port to create IPEndPoint)
         private readonly byte[] receiveBuffer;
         private readonly Dictionary<IPEndPoint, RemotePeer> peersByIp;   // same RemotePeers as peersById
         private readonly Dictionary<int, RemotePeer> peersById;          // same RemotePeers as peersByIp
@@ -48,7 +49,8 @@ namespace FalconUDP
         private readonly List<Guid> onlyReplyToDiscoveryRequestsWithToken;
         private readonly RemotePeer unknownPeer;                         // peer re-used to send unsolicited messages to
         private readonly DatagramPool sendDatagramsPool;
-        
+
+        private IPEndPoint anyAddrEndPoint;
         private int peerIdCount;
         private string joinPass;
         private PunchThroughCallback punchThroughCallback;
@@ -58,8 +60,7 @@ namespace FalconUDP
         private float ellapsedSecondsAtLastUpdate;
         private bool replyToAnyDiscoveryRequests;                       // i.e. reply unconditionally with or without a token
         private List<IPEndPoint> broadcastEndPoints;
-        private int receiveBufferSize = 8192;
-        private int sendBufferSize = 8192;
+    
 #if DEBUG
         private LogLevel logLvl;
         private LogCallback logger;
@@ -71,7 +72,7 @@ namespace FalconUDP
         internal readonly FalconPoolSizes PoolSizes;
         internal readonly GenericObjectPool<AckDetail> AckPool;
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
-        internal Socket Socket;
+        internal IFalconTransceiver Transceiver;
         
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
         internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }  
@@ -429,7 +430,8 @@ namespace FalconUDP
             this.processReceivedPacketDelegate = processReceivedPacketDelegate;
             this.peersByIp = new Dictionary<IPEndPoint, RemotePeer>();
             this.peersById = new Dictionary<int, RemotePeer>();
-            this.anyAddrEndPoint = new IPEndPoint(IPAddress.Any, this.Port);
+
+            this.anyAddrEndPoint = new IPEndPoint(IPAddress.Any, port);
             this.peerIdCount = 0;
             this.awaitingAcceptDetails = new List<AwaitingAcceptDetail>();
             this.acceptJoinRequests = false;
@@ -440,6 +442,7 @@ namespace FalconUDP
             this.remotePeersToRemove = new List<RemotePeer>();
             this.LocalAddresses = new HashSet<IPAddress>();
             this.Stopwatch = new Stopwatch();
+            this.Transceiver = new SocketTransceiver(this);
 
             // pools
             this.PoolSizes = poolSizes;
@@ -537,26 +540,16 @@ namespace FalconUDP
             }
 
             // read received datagrams
-            while (Socket.Available > 0)
+            while (Transceiver.BytesAvaliable > 0)
             {
                 EndPoint fromIPEndPoint = anyAddrEndPoint;
-                int size = 0;
 
-                try
-                {
-                    size = Socket.ReceiveFrom(receiveBuffer, ref fromIPEndPoint);
-                }
-                catch (SocketException se)
-                {
-                    Log(LogLevel.Error, String.Format("Socket Exception {0} {1}, while receiving from {2}.", se.ErrorCode, se.Message, (IPEndPoint)fromIPEndPoint));
-                    TryRemovePeer((IPEndPoint)fromIPEndPoint, false, false);
-                }
-
+                int size = Transceiver.Receive(receiveBuffer, ref fromIPEndPoint);
+            
                 Log(LogLevel.Debug, String.Format("Received {0} bytes from: {1}", size, (IPEndPoint)fromIPEndPoint));
 
-                if (size == 0)
+                if (size == 0) // i.e. failure
                 {
-                    // the connection has closed, if peer joined remove TODO is this possible in UDP?
                     TryRemovePeer((IPEndPoint)fromIPEndPoint, false, false);
                 }
                 else
@@ -698,7 +691,7 @@ namespace FalconUDP
             discoveryTasks.Add(task);
         }
 
-        private void TryRemovePeer(IPEndPoint ip, bool logFailure, bool sayBye)
+        internal void TryRemovePeer(IPEndPoint ip, bool logFailure, bool sayBye)
         {
             RemotePeer rp;
             if (!peersByIp.TryGetValue(ip, out rp))
@@ -1143,14 +1136,10 @@ namespace FalconUDP
                 SendEnquedPackets();
             }
 
-            try
-            {
-                Socket.Close();
-            }
-            catch { }
+            Transceiver.Stop();
 
             stopped = true;
-            Socket = null;
+            Transceiver = null;
             peersById.Clear();
             peersByIp.Clear();
             Stopwatch.Reset();
@@ -1161,7 +1150,7 @@ namespace FalconUDP
         /// <summary>
         /// Attempts to start this FalconPeer TODO improve
         /// </summary>
-        public FalconOperationResult<object> TryStart()
+        public FalconOperationResult TryStart()
         {
             // Get local IPv4 address and while doing so broadcast addresses to use for discovery.
             LocalAddresses.Clear();
@@ -1199,34 +1188,15 @@ namespace FalconUDP
             }
             catch (NetworkInformationException niex)
             {
-                return new FalconOperationResult<object>(niex, null);
+                return new FalconOperationResult(niex);
             }
 
             if (LocalAddresses.Count == 0)
-                return new FalconOperationResult<object>(false, "No operational IPv4 network interface found.", null);
+                return new FalconOperationResult(false, "No operational IPv4 network interface found.");
 
-            try
-            {
-                // create a new socket when starting
-                Socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-#if !MONO
-                Socket.SetIPProtectionLevel(IPProtectionLevel.EdgeRestricted);
-#endif
-#if !LINUX
-                Socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
-#endif
-                Socket.Bind(anyAddrEndPoint);
-                //Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, 184); // EF
-                Socket.Blocking = false;
-                Socket.ReceiveBufferSize = receiveBufferSize;
-                Socket.SendBufferSize = sendBufferSize;
-                Socket.EnableBroadcast = true;
-            }
-            catch (SocketException se)
-            {
-                // e.g. address already in use
-                return new FalconOperationResult<object>(se, null);
-            }
+            FalconOperationResult startResult = Transceiver.TryStart();
+            if (!startResult.Success)
+                return startResult;
 
             // start the Stopwatch
             Stopwatch.Start();
@@ -1235,7 +1205,7 @@ namespace FalconUDP
 
             stopped = false;
 
-            return new FalconOperationResult<object>(true, null);
+            return FalconOperationResult.SuccessResult;
         }
 
         /// <summary>
