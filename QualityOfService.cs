@@ -5,6 +5,9 @@ using System.Text;
 
 namespace FalconUDP
 {
+    /// <summary>
+    /// Provides QoS estimates for remote peer.
+    /// </summary>
     public class QualityOfService
     {
         private const int ReCalcLatencyAt = 100;
@@ -23,13 +26,13 @@ namespace FalconUDP
         private int resentInSampleCount;
 
         /// <summary>
-        /// The current average round trip time from last <see cref="LatencySampleSize"/> 
+        /// The current average round trip time from last <see cref="FalconPeer.LatencySampleSize"/> 
         /// reliable messages to till receiving their corresponding ACKnowledgment.
         /// </summary>
         public TimeSpan RoudTripTime { get; private set; }
 
         /// <summary>
-        /// The number of messages that had to be re-sent per the last <see cref="FalconPeer.ResendRatioSampleSize"/>
+        /// The current number of messages that had to be re-sent per the last <see cref="FalconPeer.ResendRatioSampleSize"/>
         /// reliable sends (as they were not ACKnowledged in time).
         /// </summary>
         public float ResendRatio { get; private set; }

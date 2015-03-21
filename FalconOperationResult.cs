@@ -14,6 +14,9 @@ namespace FalconUDP
     /// </summary>
     public class FalconOperationResult
     {
+        /// <summary>
+        /// Successful <see cref="FalconOperationResult"/>
+        /// </summary>
         public static readonly FalconOperationResult SuccessResult = new FalconOperationResult(true);
 
         /// <summary>

@@ -2,9 +2,9 @@
 
 namespace FalconUDP
 {
-    public static class ExceptionHelper
+    internal static class ExceptionHelper
     {
-        public static string GetFullDetails(this Exception ex)
+        internal static string GetFullDetails(this Exception ex)
         {
             string msg = "";
             do

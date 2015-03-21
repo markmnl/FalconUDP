@@ -188,7 +188,7 @@ namespace FalconUDP
 
         /// <summary>
         /// The number of most recent round-trip-times (from sending reliable message till 
-        /// receiving ACKnowledgment) to each peer used in the <see cref="GetPeerRoundTripTime(int)"/> 
+        /// receiving ACKnowledgment) to each peer used in the <see cref="QualityOfService.RoudTripTime"/> 
         /// calculation.
         /// </summary>
         /// <remarks>Default 2.</remarks>
@@ -206,7 +206,7 @@ namespace FalconUDP
 
         /// <summary>
         /// The number of most recent reliable messages that had to be re-sent or not to each peer 
-        /// used in the <see cref="GetPeerPacketLoss(int)"/> calculation.
+        /// used in the <see cref="QualityOfService.ResendRatio"/> calculation.
         /// </summary>
         /// <remarks>Default 24.</remarks>
         public ushort ResendRatioSampleSize 
