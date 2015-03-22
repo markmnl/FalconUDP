@@ -610,7 +610,9 @@ namespace FalconUDP
                 {
                     AwaitingAcceptDetail aad = awaitingAcceptDetails[i];
                     aad.EllapsedSecondsSinceStart += dt;
-                    if (aad.EllapsedSecondsSinceStart >= AckTimeoutSeconds)
+                    float acceptTimeout = GetAckTimeout(aad.RetryCount);
+
+                    if (aad.EllapsedSecondsSinceStart >= acceptTimeout)
                     {
                         if (aad.RetryCount < MaxResends)
                         {
@@ -1130,6 +1132,19 @@ namespace FalconUDP
             Stopwatch.Reset();
 
             Log(LogLevel.Info, "Stopped");
+        }
+
+        internal float GetAckTimeout(int resendCount)
+        {
+            // Calculate ACK timout based on number of re-sends with 7s being the upper limit:
+            //
+            //      MIN(ACKTimeout + (ACKTimeout x re-send count), 7.0)
+            //
+
+            if (resendCount == 0)
+                return AckTimeoutSeconds;
+
+            return Math.Min(AckTimeoutSeconds + AckTimeoutSeconds * resendCount, 7.0f);
         }
 
         /// <summary>

@@ -37,6 +37,12 @@ namespace FalconUDP
         /// </summary>
         public float ResendRatio { get; private set; }
 
+        /// <summary>
+        /// Flag set when reliable packets are currently having to be re-sent as not ACKnowledged 
+        /// in time. When true indicates poor network conditions which may be only temporary.
+        /// </summary>
+        public bool IsNotResponding { get; internal set; }
+
         private QualityOfService()
         { }
 

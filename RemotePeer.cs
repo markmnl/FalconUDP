@@ -126,7 +126,7 @@ namespace FalconUDP
                 datagram.SendOptions.ToString(),
                 datagram.Count.ToString()));
 
-            // Expedite send if less than 5% of reliable packets have to be re-sent
+            // Expedite send if less than 5% of recent reliable packets have to be re-sent
             bool expedite = qualityOfService.ResendRatio < 0.05f;
 
             //-----------------------------------------------------------------------------------------------------------------
@@ -184,7 +184,7 @@ namespace FalconUDP
                 {
                     if (datagram.IsResend)
                     {
-                        // update the time sent TODO include bit in header to indicate is resend so if ACK for previous datagram latency calculated correctly could do packet loss stats too?
+                        // update the time sent
                         datagram.EllapsedSecondsSincePacketSent = 0.0f;
                     }
                     else // i.e. not a re-send
@@ -267,20 +267,14 @@ namespace FalconUDP
             //
             if(sentDatagramsAwaitingACK.Count > 0)
             {
+                bool anyResendsAwaitingACK = false;
+
                 for (int i = 0; i < sentDatagramsAwaitingACK.Count; i++)
                 {
                     Datagram datagramAwaitingAck = sentDatagramsAwaitingACK[i];
                     datagramAwaitingAck.EllapsedSecondsSincePacketSent += dt;
 
-                    // Calculate ack timout based on number of re-sends:
-                    //
-                    //      MIN(ACKTimeout x re-send count, 7.0)
-                    //
-                    float ackTimeout = localPeer.AckTimeoutSeconds;
-                    if (datagramAwaitingAck.IsResend)
-                    {
-                        ackTimeout = Math.Min(localPeer.AckTimeoutSeconds * datagramAwaitingAck.ResentCount, 7.0f);
-                    }
+                    float ackTimeout = localPeer.GetAckTimeout(datagramAwaitingAck.ResentCount);
 
                     if (datagramAwaitingAck.EllapsedSecondsSincePacketSent >= ackTimeout)
                     {
@@ -317,7 +311,12 @@ namespace FalconUDP
                                 ackTimeout.ToString()));
                         }
                     }
+
+                    if (datagramAwaitingAck.IsResend)
+                        anyResendsAwaitingACK = true;
                 }
+
+                qualityOfService.IsNotResponding = anyResendsAwaitingACK;
             }
             //
             // KeepAlives and AutoFlush
@@ -538,6 +537,11 @@ namespace FalconUDP
                             // 1) ACK has arrived too late and the datagram must have already been removed.
                             // 2) ACK duplicated and has already been processed
                             // 3) ACK was unsolicited (i.e. malicious or buggy peer)
+
+                            // NOTE: If ACK "piggy-backed" on a reliable datagram that was re-sent 
+                            //       that datagram if recieved more than once would have been dropped
+                            //       when processing the first Application packet so should never 
+                            //       get to here.
 
                             localPeer.Log(LogLevel.Warning, "Datagram for ACK not found - too late?");
                         }
