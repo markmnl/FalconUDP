@@ -5,7 +5,7 @@
     <OutputPath>bin\x86\Debug\</OutputPath>
     <DefineConstants>TRACE;DEBUG;UNSAFE</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DocumentationFile>bin\Debug\FalconUDP.XML</DocumentationFile>
+    <DocumentationFile>bin\x86\Debug\FalconUDP.XML</DocumentationFile>
     <DebugType>full</DebugType>
     <PlatformTarget>x86</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
@@ -28,7 +28,7 @@
     <OutputPath>bin\x86\MonoLinuxDebug\</OutputPath>
     <DefineConstants>TRACE;DEBUG;UNSAFE</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DocumentationFile>bin\Debug\FalconUDP.XML</DocumentationFile>
+    <DocumentationFile>bin\x86\MonoLinuxDebug\FalconUDP.XML</DocumentationFile>
     <DebugType>full</DebugType>
     <PlatformTarget>x86</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
