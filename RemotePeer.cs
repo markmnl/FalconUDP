@@ -92,7 +92,9 @@ namespace FalconUDP
             }
 
             // simulate delay
-            if (localPeer.SimulateLatencySeconds > 0.0f && !hasAlreadyBeenDelayed)
+            if (localPeer.SimulateLatencySeconds > 0.0f 
+                && !hasAlreadyBeenDelayed
+                && datagram.Type != PacketType.Bye) // if Bye we don't delay as if closing will not be sent
             {
                 float delay = localPeer.SimulateLatencySeconds;
 

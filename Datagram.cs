@@ -28,6 +28,10 @@ namespace FalconUDP
         {
             get { return originalSize; }
         }
+        public PacketType Type 
+        {
+            get { return (PacketType)(BackingBuffer[0] & Const.PACKET_TYPE_MASK); }
+        }
 
         internal Datagram(byte[] backingBuffer, int offset, int count)
         {
