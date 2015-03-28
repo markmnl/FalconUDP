@@ -12,7 +12,7 @@ namespace FalconUDP
         private readonly DatagramPool sendDatagramsPool;
         private readonly List<Datagram> sentDatagramsAwaitingACK;
         private readonly List<DelayedDatagram> delayedDatagrams;
-        private readonly List<AckDetail> enqueudAcks;
+        private readonly Queue<AckDetail> enqueudAcks;
         private readonly List<Packet> allUnreadPackets;
         private readonly QualityOfService qualityOfService;
 
@@ -49,7 +49,7 @@ namespace FalconUDP
             this.delayedDatagrams           = new List<DelayedDatagram>();
             this.keepAliveAndAutoFlush      = keepAliveAndAutoFlush;
             this.allUnreadPackets           = new List<Packet>();
-            this.enqueudAcks                = new List<AckDetail>();
+            this.enqueudAcks                = new Queue<AckDetail>();
 
             CreateSendRecieveChannels();
         }
@@ -160,9 +160,7 @@ namespace FalconUDP
         {
             while (enqueudAcks.Count > 0 && (datagram.MaxSize - (index - datagram.Offset)) > Const.FALCON_PACKET_HEADER_SIZE)
             {
-                int lastAckIndex = enqueudAcks.Count - 1;
-                AckDetail ack = enqueudAcks[lastAckIndex];
-                enqueudAcks.RemoveAt(lastAckIndex);
+                AckDetail ack = enqueudAcks.Dequeue();
                 FalconHelper.WriteAck(ack, datagram.BackingBuffer, index);
                 index += Const.FALCON_PACKET_HEADER_SIZE;
             }
@@ -409,7 +407,7 @@ namespace FalconUDP
         {
             AckDetail ack = new AckDetail();
             ack.Init(seq, channelType);
-            enqueudAcks.Add(ack);
+            enqueudAcks.Enqueue(ack);
         }
 
         internal bool Accept()
