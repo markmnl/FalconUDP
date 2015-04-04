@@ -773,5 +773,34 @@ namespace FalconUDPTests
             //       FalconPeer can deal with it.
             FalconPeerStressTest(0.1); // 10 %
         }
+
+        [TestMethod]
+        public void JoinAfterDrop()
+        {
+            var peer1 = CreateAndStartLocalPeer();
+            peer1.SetVisibility(true, null, true);
+            var peer2 = CreateAndStartLocalPeer();
+            ConnectToLocalPeer(peer2, peer1, null);
+
+            Thread.Sleep(MAX_REPLY_WAIT_TIME); // allow AcceptJoin's ACK to get through
+
+            // Stop peer2 without saying bye then attempt to re-connect. Peer1 will be surprised 
+            // we are sending a JoinRequest as will think we are already connected, nonetheless see
+            // peer1 gracefully accepts our request nonetheless.
+
+            peer2.Stop(false);
+
+            Thread.Sleep(MAX_REPLY_WAIT_TIME / 2);
+
+            peer2.TryStart();
+
+            ConnectToLocalPeer(peer2, peer1, null, null);
+
+            Thread.Sleep(MAX_REPLY_WAIT_TIME);
+
+            Assert.AreEqual(1, peer2.GetAllRemotePeers().Count, "Peer2 failed to re-join Peer1 after abruptly disconnecting without saying bye.");
+            Assert.AreEqual(1, peer1.GetAllRemotePeers().Count, "Peer2 failed to re-join Peer1 after abruptly disconnecting without saying bye.");
+            
+        }
     }
 }

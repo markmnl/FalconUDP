@@ -410,7 +410,6 @@ namespace FalconUDP
             this.processReceivedPacketDelegate = processReceivedPacketDelegate;
             this.peersByIp = new Dictionary<IPEndPoint, RemotePeer>();
             this.peersById = new Dictionary<int, RemotePeer>();
-
             this.anyAddrEndPoint = new IPEndPoint(IPAddress.Any, port);
             this.peerIdCount = 0;
             this.awaitingAcceptDetails = new List<AwaitingAcceptDetail>();
@@ -422,7 +421,6 @@ namespace FalconUDP
             this.remotePeersToRemove = new List<RemotePeer>();
             this.LocalAddresses = new HashSet<IPAddress>();
             this.Stopwatch = new Stopwatch();
-            this.Transceiver = new SocketTransceiver(this);
 
             // pools
             this.PoolSizes = poolSizes;
@@ -455,6 +453,12 @@ namespace FalconUDP
 #endif
         }
 
+        private IFalconTransceiver CreateFalconTransceiver()
+        {
+            CheckNotStarted();
+            return new SocketTransceiver(this);
+        }
+        
         private void CheckStarted()
         {
             if (stopped)
@@ -1126,7 +1130,6 @@ namespace FalconUDP
             Transceiver.Stop();
 
             stopped = true;
-            Transceiver = null;
             peersById.Clear();
             peersByIp.Clear();
             Stopwatch.Reset();
@@ -1152,6 +1155,8 @@ namespace FalconUDP
         /// </summary>
         public FalconOperationResult TryStart()
         {
+            this.Transceiver = CreateFalconTransceiver();
+
             // Get local IPv4 address and while doing so broadcast addresses to use for discovery.
             LocalAddresses.Clear();
             broadcastEndPoints = new List<IPEndPoint>();

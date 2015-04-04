@@ -23,14 +23,13 @@ namespace FalconUDP
         {
             this.localPeer = localPeer;
             this.anyAddrEndPoint = new IPEndPoint(IPAddress.Any, localPeer.Port);
+            this.socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         }
 
         public FalconOperationResult TryStart()
         {
             try
             {
-                // create a new socket when starting
-                socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 #if !MONO
                 socket.SetIPProtectionLevel(IPProtectionLevel.EdgeRestricted);
 #endif
