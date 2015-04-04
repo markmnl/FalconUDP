@@ -28,12 +28,12 @@ namespace FalconUDP
         /// <summary>
         /// Number of internal buffers to pool used to store packets enqued but not yet sent per 
         /// peer. The optimal number is the maximum number of unsent datagrams at any time which 
-        /// the number of packets enqueued to send minus the number that can be "packed-in" 
-        /// existing datagrams.
+        /// is: one per channel (i.e. 4) plus the number of packets enqueued to send minus the 
+        /// number that can be "packed-in" existing datagrams.
         /// </summary>
-        public int InitalNumSendDatagramsToPoolPerPeer = 4;
+        public int InitalNumSendDatagramsToPoolPerPeer = 8;
         /// <summary>
-        /// Number of interal data structurs use to save ACKknowledgement details to be sent in 
+        /// Number of interal data structures use to save ACKknowledgement details to be sent in 
         /// response to receiving a Reliable message. The optimal number is the maximum number of 
         /// ACKs oustanding resulting from incoming reliable packets between calls to 
         /// <see cref="FalconPeer.Update()"/> and <see cref="FalconPeer.SendEnquedPackets()"/>
