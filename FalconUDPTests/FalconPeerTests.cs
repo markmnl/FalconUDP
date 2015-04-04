@@ -786,7 +786,7 @@ namespace FalconUDPTests
 
             // Stop peer2 without saying bye then attempt to re-connect. Peer1 will be surprised 
             // we are sending a JoinRequest as will think we are already connected, nonetheless see
-            // peer1 gracefully accepts our request nonetheless.
+            // peer1 gracefully accepts our request.
 
             peer2.Stop(false);
 
