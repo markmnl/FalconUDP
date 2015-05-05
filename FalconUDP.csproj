@@ -142,6 +142,7 @@
     <Compile Include="SocketTransceiver.cs" />
     <Compile Include="Statistics.cs" />
     <Compile Include="GenericObjectPool.cs" />
+    <Compile Include="TransceiverFactory.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Protocol.txt" />

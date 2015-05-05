@@ -13,6 +13,7 @@ namespace FalconUDP
         private IPEndPoint anyAddrEndPoint;
         private bool isEFSet;
         private FalconPeer localPeer;
+        private EndPoint placeHolderEndPoint = new IPEndPoint(IPAddress.Any, 30000);
 
         public int BytesAvaliable
         {
@@ -74,16 +75,17 @@ namespace FalconUDP
         }
 
         // returns 0 if fatal failure receiving from epFrom
-        public int Receive(byte[] receiveBuffer, ref EndPoint epFrom)
+        public int Read(byte[] receiveBuffer, ref IPEndPoint ipFrom)
         {
             int size = 0;
             try
             {
-                size = socket.ReceiveFrom(receiveBuffer, ref epFrom);
+                size = socket.ReceiveFrom(receiveBuffer, ref placeHolderEndPoint);
+                ipFrom = (IPEndPoint)placeHolderEndPoint;
             }
             catch (SocketException se)
             {
-                localPeer.Log(LogLevel.Error, String.Format("Socket Exception {0} {1}, while receiving from {2}.", se.ErrorCode, se.Message, epFrom));
+                localPeer.Log(LogLevel.Error, String.Format("Socket Exception {0} {1}, while receiving from {2}.", se.ErrorCode, se.Message, ipFrom));
             }
             return size;
         }

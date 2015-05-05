@@ -1,5 +1,4 @@
-﻿using System.Net.Sockets;
-
+﻿
 namespace FalconUDP
 {
     // used when simulating delay
