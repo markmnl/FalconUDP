@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net;
+#if NETFX_CORE
+#else
 using System.Net.Sockets;
+#endif
 
 namespace FalconUDP
 {

@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
-using System.Net.Sockets;
 using FalconUDP;
+#if !NETFX_CORE
+using System.Net.Sockets;
+#endif
 
 namespace FalconUDP
 {
@@ -142,7 +144,9 @@ namespace FalconUDP
             // ASSUMPTION: There can only be one EmitDiscoverySignalTask at any one time that 
             //             matches (inc. broadcast addresses) any one discovery reply.
 
+#if !NETFX_CORE
             Debug.Assert(endPointDiscoveryReplyReceivedFrom.AddressFamily == AddressFamily.InterNetwork);
+#endif
 
             if (TaskEnded)
                 return false;
@@ -156,6 +160,10 @@ namespace FalconUDP
                         return true;
                     }
 
+#if NETFX_CORE
+                    bool matches = endPointToSendTo.Address.Type == endPointDiscoveryReplyReceivedFrom.Address.Type;
+                    // TODO
+#else
                     byte[] bytesFrom = endPointDiscoveryReplyReceivedFrom.Address.GetAddressBytes();
                     byte[] bytesTo = endPointToSendTo.Address.GetAddressBytes();
 
@@ -163,6 +171,7 @@ namespace FalconUDP
                         && (bytesTo[1] == 255 || bytesFrom[1] == bytesTo[1])
                         && (bytesTo[2] == 255 || bytesFrom[2] == bytesTo[2])
                         && (bytesTo[3] == 255 || bytesFrom[3] == bytesTo[3]));
+#endif
 
                     if (matches)
                         return true;

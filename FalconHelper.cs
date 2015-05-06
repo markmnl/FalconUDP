@@ -36,5 +36,10 @@ namespace FalconUDP
         {
             WriteFalconHeader(dstBuffer, dstIndex, PacketType.ACK, ack.Channel, ack.Seq, 0);
         }
+
+        internal static uint GetNetMaskFromNumOfBits(int numOfBits)
+        {
+            return uint.MaxValue << (32 - numOfBits);
+        }
     }
 }

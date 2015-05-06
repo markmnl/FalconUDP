@@ -8,7 +8,7 @@ namespace FalconUDP
         int BytesAvaliable { get; }
         FalconOperationResult TryStart();
         void Stop();
-        int Receive(byte[] recieveBuffer, ref EndPoint ipFrom);
+        int Read(byte[] recieveBuffer, ref IPEndPoint ipFrom);
         bool Send(byte[] buffer, int index, int count, IPEndPoint ip, bool expidite);
     }
 }

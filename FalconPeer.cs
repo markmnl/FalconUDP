@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
-using System.Net.Sockets;
 using System.Text;
+#if NETFX_CORE
+using Windows.Networking.Connectivity;
+using Windows.Networking;
+#endif
 
 namespace FalconUDP
 {
@@ -54,6 +57,7 @@ namespace FalconUDP
         private readonly RemotePeer unknownPeer;                         // peer re-used to send unsolicited messages to
         private readonly DatagramPool sendDatagramsPool;
 
+        private int port;
         private IPEndPoint anyAddrEndPoint;
         private int peerIdCount;
         private string joinPass;
@@ -71,7 +75,11 @@ namespace FalconUDP
 #endif
         internal readonly Stopwatch Stopwatch;
         internal readonly PacketPool PacketPool;
+#if NETFX_CORE
+        internal readonly List<HostName> LocalAddresses;
+#else
         internal readonly HashSet<IPAddress> LocalAddresses;
+#endif
         internal readonly List<PingDetail> PingsAwaitingPong;
         internal readonly FalconPoolSizes PoolSizes;
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
@@ -119,7 +127,21 @@ namespace FalconUDP
         /// <summary>
         /// Port this FalconPeer is or will be listening on.
         /// </summary>
-        public int Port { get; private set; }
+        public int Port 
+        {
+            get { return port; }
+            private set 
+            {
+                port = value;
+#if NETFX_CORE
+                PortAsString = port.ToString();
+#endif
+            }
+        }
+
+#if NETFX_CORE
+        public string PortAsString { get; private set; }
+#endif
 
         /// <summary>
         /// <see cref="Statistics"/> structure containing total bytes sent and recieved in the last second.
@@ -410,7 +432,12 @@ namespace FalconUDP
             this.processReceivedPacketDelegate = processReceivedPacketDelegate;
             this.peersByIp = new Dictionary<IPEndPoint, RemotePeer>();
             this.peersById = new Dictionary<int, RemotePeer>();
+#if NETFX_CORE
+            this.LocalAddresses = new List<HostName>();
+#else
             this.anyAddrEndPoint = new IPEndPoint(IPAddress.Any, port);
+            this.LocalAddresses = new HashSet<IPAddress>();
+#endif
             this.peerIdCount = 0;
             this.awaitingAcceptDetails = new List<AwaitingAcceptDetail>();
             this.acceptJoinRequests = false;
@@ -419,7 +446,6 @@ namespace FalconUDP
             this.readPacketsList = new List<Packet>();
             this.stopped = true;
             this.remotePeersToRemove = new List<RemotePeer>();
-            this.LocalAddresses = new HashSet<IPAddress>();
             this.Stopwatch = new Stopwatch();
 
             // pools
@@ -434,7 +460,11 @@ namespace FalconUDP
             this.onlyReplyToDiscoveryRequestsWithToken = new List<Guid>();
 
             // helper
+#if NETFX_CORE
+            this.unknownPeer = new RemotePeer(this, new IPEndPoint("127.0.0.1", this.Port.ToString()), 0, false);
+#else
             this.unknownPeer = new RemotePeer(this, new IPEndPoint(IPAddress.Broadcast, this.Port), 0, false);
+#endif
 
 #if DEBUG
             // log
@@ -452,13 +482,7 @@ namespace FalconUDP
             Log(LogLevel.Info, "Initialized");
 #endif
         }
-
-        private IFalconTransceiver CreateFalconTransceiver()
-        {
-            CheckNotStarted();
-            return new SocketTransceiver(this);
-        }
-        
+                
         private void CheckStarted()
         {
             if (stopped)
@@ -533,9 +557,9 @@ namespace FalconUDP
             // read received datagrams
             while (Transceiver.BytesAvaliable > 0)
             {
-                EndPoint fromIPEndPoint = anyAddrEndPoint;
-
-                int size = Transceiver.Receive(receiveBuffer, ref fromIPEndPoint);
+                IPEndPoint fromIPEndPoint = anyAddrEndPoint;
+     
+                int size = Transceiver.Read(receiveBuffer, ref fromIPEndPoint);
             
                 Log(LogLevel.Debug, String.Format("Received {0} bytes from: {1}", size, (IPEndPoint)fromIPEndPoint));
 
@@ -721,12 +745,18 @@ namespace FalconUDP
             }
 
             // check not from self
+#if NETFX_CORE
+            if ((fromIPEndPoint.Address.RawName.StartsWith("127.") || LocalAddresses.Exists(hn => hn.IsEqual(fromIPEndPoint.Address)))
+                && fromIPEndPoint.PortAsString == PortAsString)
+#else
             if ((IPAddress.IsLoopback(fromIPEndPoint.Address) || LocalAddresses.Contains(fromIPEndPoint.Address))
                 && fromIPEndPoint.Port == Port)
+#endif
             {
                 Log(LogLevel.Warning, "Dropped datagram received from self.");
                 return;
             }
+
 
             // parse header
             byte packetDetail   = buffer[0];
@@ -1155,12 +1185,37 @@ namespace FalconUDP
         /// </summary>
         public FalconOperationResult TryStart()
         {
-            this.Transceiver = CreateFalconTransceiver();
+            this.Transceiver = TransceiverFactory.Create(this);
 
             // Get local IPv4 address and while doing so broadcast addresses to use for discovery.
             LocalAddresses.Clear();
             broadcastEndPoints = new List<IPEndPoint>();
 
+#if NETFX_CORE
+            foreach (HostName localHostInfo in NetworkInformation.GetHostNames())
+            {
+                if (localHostInfo.Type != HostNameType.Ipv4)
+                    continue;
+
+                LocalAddresses.Add(localHostInfo);
+                
+                uint ip;
+                if (IPEndPoint.TryParseIPv4Address(localHostInfo.RawName, out ip))
+                {
+                    uint mask = FalconHelper.GetNetMaskFromNumOfBits(24); // class C
+                    if (localHostInfo.IPInformation != null 
+                        && localHostInfo.IPInformation.PrefixLength.HasValue
+                        && localHostInfo.IPInformation.PrefixLength.Value < 32)
+                    {
+                        var prefix = localHostInfo.IPInformation.PrefixLength.Value;
+                        mask = FalconHelper.GetNetMaskFromNumOfBits(prefix);
+                    }
+                    var broadcast = ip | ~mask;
+                    broadcastEndPoints.Add(new IPEndPoint(broadcast, (ushort)this.port));
+                }
+            
+            }
+#else
             try
             {
                 NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
@@ -1172,21 +1227,23 @@ namespace FalconUDP
                     IPInterfaceProperties props = nic.GetIPProperties();
                     foreach (UnicastIPAddressInformation addrInfo in props.UnicastAddresses)
                     {
-                        if (addrInfo.Address.AddressFamily == AddressFamily.InterNetwork) // i.e. IPv4
+                        if (addrInfo.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) // i.e. IPv4
                         {
                             // local addr
                             LocalAddresses.Add(addrInfo.Address);
 
                             // broadcast addr
-#if LINUX
-                            byte[] mask = Const.CLASS_C_SUBNET_MASK;
-#else
-                            byte[] mask = addrInfo.IPv4Mask == null ? Const.CLASS_C_SUBNET_MASK : addrInfo.IPv4Mask.GetAddressBytes();
+
+                            uint mask = FalconHelper.GetNetMaskFromNumOfBits(24); // class C
+#pragma warning disable 0618
+#if !LINUX
+                            if (addrInfo.IPv4Mask != null)
+                                mask = (uint)addrInfo.IPv4Mask.Address;
 #endif
-                            byte[] addr = addrInfo.Address.GetAddressBytes();
-                            for (int i = 0; i < mask.Length; i++)
-                                addr[i] = mask[i] == 255 ? addr[i] : (byte)255;
-                            broadcastEndPoints.Add(new IPEndPoint(new IPAddress(addr), Port));
+                            uint ip = (uint)addrInfo.Address.Address;
+                            uint broadcast = ip | ~mask;
+                            broadcastEndPoints.Add(new IPEndPoint(new IPAddress((long)broadcast), Port));
+#pragma warning restore 0618
                         }
                     }
                 }
@@ -1195,6 +1252,7 @@ namespace FalconUDP
             {
                 return new FalconOperationResult(niex);
             }
+#endif
 
             if (LocalAddresses.Count == 0)
                 return new FalconOperationResult(false, "No operational IPv4 network interface found.");
@@ -1263,8 +1321,12 @@ namespace FalconUDP
         {
             CheckStarted();
 
+#if NETFX_CORE
+            IPEndPoint endPoint = new IPEndPoint(addr, port.ToString());
+#else
             IPAddress ip = IPAddress.Parse(addr);
             IPEndPoint endPoint = new IPEndPoint(ip, port);
+#endif
             TryJoinPeerAsync(endPoint, pass, callback, userData);
         }
 
@@ -1345,11 +1407,22 @@ namespace FalconUDP
         {
             CheckStarted();
 
-            List<IPEndPoint> endPoints = broadcastEndPoints;
-            if (port != Port)
+            List<IPEndPoint> endPoints = null;
+            if (port == Port)
+            {
+                endPoints = broadcastEndPoints;
+            }
+            else
             {
                 endPoints = new List<IPEndPoint>(broadcastEndPoints.Count);
-                broadcastEndPoints.ForEach(ep => endPoints.Add(new IPEndPoint(ep.Address, port)));
+                foreach (var ep in broadcastEndPoints)
+                {
+#if NETFX_CORE
+                    endPoints.Add(new IPEndPoint(ep.Address.RawName, port.ToString()));
+#else
+                    endPoints.Add(new IPEndPoint(ep.Address, port));
+#endif
+                }
             }
 
             DiscoverFalconPeersAsync(true,
@@ -1672,6 +1745,7 @@ namespace FalconUDP
         }
 #endif
 
+
         /// <summary>
         /// Helper method to get all active IPv4 network interfaces.
         /// </summary>
@@ -1681,6 +1755,15 @@ namespace FalconUDP
         public List<IPEndPoint> GetLocalIPEndPoints()
         {
             List<IPEndPoint> ipEndPoints = new List<IPEndPoint>();
+#if NETFX_CORE
+            foreach (HostName localHostInfo in NetworkInformation.GetHostNames())
+            {
+                if (localHostInfo.Type == HostNameType.Ipv4 && localHostInfo.IPInformation != null)
+                {
+                    ipEndPoints.Add(new IPEndPoint(localHostInfo.RawName, this.port.ToString()));
+                }
+            }
+#else
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
                 if (nic.OperationalStatus == OperationalStatus.Up && nic.NetworkInterfaceType != NetworkInterfaceType.Loopback)
@@ -1691,7 +1774,7 @@ namespace FalconUDP
                         IPInterfaceProperties props = nic.GetIPProperties();
                         foreach (UnicastIPAddressInformation info in props.UnicastAddresses)
                         {
-                            if (info.Address.AddressFamily == AddressFamily.InterNetwork)
+                            if (info.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
                             {
                                 ipEndPoints.Add(new IPEndPoint(info.Address, Port));
                             }
@@ -1699,8 +1782,10 @@ namespace FalconUDP
                     }
                 }
             }
+#endif
             return ipEndPoints;
         }
+
         
         /// <summary>
         /// Start collection <see cref="Statistics"/> or resets statistics if already started.
@@ -1772,6 +1857,7 @@ namespace FalconUDP
             return QualityOfService.ZeroedOutQualityOfService;
         }
 
+#if !NETFX_CORE
         /// <summary>
         /// Helper method gets whether <paramref name="ip"/> is in the private address space as defined in 
         /// RFC3927.
@@ -1780,7 +1866,7 @@ namespace FalconUDP
         /// <returns>True if <paramref name="ip"/> is in the private address space, otherwise false.</returns>
         public static bool GetIsIPAddressPrivate(IPAddress ip)
         {
-            if (ip.AddressFamily != AddressFamily.InterNetwork)
+            if (ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
                 throw new NotImplementedException("only IPv4 addresses implemented");
 
             byte[] bytes = ip.GetAddressBytes(); // TODO garbage :-|
@@ -1796,6 +1882,7 @@ namespace FalconUDP
 
             return false;
         }
+#endif
 
         /// <summary>
         /// Helper method returns <see cref="System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()"/>.

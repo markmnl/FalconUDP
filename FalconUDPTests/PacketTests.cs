@@ -1,7 +1,11 @@
 ﻿using FalconUDP;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Linq;
+#if NETFX_CORE
+using Microsoft.VisualStudio.TestPlatform.UnitTestFramework;
+#else
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+#endif
 
 namespace FalconUDPTests
 {
@@ -33,7 +37,9 @@ namespace FalconUDPTests
         }
 
         [TestMethod]
+#if !NETFX_CORE
         [ExpectedException(typeof(ArgumentException))] 
+#endif
         public void WriteOverflowTest()
         {
             const int PACKET_SIZE = 12;
@@ -42,11 +48,17 @@ namespace FalconUDPTests
             var packet = pool.Borrow();
             var bytes = new byte[PACKET_SIZE + 1];
 
+#if NETFX_CORE
+            Assert.ThrowsException<ArgumentException>(() => packet.WriteBytes(bytes));
+#else
             packet.WriteBytes(bytes);
+#endif
         }
 
         [TestMethod]
+#if !NETFX_CORE
         [ExpectedException(typeof(ArgumentException))]
+#endif
         public void ReadOverflowTest()
         {
             const int PACKET_SIZE = 12;
@@ -58,7 +70,12 @@ namespace FalconUDPTests
             packet.WriteBytes(bytes);
             packet.ResetAndMakeReadOnly(0);
 
+#if NETFX_CORE
+            Assert.ThrowsException<ArgumentException>(() => packet.ReadBytes(bytes.Length+1));
+#else
             packet.ReadBytes(bytes.Length+1);
+#endif
+
         }
 
         [TestMethod]
