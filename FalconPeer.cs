@@ -747,7 +747,7 @@ namespace FalconUDP
             // check not from self
 #if NETFX_CORE
             if ((fromIPEndPoint.Address.RawName.StartsWith("127.") || LocalAddresses.Exists(hn => hn.IsEqual(fromIPEndPoint.Address)))
-                && fromIPEndPoint.Port == PortAsString)
+                && fromIPEndPoint.PortAsString == PortAsString)
 #else
             if ((IPAddress.IsLoopback(fromIPEndPoint.Address) || LocalAddresses.Contains(fromIPEndPoint.Address))
                 && fromIPEndPoint.Port == Port)
@@ -1194,7 +1194,26 @@ namespace FalconUDP
 #if NETFX_CORE
             foreach (HostName localHostInfo in NetworkInformation.GetHostNames())
             {
+                if (localHostInfo.Type != HostNameType.Ipv4)
+                    continue;
+
                 LocalAddresses.Add(localHostInfo);
+                
+                uint ip;
+                if (IPEndPoint.TryParseIPv4Address(localHostInfo.RawName, out ip))
+                {
+                    uint mask = FalconHelper.GetNetMaskFromNumOfBits(24); // class C
+                    if (localHostInfo.IPInformation != null 
+                        && localHostInfo.IPInformation.PrefixLength.HasValue
+                        && localHostInfo.IPInformation.PrefixLength.Value < 32)
+                    {
+                        var prefix = localHostInfo.IPInformation.PrefixLength.Value;
+                        mask = FalconHelper.GetNetMaskFromNumOfBits(prefix);
+                    }
+                    var broadcast = ip | ~mask;
+                    broadcastEndPoints.Add(new IPEndPoint(broadcast, (ushort)this.port));
+                }
+            
             }
 #else
             try
@@ -1214,15 +1233,17 @@ namespace FalconUDP
                             LocalAddresses.Add(addrInfo.Address);
 
                             // broadcast addr
-#if LINUX
-                            byte[] mask = Const.CLASS_C_SUBNET_MASK;
-#else
-                            byte[] mask = addrInfo.IPv4Mask == null ? Const.CLASS_C_SUBNET_MASK : addrInfo.IPv4Mask.GetAddressBytes();
+
+                            uint mask = FalconHelper.GetNetMaskFromNumOfBits(24); // class C
+#pragma warning disable 0618
+#if !LINUX
+                            if (addrInfo.IPv4Mask != null)
+                                mask = (uint)addrInfo.IPv4Mask.Address;
 #endif
-                            byte[] addr = addrInfo.Address.GetAddressBytes();
-                            for (int i = 0; i < mask.Length; i++)
-                                addr[i] = mask[i] == 255 ? addr[i] : (byte)255;
-                            broadcastEndPoints.Add(new IPEndPoint(new IPAddress(addr), Port));
+                            uint ip = (uint)addrInfo.Address.Address;
+                            uint broadcast = ip | ~mask;
+                            broadcastEndPoints.Add(new IPEndPoint(new IPAddress((long)broadcast), Port));
+#pragma warning restore 0618
                         }
                     }
                 }
@@ -1724,7 +1745,7 @@ namespace FalconUDP
         }
 #endif
 
-#if !NETFX_CORE
+
         /// <summary>
         /// Helper method to get all active IPv4 network interfaces.
         /// </summary>
@@ -1734,6 +1755,15 @@ namespace FalconUDP
         public List<IPEndPoint> GetLocalIPEndPoints()
         {
             List<IPEndPoint> ipEndPoints = new List<IPEndPoint>();
+#if NETFX_CORE
+            foreach (HostName localHostInfo in NetworkInformation.GetHostNames())
+            {
+                if (localHostInfo.Type == HostNameType.Ipv4 && localHostInfo.IPInformation != null)
+                {
+                    ipEndPoints.Add(new IPEndPoint(localHostInfo.RawName, this.port.ToString()));
+                }
+            }
+#else
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
                 if (nic.OperationalStatus == OperationalStatus.Up && nic.NetworkInterfaceType != NetworkInterfaceType.Loopback)
@@ -1752,9 +1782,10 @@ namespace FalconUDP
                     }
                 }
             }
+#endif
             return ipEndPoints;
         }
-#endif
+
         
         /// <summary>
         /// Start collection <see cref="Statistics"/> or resets statistics if already started.

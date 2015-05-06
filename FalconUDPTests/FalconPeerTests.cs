@@ -5,9 +5,15 @@ using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Threading;
-using FalconUDP;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Threading.Tasks;
+using FalconUDP;
+
+#if NETFX_CORE
+using Microsoft.VisualStudio.TestPlatform.UnitTestFramework;
+using Windows.System.Threading;
+#else
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+#endif
 
 namespace FalconUDPTests
 {
@@ -29,49 +35,29 @@ namespace FalconUDPTests
         private const int MAX_REPLY_WAIT_TIME = 500; // milliseconds
         
         private static int portCount = START_PORT;
+#if NETFX_CORE
+        private static ThreadPoolTimer ticker;
+#else
         private static Thread ticker;
+#endif
+
         private static List<FalconPeer> activePeers, disableSendFromPeers;
         private static event ReplyReceived replyReceived;
         private static FalconPeer peerProcessingReceivedPacketsFor;
         private static object falconPeerLock = new object(); // lock on whenever calling something on a peer
-
-        #region Additional test attributes
-        // 
-        //You can use the following additional attributes as you write your tests:
-        //
-        //Use ClassInitialize to run code before running the first test in the class
-        //[ClassInitialize()]
-        //public static void MyClassInitialize(TestContext testContext)
-        //{
-        //}
-        //
-        //Use ClassCleanup to run code after all tests in a class have run
-        //[ClassCleanup()]
-        //public static void MyClassCleanup()
-        //{
-        //}
-        //
-        //Use TestInitialize to run code before running each test
-        //[TestInitialize()]
-        //public void MyTestInitialize()
-        //{
-        //}
-        //
-        //Use TestCleanup to run code after each test has run
-        //[TestCleanup()]
-        //public void MyTestCleanup()
-        //{
-        //}
-        //
-        #endregion
-        
+                
         public FalconPeerTests()
         {
             activePeers = new List<FalconPeer>();
             disableSendFromPeers = new List<FalconPeer>();
+            falconPeerLock = new object();
+#if NETFX_CORE
+            ticker = ThreadPoolTimer.CreatePeriodicTimer(Tick, TimeSpan.FromMilliseconds(TICK_RATE));
+#else
             ticker = new Thread(MainLoop);
             ticker.Start();
-            falconPeerLock = new object();
+#endif
+            
         }
 
         private static void ProcessReceivedPacket(Packet packet)
@@ -149,38 +135,53 @@ namespace FalconUDPTests
             }
         }
 
-        private void MainLoop()
+        private void Tick()
         {
-            while (true)
+            lock (falconPeerLock)
             {
-                lock (falconPeerLock)
+                lock (activePeers)
                 {
-                    lock (activePeers)
+                    foreach (var peer in activePeers)
                     {
-                        foreach (var peer in activePeers)
+                        peerProcessingReceivedPacketsFor = peer;
+                        if (peer.IsStarted)
                         {
-                            peerProcessingReceivedPacketsFor = peer;
-                            if (peer.IsStarted)
-                            {
-                                peer.Update();
+                            peer.Update();
 
-                                if (!disableSendFromPeers.Contains(peer))
-                                {
-                                    peer.SendEnquedPackets();
-                                }
+                            if (!disableSendFromPeers.Contains(peer))
+                            {
+                                peer.SendEnquedPackets();
                             }
                         }
                     }
                 }
+            }
+        }
+
+#if NETFX_CORE
+        private void Tick(ThreadPoolTimer sender)
+        {
+            Tick();
+        }
+
+#else
+        private void MainLoop()
+        {
+            while (true)
+            {
+                Tick();
                 Thread.Sleep(TICK_RATE);
             }
         }
+#endif
 
         private int GetUnusedPortNumber()
         {
             portCount++;
+#if !NETFX_CORE
             while(IPGlobalProperties.GetIPGlobalProperties().GetActiveUdpListeners().Any(ip => ip.Port == portCount))
                 portCount++;
+#endif
             return portCount;
         }
         
@@ -244,7 +245,8 @@ namespace FalconUDPTests
                 otherPeers.Add(otherPeer);
             }
 
-            otherPeers.ForEach(fp => fp.SetVisibility(false, null, false));
+            foreach (var fp in otherPeers)
+                fp.SetVisibility(false, null, false);
 
             return otherPeers;
         }
@@ -330,7 +332,11 @@ namespace FalconUDPTests
                 host.EnqueueSendToAll(SendOptions.ReliableInOrder, GetPingPacket(host));
             }
 
+#if NETFX_CORE
+            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+#else
             Thread.Sleep(MAX_REPLY_WAIT_TIME);
+#endif
 
             Assert.IsTrue(pongReceived, "Pong from Ping not received in time!");
         }
@@ -401,14 +407,12 @@ namespace FalconUDPTests
             var allPeers = new List<FalconPeer>(otherPeers);
             allPeers.Add(peer1);
 
-            allPeers.ForEach(p =>
-                {
-    #if DEBUG
-                    p.SetLogLevel(LogLevel.Debug);
-    #endif
-                });
-
-
+#if DEBUG
+            foreach (var p in allPeers)
+            {
+                p.SetLogLevel(LogLevel.Debug);
+            }
+#endif
             var rand = new Random();
             var numRemotePeers = NUM_OF_PEERS-1;
 
@@ -510,8 +514,12 @@ namespace FalconUDPTests
             var peer1 = CreateAndStartLocalPeer();
             peer1.SetVisibility(true, null, true);
             var otherPeers = ConnectXNumOfPeers(peer1, NUM_OF_PEERS - 1, null);
-            
-            Thread.Sleep(MAX_REPLY_WAIT_TIME); // allow AcceptJoin's ACK to get through
+
+#if NETFX_CORE
+            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+#else
+            Thread.Sleep(MAX_REPLY_WAIT_TIME);  // allow AcceptJoin's ACK to get through
+#endif
 
             // Stop other peers without saying bye, wait a while and assert they were dropped from 
             // peer1 which must be the result of a KeepAlive not being ACK'd since we never sent 
@@ -525,7 +533,11 @@ namespace FalconUDPTests
             // ASSUMING: AckTimeout of 1.5 and MaxResends of 7
             int timeToWait = (int)((peer1.KeepAliveInterval.TotalMilliseconds * 2) + 36000);
             timeToWait += TICK_RATE * peer1.MaxMessageResends;
+#if NETFX_CORE
+            TaskHelper.Sleep(timeToWait);
+#else
             Thread.Sleep(timeToWait);
+#endif
 
             var connectedPeers = peer1.GetAllRemotePeers();
             Assert.AreEqual(connectedPeers.Count, 0, String.Format("{0} other peers were stopped but are still connected to peer1!", connectedPeers.Count));
@@ -542,7 +554,11 @@ namespace FalconUDPTests
             {
                 ConnectToLocalPeer(peer2, peer1, null);
 
-                Thread.Sleep(MAX_REPLY_WAIT_TIME); // allow AcceptJoin's ACK to get through
+#if NETFX_CORE
+                TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+#else
+                Thread.Sleep(MAX_REPLY_WAIT_TIME);  // allow AcceptJoin's ACK to get through
+#endif
 
                 var pongReceived = false;
                 var waitHandel = new AutoResetEvent(false);
@@ -625,7 +641,11 @@ namespace FalconUDPTests
             }
 
             // wait for final ACK to get through
+#if NETFX_CORE
+            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+#else
             Thread.Sleep(MAX_REPLY_WAIT_TIME);
+#endif
             estimated = (float)peer1.GetPeerQualityOfService(1).RoudTripTime.TotalSeconds;
             Debug.WriteLine("ESTIMATED: {0}", estimated);
             estimatedLatencies[NUM_OF_PINGS-1] = estimated;
@@ -647,7 +667,7 @@ namespace FalconUDPTests
             var waitHandel = new ManualResetEvent(false);
             var discoveredPeer1 = false;
 
-            peer2.DiscoverFalconPeersAsync(TimeSpan.FromMilliseconds(100), peer1.Port, DISCOVERY_TOKEN, ips => 
+            peer2.DiscoverFalconPeersAsync(TimeSpan.FromMilliseconds(10000), peer1.Port, DISCOVERY_TOKEN, ips => 
                 {
                     if(ips!= null && ips.Length > 0 && ips[0].Port == peer1.Port)
                         discoveredPeer1 = true;
@@ -725,7 +745,11 @@ namespace FalconUDPTests
                     }
                 };
 
+#if NETFX_CORE
+            peer2.PingEndPoint(new IPEndPoint("127.0.0.1", peer1.Port));
+#else
             peer2.PingEndPoint(new IPEndPoint(IPAddress.Loopback, peer1.Port));
+#endif
 
             waitHandel.WaitOne(MAX_REPLY_WAIT_TIME);
 
@@ -782,7 +806,12 @@ namespace FalconUDPTests
             var peer2 = CreateAndStartLocalPeer();
             ConnectToLocalPeer(peer2, peer1, null);
 
-            Thread.Sleep(MAX_REPLY_WAIT_TIME); // allow AcceptJoin's ACK to get through
+            // allow AcceptJoin's ACK to get through
+#if NETFX_CORE
+            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+#else
+            Thread.Sleep(MAX_REPLY_WAIT_TIME);
+#endif
 
             // Stop peer2 without saying bye then attempt to re-connect. Peer1 will be surprised 
             // we are sending a JoinRequest as will think we are already connected, nonetheless see
@@ -790,13 +819,21 @@ namespace FalconUDPTests
 
             peer2.Stop(false);
 
+#if NETFX_CORE
+            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME / 2);
+#else
             Thread.Sleep(MAX_REPLY_WAIT_TIME / 2);
+#endif
 
             peer2.TryStart();
 
             ConnectToLocalPeer(peer2, peer1, null, null);
 
+#if NETFX_CORE
+            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+#else
             Thread.Sleep(MAX_REPLY_WAIT_TIME);
+#endif
 
             Assert.AreEqual(1, peer2.GetAllRemotePeers().Count, "Peer2 failed to re-join Peer1 after abruptly disconnecting without saying bye.");
             Assert.AreEqual(1, peer1.GetAllRemotePeers().Count, "Peer2 failed to re-join Peer1 after abruptly disconnecting without saying bye.");

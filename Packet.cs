@@ -660,7 +660,7 @@ namespace FalconUDP
         {
 #if NETFX_CORE
             WriteStringPrefixSize(ipEndPoint.Address.RawName, Encoding.UTF8);
-            WriteStringPrefixSize(ipEndPoint.Port, Encoding.UTF8);
+            WriteStringPrefixSize(ipEndPoint.PortAsString, Encoding.UTF8);
 #else
 #pragma warning disable 0618
             WriteInt64(ipEndPoint.Address.Address);

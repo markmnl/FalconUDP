@@ -8,9 +8,9 @@ using Windows.Networking;
 namespace FalconUDP
 {
     /// <summary>
-    /// Replacement for IPEndPoint which no in NETFX_CORE which uses strings instead?!
+    /// Replacement for IPEndPoint missing in NETFX_CORE which uses strings instead?!
     /// </summary>
-    public class IPEndPoint
+    public class IPEndPoint : IEquatable<IPEndPoint>
     {
         private HostName hostName;
         private string portAsString;
@@ -19,8 +19,30 @@ namespace FalconUDP
         private int hash;
         private string asString;
 
-        internal HostName Address { get { return hostName; } }    //} NETFX_CORE expects these silly types using it's API
-        internal string Port { get { return portAsString; } }     //} 
+        public int Port { get { return port; } }
+
+        internal HostName Address { get { return hostName; } }            //} NETFX_CORE expects these silly types using it's API
+        internal string PortAsString { get { return portAsString; } }     //} 
+
+        internal IPEndPoint(uint ip, ushort port)
+        {
+            this.ip = ip;
+            this.port = port;
+
+            var ipAsString = String.Format("{0}.{1}.{2}.{3}", 
+                ((ip & 0xFF000000) >> (8 * 3)),
+                ((ip & 0x00FF0000) >> (8 * 2)),
+                ((ip & 0x0000FF00) >> 8),
+                ((ip & 0x000000FF)));
+
+            this.hostName = new HostName(ipAsString);
+            this.portAsString = port.ToString();
+        }
+
+        public IPEndPoint(string addr, int port)
+            : this(addr, port.ToString())
+        {
+        }
 
         public IPEndPoint(string addr, string port)
         {

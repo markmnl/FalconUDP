@@ -43,6 +43,7 @@ namespace FalconUDP
             this.messagesBuffer = new byte[localPeer.ReceiveBufferSize];
             this.messageDetails = new Queue<MessageDetail>();
             this.outputStreams = new Dictionary<IPEndPoint, IOutputStream>();
+            
         }
 
         private void SetEF()
@@ -57,28 +58,35 @@ namespace FalconUDP
             isEFSet = false;
         }
 
-        private void OnMessageRecieved(DatagramSocket sender, DatagramSocketMessageReceivedEventArgs args)
+        private void OnMessageReceived(DatagramSocket sender, DatagramSocketMessageReceivedEventArgs args)
         {
             // NOTE: This event is raised on different threads
 
             lock (messagesBuffer)
             {
-                using (var dr = args.GetDataReader()) // TODO how to prevent garbage here? https://social.msdn.microsoft.com/Forums/windowsapps/en-US/b1d490f7-a637-4648-925a-99fd7f55af1d/missing-datareader-and-datawriter-readbytes-and-writebytes-overloads-to-which-a?forum=winappswithcsharp#b1d490f7-a637-4648-925a-99fd7f55af1d
+                try
                 {
-                    var size = (int)dr.UnconsumedBufferLength;
-                    var datagram = dr.ReadBuffer(dr.UnconsumedBufferLength);
-                    
-                    datagram.CopyTo(0, messagesBuffer, messagesBufferIndex, size);
-
-                    messagesBufferIndex += size;
-
-                    messageDetails.Enqueue(new MessageDetail
+                    using (var dr = args.GetDataReader()) // TODO how to prevent garbage here? https://social.msdn.microsoft.com/Forums/windowsapps/en-US/b1d490f7-a637-4648-925a-99fd7f55af1d/missing-datareader-and-datawriter-readbytes-and-writebytes-overloads-to-which-a?forum=winappswithcsharp#b1d490f7-a637-4648-925a-99fd7f55af1d
                     {
-                        Index = messagesBufferIndex,
-                        Count = size,
-                        RemoteAddress = args.RemoteAddress,
-                        RemotePort = args.RemotePort
-                    });
+                        var size = (int)dr.UnconsumedBufferLength;
+                        var datagram = dr.ReadBuffer(dr.UnconsumedBufferLength);
+
+                        datagram.CopyTo(0, messagesBuffer, messagesBufferIndex, size);
+
+                        messageDetails.Enqueue(new MessageDetail
+                        {
+                            Index = messagesBufferIndex,
+                            Count = size,
+                            RemoteAddress = args.RemoteAddress,
+                            RemotePort = args.RemotePort
+                        });
+
+                        messagesBufferIndex += size;
+                    }
+                }
+                catch (Exception)
+                {
+                    // e.g. connection closed
                 }
             }
         }
@@ -87,10 +95,19 @@ namespace FalconUDP
         {
             try
             {
-                datagramSocket.MessageReceived += OnMessageRecieved;
+                datagramSocket = new DatagramSocket();
+
+                SetEF();
+
+                datagramSocket.MessageReceived += OnMessageReceived;
+
+                // HACK: We know this is not an async op and will be run in-line so avoid breaking our API
+                //       and "wait" for op to complete.
+                //
                 var asyncOp = datagramSocket.BindServiceNameAsync(localPeer.Port.ToString());
                 var task = asyncOp.AsTask();
                 task.Wait();
+
                 return FalconOperationResult.SuccessResult;
             }
             catch (Exception ex)
@@ -102,7 +119,6 @@ namespace FalconUDP
 
         public void Stop()
         {
-            datagramSocket.MessageReceived -= OnMessageRecieved;
             datagramSocket.Dispose();
         }
 
@@ -118,8 +134,8 @@ namespace FalconUDP
                 // If no more details remain all messages have been read from buffer, reset index
                 // so future messages can re-use the messagesBuffer.
                 //
-                // ASSUMPTION: We will never receive more messages than messageBuffer between 
-                //             reads to read all messages
+                // ASSUMPTION: We will never receive more messages than messageBuffer can hold 
+                //             between reads to read all messages
                 // 
                 if (messageDetails.Count == 0)
                     messagesBufferIndex = 0;
@@ -139,13 +155,8 @@ namespace FalconUDP
 
         public bool Send(byte[] buffer, int index, int count, IPEndPoint ip, bool expidite)
         {
-            if (expidite != isEFSet)
-            {
-                if (expidite)
-                    SetEF();
-                else
-                    UnsetEF();
-            }
+            // NOTE: NETFX_CORE does not support changing EF so we are stuck with what we set when 
+            //       DatagramSocket created and ignore expidite.
 
             // The DatagramSocket sample (https://code.msdn.microsoft.com/windowsapps/DatagramSocket-sample-76a7d82b) 
             // says creating OutputStreams per datagram is costly and recommends caching them. An 
@@ -156,9 +167,13 @@ namespace FalconUDP
             IOutputStream outputStream;
             if (!outputStreams.TryGetValue(ip, out outputStream))
             {
-                var asyncOp = datagramSocket.GetOutputStreamAsync(ip.Address, ip.Port);
+                // HACK: We know this is not an async op and will be run in-line so avoid breaking our API
+                //       and "wait" for op to complete.
+                //
+                var asyncOp = datagramSocket.GetOutputStreamAsync(ip.Address, ip.PortAsString);
                 var task = asyncOp.AsTask();
                 task.Wait();
+
                 outputStream = task.Result;
             }
 
@@ -168,6 +183,9 @@ namespace FalconUDP
             {
                 var rtBuffer = buffer.AsBuffer(index, count);
 
+                // HACK: We know this is not an async op and will be run in-line so avoid breaking our API
+                //       and "wait" for op to complete.
+                //
                 var asyncOp = outputStream.WriteAsync(rtBuffer);
                 var task = asyncOp.AsTask();
                 task.Wait();
