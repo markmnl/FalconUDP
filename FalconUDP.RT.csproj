@@ -124,6 +124,7 @@
     <Compile Include="FalconOperationResult.cs" />
     <Compile Include="FalconPeer.cs" />
     <Compile Include="IFalconTransceiver.cs" />
+    <Compile Include="IPAddress.cs" />
     <Compile Include="IPEndPoint.cs" />
     <Compile Include="PacketPool.cs" />
     <Compile Include="PingDetail.cs" />
