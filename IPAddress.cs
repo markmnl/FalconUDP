@@ -1,5 +1,5 @@
 ﻿
-namespace FalconUDP.RT
+namespace FalconUDP
 {
     public static class IPAddress
     {
