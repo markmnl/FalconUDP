@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Windows.Networking;
 
 namespace FalconUDP
@@ -109,7 +105,7 @@ namespace FalconUDP
         
         public override int GetHashCode()
         {
-            if (hash == null)
+            if (hash == 0)
                 hash = unchecked((int)this.ip) ^ this.port;
             return hash;
         }
