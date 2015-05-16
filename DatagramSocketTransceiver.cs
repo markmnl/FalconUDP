@@ -110,10 +110,10 @@ namespace FalconUDP
 
                 return FalconOperationResult.SuccessResult;
             }
-            catch (Exception ex)
+            catch (AggregateException aex)
             {
                 // e.g. address already in use
-                return new FalconOperationResult(ex);
+                return new FalconOperationResult(aex.InnerExceptions.Count > 0 ? aex.InnerExceptions[0] : aex);
             }
         }
 
@@ -190,8 +190,9 @@ namespace FalconUDP
                 var task = asyncOp.AsTask();
                 task.Wait();
             }
-            catch (Exception ex)
+            catch (AggregateException aex)
             {
+                var ex = aex.InnerExceptions.Count > 0 ? aex.InnerExceptions[0] : aex;
                 localPeer.Log(LogLevel.Error, String.Format("DatagramSocket Error {0}: sending to peer: {1}", ex.Message, ip.ToString()));
                 return false;
             }
