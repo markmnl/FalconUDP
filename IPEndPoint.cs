@@ -20,6 +20,8 @@ namespace FalconUDP
         internal HostName Address { get { return hostName; } }            //} NETFX_CORE expects these silly types using it's API
         internal string PortAsString { get { return portAsString; } }     //} 
 
+        internal long AddressAsLong { get { return ip; } }
+
         internal IPEndPoint(uint ip, ushort port)
         {
             this.ip = ip;

@@ -315,10 +315,13 @@ namespace FalconUDP
         /// <returns>An <see cref="IPEndPoint"/></returns>
         public IPEndPoint ReadIPEndPoint()
         {
+            long addr = ReadInt64();
+            int port = ReadUInt16();
+
 #if NETFX_CORE
-            return new IPEndPoint(ReadStringPrefixedWithSize(Encoding.UTF8), ReadStringPrefixedWithSize(Encoding.UTF8));
+            return new IPEndPoint((uint)addr, (ushort)port);
 #else
-            return new IPEndPoint(ReadInt64(), ReadUInt16());
+            return new IPEndPoint(addr, port);
 #endif
         }
 
@@ -659,8 +662,8 @@ namespace FalconUDP
         public void WriteIPEndPoint(IPEndPoint ipEndPoint)
         {
 #if NETFX_CORE
-            WriteStringPrefixSize(ipEndPoint.Address.RawName, Encoding.UTF8);
-            WriteStringPrefixSize(ipEndPoint.PortAsString, Encoding.UTF8);
+            WriteInt64(ipEndPoint.AddressAsLong);
+            WriteUInt16((ushort)ipEndPoint.Port);
 #else
 #pragma warning disable 0618
             WriteInt64(ipEndPoint.Address.Address);
