@@ -55,13 +55,17 @@ namespace FalconUDP
 
         private void SetEF()
         {
+#if !PS4
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, EFTypeOfService);
+#endif
             isEFSet = true;
         }
 
         private void UnsetEF()
         {
+#if !PS4
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, DefaultTypeOfService);
+#endif
             isEFSet = false; 
         }
 
