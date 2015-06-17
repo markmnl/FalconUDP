@@ -13,6 +13,10 @@ Global
 		MonoLinuxDebug|x86 = MonoLinuxDebug|x86
 		MonoLinuxRelease|Any CPU = MonoLinuxRelease|Any CPU
 		MonoLinuxRelease|x86 = MonoLinuxRelease|x86
+		MonoPS4Debug|Any CPU = MonoPS4Debug|Any CPU
+		MonoPS4Debug|x86 = MonoPS4Debug|x86
+		MonoPS4Release|Any CPU = MonoPS4Release|Any CPU
+		MonoPS4Release|x86 = MonoPS4Release|x86
 		Release|Any CPU = Release|Any CPU
 		Release|x86 = Release|x86
 	EndGlobalSection
@@ -29,6 +33,14 @@ Global
 		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoLinuxRelease|Any CPU.Build.0 = MonoLinuxRelease|Any CPU
 		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoLinuxRelease|x86.ActiveCfg = MonoLinuxRelease|x86
 		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoLinuxRelease|x86.Build.0 = MonoLinuxRelease|x86
+		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoPS4Debug|Any CPU.ActiveCfg = MonoPS4Debug|Any CPU
+		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoPS4Debug|Any CPU.Build.0 = MonoPS4Debug|Any CPU
+		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoPS4Debug|x86.ActiveCfg = MonoPS4Debug|x86
+		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoPS4Debug|x86.Build.0 = MonoPS4Debug|x86
+		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoPS4Release|Any CPU.ActiveCfg = MonoPS4Release|Any CPU
+		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoPS4Release|Any CPU.Build.0 = MonoPS4Release|Any CPU
+		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoPS4Release|x86.ActiveCfg = MonoPS4Release|x86
+		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.MonoPS4Release|x86.Build.0 = MonoPS4Release|x86
 		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.Release|Any CPU.Build.0 = Release|Any CPU
 		{5CDA9619-2E01-423B-B890-5D84E5A41CE9}.Release|x86.ActiveCfg = Release|x86
@@ -45,6 +57,14 @@ Global
 		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoLinuxRelease|Any CPU.Build.0 = MonoLinuxRelease|Any CPU
 		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoLinuxRelease|x86.ActiveCfg = MonoLinuxRelease|x86
 		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoLinuxRelease|x86.Build.0 = MonoLinuxRelease|x86
+		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoPS4Debug|Any CPU.ActiveCfg = MonoPS4Debug|Any CPU
+		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoPS4Debug|Any CPU.Build.0 = MonoPS4Debug|Any CPU
+		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoPS4Debug|x86.ActiveCfg = MonoPS4Debug|x86
+		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoPS4Debug|x86.Build.0 = MonoPS4Debug|x86
+		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoPS4Release|Any CPU.ActiveCfg = MonoPS4Release|Any CPU
+		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoPS4Release|Any CPU.Build.0 = MonoPS4Release|Any CPU
+		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoPS4Release|x86.ActiveCfg = MonoPS4Release|x86
+		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.MonoPS4Release|x86.Build.0 = MonoPS4Release|x86
 		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F5096E04-4695-4982-99FD-6EC896E8ED5E}.Release|x86.ActiveCfg = Release|x86
