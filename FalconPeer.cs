@@ -1192,10 +1192,8 @@ namespace FalconUDP
             broadcastEndPoints = new List<IPEndPoint>();
 
 #if PS4
-            // TODO FIXME
-            var addr = new IPAddress(new byte[] { 192, 168, 1, 17 });
-            LocalAddresses.Add(addr);
-            broadcastEndPoints.Add(new IPEndPoint(new IPAddress(new byte[] { 192, 168, 1, 255 }), this.port));
+            // PS4 auto calcs correct broadcast
+            broadcastEndPoints.Add(new IPEndPoint(new IPAddress(new byte[] { 255, 255, 255, 255 }), this.port));
 #elif NETFX_CORE
             foreach (HostName localHostInfo in NetworkInformation.GetHostNames())
             {
@@ -1259,8 +1257,10 @@ namespace FalconUDP
             }
 #endif
 
+#if !PS4
             if (LocalAddresses.Count == 0)
                 return new FalconOperationResult(false, "No operational IPv4 network interface found.");
+#endif
 
             FalconOperationResult startResult = Transceiver.TryStart();
             if (!startResult.Success)
