@@ -15,9 +15,13 @@ namespace FalconUDP
         private FalconPeer localPeer;
         private EndPoint placeHolderEndPoint = new IPEndPoint(IPAddress.Any, 30000);
 
+
         public int BytesAvaliable
         {
-            get { return socket.Available; }
+            get 
+            { 
+                return socket.Available; 
+            }
         }
 
         public SocketTransceiver(FalconPeer localPeer)
@@ -55,17 +59,13 @@ namespace FalconUDP
 
         private void SetEF()
         {
-#if !PS4
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, EFTypeOfService);
-#endif
             isEFSet = true;
         }
 
         private void UnsetEF()
         {
-#if !PS4
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.TypeOfService, DefaultTypeOfService);
-#endif
             isEFSet = false; 
         }
 

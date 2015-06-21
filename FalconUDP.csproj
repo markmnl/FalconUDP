@@ -105,6 +105,7 @@
     <Compile Include="IFalconTransceiver.cs" />
     <Compile Include="PacketPool.cs" />
     <Compile Include="PingDetail.cs" />
+    <Compile Include="AutonomousTransciever.cs" />
     <Compile Include="QualityOfService.cs" />
     <Compile Include="ReceiveChannel.cs" />
     <Compile Include="SendChannel.cs" />

@@ -554,18 +554,9 @@ namespace FalconUDP
                 remotePeersToRemove.Clear();
             }
 
-            // NOTE: On PS4 (well the mono runtime I used on PS4) Socket.Avaliable throws 
-            //       SocketException: Invalid arguments?!
-            //
-            //       Socket.RecieveFrom() on the other hand does not even if there are no 
-            //       datagrams (normally if no bytes avaliable calling ReceiveFrom() would 
-            //       throw a SocketException).
-
             // read received datagrams
-#if !PS4
             while (Transceiver.BytesAvaliable > 0)
             {
-#endif
                 IPEndPoint fromIPEndPoint = anyAddrEndPoint;
      
                 int size = Transceiver.Read(receiveBuffer, ref fromIPEndPoint);
@@ -585,9 +576,7 @@ namespace FalconUDP
 
                     ProcessReceivedDatagram((IPEndPoint)fromIPEndPoint, receiveBuffer, size);
                 }
-#if !PS4
             }
-#endif
 
             // pings awaiting pong 
             if (PingsAwaitingPong.Count > 0)
