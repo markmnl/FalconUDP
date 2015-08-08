@@ -2,17 +2,16 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Net;
-using System.Net.NetworkInformation;
 using System.Threading;
-using System.Threading.Tasks;
 using FalconUDP;
-
 #if NETFX_CORE
 using Microsoft.VisualStudio.TestPlatform.UnitTestFramework;
 using Windows.System.Threading;
 #else
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Threading.Tasks;
 #endif
 
 namespace FalconUDPTests
@@ -32,8 +31,12 @@ namespace FalconUDPTests
     {
         private const int START_PORT = 37986;
         private const int TICK_RATE = 20;
+#if NETFX_CORE
+        private const int MAX_REPLY_WAIT_TIME = 5000; // milliseconds
+#else
         private const int MAX_REPLY_WAIT_TIME = 500; // milliseconds
-        
+#endif
+
         private static int portCount = START_PORT;
 #if NETFX_CORE
         private static ThreadPoolTimer ticker;
@@ -333,7 +336,7 @@ namespace FalconUDPTests
             }
 
 #if NETFX_CORE
-            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+            TaskHelper.Sleep(5000);
 #else
             Thread.Sleep(MAX_REPLY_WAIT_TIME);
 #endif
