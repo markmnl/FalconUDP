@@ -25,6 +25,7 @@ namespace FalconUDP
         private IPEndPoint endPoint;
         private float ellapasedSecondsSinceLastRealiablePacket;                 // if this remote peer is the keep alive master; this is since last reliable packet sent to it, otherwise since the last reliable received from it
         private float ellapsedSecondsSinceSendQueuesLastFlushed;
+        private bool hasAccepted;                                               // We have recieved an ACK from this peer (the first ACK if in response to Accept)
 
         internal bool IsKeepAliveMaster;                                        // i.e. this remote peer is the master so it will send the KeepAlives, not us!
         internal int Id { get; private set; }
@@ -550,14 +551,19 @@ namespace FalconUDP
                         }
                         else
                         {
+                            // recieving our first ACK from this peer means they have Accepted us
+                            if (!hasAccepted)
+                                hasAccepted = true;
+
                             // remove datagram
                             sentDatagramsAwaitingACK.RemoveAt(datagramIndex);
 
                             // Update QoS
-
+                            // ----------
+                            //
                             // If the datagram was not re-sent update latency, otherwise we do not 
                             // know which send this ACK is for so cannot determine latency.
-
+                            //
                             // Also update re-sends sample if datagram was not re-sent with: not 
                             // re-sent. If was re-sent sample would have already been updated when 
                             // re-sent.
@@ -583,7 +589,6 @@ namespace FalconUDP
 
                         return true;
                     }
-                
                 case PacketType.Ping:
                     {
                         return Pong();
@@ -604,22 +609,23 @@ namespace FalconUDP
                     }
                 case PacketType.JoinRequest:
                     {
-                        // Must be hasn't received Accept yet or is joining again - possible when 
-                        // did not say Bye and has restarted again before timed out. Reset channels
-                        // and remove any enqued as it must be starting afresh, then send accept.
-                        noneSendChannel.ReturnLeasedDatagrams();
-                        inOrderSendChannel.ReturnLeasedDatagrams();
-                        reliableSendChannel.ReturnLeasedDatagrams();
-                        reliableInOrderSendChannel.ReturnLeasedDatagrams();
-                        noneReceiveChannel.ReturnLeasedPackets();
-                        inOrderReceiveChannel.ReturnLeasedPackets();
-                        reliableReceiveChannel.ReturnLeasedPackets();
-                        reliableInOrderReceiveChannel.ReturnLeasedPackets();
-
-                        CreateSendRecieveChannels();
-
-                        enqueudAcks.Clear();
-                        
+                        if (hasAccepted)
+                        {
+                            // If peer has accepted must be is joining again (possible when did not
+                            // say Bye and has restarted again before timed out). Drop this 
+                            // instance of peer and process Accept next update so both peers on 
+                            // the same page, i.e. that we are starting a new connection.
+                            //
+                            byte[] datagram = new byte[Const.FALCON_PACKET_HEADER_SIZE + payloadSize];
+                            FalconHelper.WriteFalconHeader(datagram, 0, PacketType.JoinRequest, SendOptions.None, (ushort)seq, (ushort)payloadSize);
+                            if (payloadSize > 0)
+                            {
+                                Buffer.BlockCopy(buffer, index, datagram, Const.FALCON_PACKET_HEADER_SIZE, payloadSize);
+                            }
+                            localPeer.RemovePeerOnNextUpdate(this);
+                            localPeer.EnqueuePacketToProcessOnNextUpdate(this.EndPoint, datagram);
+                            return false;
+                        }
                         return Accept();
                     }
                 case PacketType.DiscoverRequest:

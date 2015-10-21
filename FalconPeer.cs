@@ -50,6 +50,7 @@ namespace FalconUDP
         private readonly List<AwaitingAcceptDetail> awaitingAcceptDetails;
         private readonly List<Packet> readPacketsList;
         private readonly List<RemotePeer> remotePeersToRemove;
+        private readonly Queue<Tuple<IPEndPoint,byte[]>> dummyDatagramsToProcess   ;
         private readonly GenericObjectPool<EmitDiscoverySignalTask> emitDiscoverySignalTaskPool;
         private readonly GenericObjectPool<PingDetail> pingPool;
         private readonly List<EmitDiscoverySignalTask> discoveryTasks;
@@ -446,6 +447,7 @@ namespace FalconUDP
             this.readPacketsList = new List<Packet>();
             this.stopped = true;
             this.remotePeersToRemove = new List<RemotePeer>();
+            this.dummyDatagramsToProcess = new Queue<Tuple<IPEndPoint,byte[]>>();
             this.Stopwatch = new Stopwatch();
 
             // pools
@@ -552,6 +554,13 @@ namespace FalconUDP
                     RemovePeer(remotePeersToRemove[i], false);
                 }
                 remotePeersToRemove.Clear();
+            }
+
+            // dummy datagrams
+            while (dummyDatagramsToProcess.Count > 0)
+            {
+                Tuple<IPEndPoint, byte[]> datagram = dummyDatagramsToProcess.Dequeue();
+                ProcessReceivedDatagram(datagram.Item1, datagram.Item2, datagram.Item2.Length);
             }
 
             // read received datagrams
@@ -1089,6 +1098,11 @@ namespace FalconUDP
         internal void RemovePeerOnNextUpdate(RemotePeer rp)
         {
             remotePeersToRemove.Add(rp);
+        }
+
+        internal void EnqueuePacketToProcessOnNextUpdate(IPEndPoint fromIPEndPoint, byte[] datagram)
+        {
+            dummyDatagramsToProcess.Enqueue(Tuple.Create(fromIPEndPoint, datagram));
         }
         
         [Conditional("DEBUG")]
