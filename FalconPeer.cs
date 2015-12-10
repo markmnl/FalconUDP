@@ -22,6 +22,11 @@ namespace FalconUDP
         /// </summary>
         public const int MaxDatagramSize = 1400;
 
+        /// <summary>
+        /// Maximum timeout for response from a single ACK. ACK timeout increases each re-send up to this ceiling.
+        /// </summary>
+        public const float MaxAckTimeoutSeconds = 7.0f;
+
         //
         // Configurable Settings REMEMBER to update XML doc if change defaults. We favour fields
         // instead of properties for members accessed frequently outside of this class internally 
@@ -36,11 +41,12 @@ namespace FalconUDP
         internal int        OutOfOrderTolerance             = 100;
         internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
         internal float      KeepAliveIntervalSeconds        = 10.0f;
-        internal float      KeepAliveProbeAfterSeconds      = 19.5f; // after KeepAlive + 3 re-sends
+        internal float      KeepAliveProbeAfterSeconds      = 0.0f; // Calculated, see UpdateProbeKeepAliveIfNoKeepAlive
         internal float      AutoFlushIntervalSeconds        = 0.5f;
         internal float      PingTimeoutSeconds              = 3.0f;
         internal float      SimulateLatencySeconds          = 0.0f;
         internal float      SimulateJitterSeconds           = 0.0f;
+        internal float      quickDisconnectTimeout          = 0.0f; // Calculated, see UpdateQuickDiconnectTimeout()
         internal double     SimulatePacketLossProbability   = 0.0;
         
         private readonly ProcessReceivedPacket processReceivedPacketDelegate;
@@ -57,7 +63,7 @@ namespace FalconUDP
         private readonly List<Guid> onlyReplyToDiscoveryRequestsWithToken;
         private readonly RemotePeer unknownPeer;                         // peer re-used to send unsolicited messages to
         private readonly DatagramPool sendDatagramsPool;
-
+        
         private int port;
         private IPEndPoint anyAddrEndPoint;
         private int peerIdCount;
@@ -69,6 +75,7 @@ namespace FalconUDP
         private float ellapsedSecondsAtLastUpdate;
         private bool replyToAnyDiscoveryRequests;                       // i.e. reply unconditionally with or without a token
         private List<IPEndPoint> broadcastEndPoints;
+
     
 #if DEBUG
         private LogLevel logLvl;
@@ -172,6 +179,7 @@ namespace FalconUDP
                     throw new ArgumentOutOfRangeException("value", "must be greater than 0");
                 AckTimeoutSeconds = seconds;
                 UpdateProbeKeepAliveIfNoKeepAlive();
+                UpdateQuickDisconnectTimeout();
             }
         }
 
@@ -192,6 +200,7 @@ namespace FalconUDP
                     throw new ArgumentOutOfRangeException("value", "cannot be less than 0");
                 MaxResends = value;
                 UpdateProbeKeepAliveIfNoKeepAlive();
+                UpdateQuickDisconnectTimeout();
             }
         }
 
@@ -483,6 +492,10 @@ namespace FalconUDP
             }
             Log(LogLevel.Info, "Initialized");
 #endif
+
+            // calculated vars
+            UpdateProbeKeepAliveIfNoKeepAlive();
+            UpdateQuickDisconnectTimeout();
         }
                 
         private void CheckStarted()
@@ -512,6 +525,20 @@ namespace FalconUDP
                 AckTimeoutSeconds * 2 + 
                 AckTimeoutSeconds * 3 +
                 0.5f;
+        }
+
+        private void UpdateQuickDisconnectTimeout()
+        {
+            // If time between calls to Update exceeds this, drop all peers rather then waiting to 
+            // learn they would have dropped us (becuase we know they would dropped us as we could 
+            // not have responded).
+
+            float total = 0.0f;
+            for(int i = 1; i <= MaxResends; i++)
+            {
+                total += Math.Min(AckTimeoutSeconds * i, MaxAckTimeoutSeconds);
+            }
+            quickDisconnectTimeout = total;
         }
 
         private void ProcessReceivedPackets()
@@ -1191,7 +1218,7 @@ namespace FalconUDP
             if (resendCount == 0)
                 return AckTimeoutSeconds;
 
-            return Math.Min(AckTimeoutSeconds + AckTimeoutSeconds * resendCount, 7.0f);
+            return Math.Min(AckTimeoutSeconds + AckTimeoutSeconds * resendCount, MaxAckTimeoutSeconds);
         }
 
         /// <summary>
@@ -1844,6 +1871,11 @@ namespace FalconUDP
             float ellapsedSeconds = (float)Stopwatch.Elapsed.TotalSeconds;
             float dt = ellapsedSeconds - ellapsedSecondsAtLastUpdate;
             ellapsedSecondsAtLastUpdate = ellapsedSeconds;
+
+            // quick disconnect
+            if (dt > quickDisconnectTimeout)
+                RemoveAllPeers();
+
             Update(dt);
         }
 

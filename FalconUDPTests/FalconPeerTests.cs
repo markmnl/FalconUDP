@@ -41,13 +41,13 @@ namespace FalconUDPTests
 #if NETFX_CORE
         private static ThreadPoolTimer ticker;
 #else
-        private static Thread ticker;
+        private Thread ticker;
 #endif
 
-        private static List<FalconPeer> activePeers, disableSendFromPeers;
-        private static event ReplyReceived replyReceived;
-        private static FalconPeer peerProcessingReceivedPacketsFor;
-        private static object falconPeerLock = new object(); // lock on whenever calling something on a peer
+        private List<FalconPeer> activePeers, disableSendFromPeers;
+        private event ReplyReceived replyReceived;
+        private FalconPeer peerProcessingReceivedPacketsFor;
+        private object falconPeerLock = new object(); // lock on whenever calling something on a peer
                 
         public FalconPeerTests()
         {
@@ -63,7 +63,7 @@ namespace FalconUDPTests
             
         }
 
-        private static void ProcessReceivedPacket(Packet packet)
+        private void ProcessReceivedPacket(Packet packet)
         {
             IPEndPoint sender;
             FalconPeer peer = peerProcessingReceivedPacketsFor;
@@ -188,7 +188,7 @@ namespace FalconUDPTests
             return portCount;
         }
         
-        private FalconPeer CreateAndStartLocalPeer(int port = -1)
+        private FalconPeer CreateAndStartLocalPeer(int port = -1, float ackTimeout = Single.NaN, float keepAliveInterval = Single.NaN)
         {
             if(port == -1)
                 port = GetUnusedPortNumber();
@@ -197,6 +197,16 @@ namespace FalconUDPTests
 #else
             FalconPeer peer = new FalconPeer(port, ProcessReceivedPacket, FalconPoolSizes.Default);
 #endif
+            if (!Single.IsNaN(ackTimeout))
+            {
+                peer.AckTimeout = TimeSpan.FromSeconds(ackTimeout);
+            }
+
+            if (!Single.IsNaN(keepAliveInterval))
+            {
+                peer.KeepAliveInterval = TimeSpan.FromSeconds(keepAliveInterval);
+            }
+
             var tr = peer.TryStart(); 
             Assert.IsTrue(tr.Success, tr.NonSuccessMessage);
             if (tr.Success)
@@ -413,7 +423,7 @@ namespace FalconUDPTests
 #if DEBUG
             foreach (var p in allPeers)
             {
-                p.SetLogLevel(LogLevel.Debug);
+                p.SetLogLevel(FalconUDP.LogLevel.Debug);
             }
 #endif
             var rand = new Random();
@@ -841,6 +851,54 @@ namespace FalconUDPTests
             Assert.AreEqual(1, peer2.GetAllRemotePeers().Count, "Peer2 failed to re-join Peer1 after abruptly disconnecting without saying bye.");
             Assert.AreEqual(1, peer1.GetAllRemotePeers().Count, "Peer2 failed to re-join Peer1 after abruptly disconnecting without saying bye.");
             
+        }
+
+        [TestMethod]
+        public void QuickDisconnect()
+        {
+            const float AckTimeout = 0.2f;
+            const float KeepAliveInterval = 2.0f;
+
+            var peer1 = CreateAndStartLocalPeer(ackTimeout: AckTimeout, keepAliveInterval: KeepAliveInterval);
+            peer1.SetVisibility(true, null, true);
+            var peer2 = CreateAndStartLocalPeer(ackTimeout: AckTimeout, keepAliveInterval: KeepAliveInterval);
+            ConnectToLocalPeer(peer2, peer1, null); 
+
+            // 1. Remove peer1 from active peers so not updated
+            // 2. Wait for peer2 to drop unresponsive peer1 (after keepalive interval + time to detect non-repsonsive + error margin)
+            // 3. Add peer1 back to active peers so updated
+            // 4. Assert peer1 drops peer2 on next update instead of normal prolonged disconnect detection
+
+            lock (activePeers)
+            {
+                activePeers.Remove(peer1);
+            }
+
+            var peer2Dropped = false;
+            var lockObject = new object();
+            var waitHandle = new ManualResetEventSlim(false);
+
+            peer2.PeerDropped += id => { waitHandle.Set(); };
+            peer1.PeerDropped += id => { lock (lockObject) { peer2Dropped = true; } };
+
+            waitHandle.Wait();
+            
+            lock (activePeers)
+            {
+                activePeers.Add(peer1);
+            }
+
+            Thread.Sleep(TICK_RATE * 3);
+
+            lock (lockObject)
+            {
+                Assert.IsTrue(peer2Dropped);
+            }
+        }
+
+        void peer2_PeerDropped(int id)
+        {
+            throw new NotImplementedException();
         }
     }
 }
