@@ -895,10 +895,5 @@ namespace FalconUDPTests
                 Assert.IsTrue(peer2Dropped);
             }
         }
-
-        void peer2_PeerDropped(int id)
-        {
-            throw new NotImplementedException();
-        }
     }
 }
