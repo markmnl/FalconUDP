@@ -1828,6 +1828,14 @@ namespace FalconUDP
                     }
                 }
             }
+
+            // If none found (seems to always be the case on PS4), resort to asking the transceiver what it is using...
+            if (ipEndPoints.Count == 0)
+            {
+                IPEndPoint localIPEndPoint;
+                if (Transceiver.TryGetLocalIPEndPoint(out localIPEndPoint))
+                    LocalAddresses.Add(localIPEndPoint.Address);
+            }
 #endif
             return ipEndPoints;
         }

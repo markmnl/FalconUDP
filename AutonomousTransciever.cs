@@ -147,5 +147,18 @@ namespace FalconUDP
 
             return true;
         }
+
+        public bool TryGetLocalIPEndPoint(out IPEndPoint ipEndPoint)
+        {
+            try
+            {
+                ipEndPoint = (IPEndPoint)socket.LocalEndPoint;
+            }
+            catch (SocketException)
+            {
+                ipEndPoint = null;
+            }
+            return ipEndPoint != null;
+        }
     }
 }
