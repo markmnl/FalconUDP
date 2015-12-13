@@ -1834,7 +1834,7 @@ namespace FalconUDP
             {
                 IPEndPoint localIPEndPoint;
                 if (Transceiver.TryGetLocalIPEndPoint(out localIPEndPoint))
-                    LocalAddresses.Add(localIPEndPoint.Address);
+                    ipEndPoints.Add(localIPEndPoint);
             }
 #endif
             return ipEndPoints;
