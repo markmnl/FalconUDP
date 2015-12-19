@@ -10,6 +10,5 @@ namespace FalconUDP
         void Stop();
         int Read(byte[] recieveBuffer, ref IPEndPoint ipFrom);
         bool Send(byte[] buffer, int index, int count, IPEndPoint ip, bool expidite);
-        bool TryGetLocalIPEndPoint(out IPEndPoint ipEndPoint);
     }
 }
