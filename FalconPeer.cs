@@ -25,7 +25,7 @@ namespace FalconUDP
         /// <summary>
         /// Maximum timeout for response from a single ACK. ACK timeout increases each re-send up to this ceiling.
         /// </summary>
-        public const float MaxAckTimeoutSeconds = 7.0f;
+        public const float MaxAckTimeoutSeconds = 5.6f;
 
         //
         // Configurable Settings REMEMBER to update XML doc if change defaults. We favour fields
@@ -36,8 +36,8 @@ namespace FalconUDP
         private ushort      resendRatioSampleLength         = 24;
         private int         receiveBufferSize               = 8192;
         private int         sendBufferSize                  = 8192;
-        internal float      AckTimeoutSeconds               = 1.5f;
-        internal int        MaxResends                      = 7;
+        internal float      AckTimeoutSeconds               = 1.2f;
+        internal int        MaxResends                      = 5;
         internal int        OutOfOrderTolerance             = 100;
         internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
         internal float      KeepAliveIntervalSeconds        = 10.0f;
@@ -164,7 +164,7 @@ namespace FalconUDP
         /// <summary>
         /// Time after which to to re-send a reliable message if not ACKnowledged within.
         /// </summary>
-        /// <remarks>Default 1.5 seconds.</remarks>
+        /// <remarks>Default 1.2 seconds.</remarks>
         public TimeSpan AckTimeout
         {
             get
@@ -186,7 +186,7 @@ namespace FalconUDP
         /// <summary>
         /// Maximum number of times to re-send an unACKnowledged message before giving up.
         /// </summary>
-        /// <remarks>Defaults to 7.</remarks>
+        /// <remarks>Defaults to 5.</remarks>
         public int MaxMessageResends
         {
             get
