@@ -18,9 +18,14 @@ namespace FalconUDP
     public class FalconPeer
     {
         /// <summary>
-        /// Maximum FalconUDP datagram size including FalconUDP header.
+        /// Maximum FalconUDP datagram size including FalconUDP header. 
         /// </summary>
-        public const int MaxDatagramSize = 1400;
+        /// <remarks>
+        /// Try to stay under MTU which is most likely 1500 but we could be encapsulated https://cway.cisco.com/tools/ipsec-overhead-calc/ipsec-overhead-calc.html, 
+        /// that said actual datagram size sent will only as big as neccessary so be kind and allow 
+        /// the expected upper limit with a potential cost of fragmentation.
+        /// </remarks>
+        public const int MaxDatagramSize = 1500;
 
         /// <summary>
         /// Maximum timeout for response from a single ACK. ACK timeout increases each re-send up to this ceiling.
