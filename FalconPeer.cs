@@ -30,7 +30,7 @@ namespace FalconUDP
         /// <summary>
         /// Maximum timeout for response from a single ACK. ACK timeout increases each re-send up to this ceiling.
         /// </summary>
-        public const float MaxAckTimeoutSeconds = 5.6f;
+        public const float MaxAckTimeoutSeconds = 4.6f;
 
         //
         // Configurable Settings REMEMBER to update XML doc if change defaults. We favour fields
@@ -41,8 +41,8 @@ namespace FalconUDP
         private ushort      resendRatioSampleLength         = 24;
         private int         receiveBufferSize               = 8192;
         private int         sendBufferSize                  = 8192;
-        internal float      AckTimeoutSeconds               = 1.2f;
-        internal int        MaxResends                      = 5;
+        internal float      AckTimeoutSeconds               = 1.0f;
+        internal int        MaxResends                      = 4;
         internal int        OutOfOrderTolerance             = 100;
         internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
         internal float      KeepAliveIntervalSeconds        = 10.0f;
