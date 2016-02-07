@@ -42,7 +42,7 @@ namespace FalconUDP
         private int         receiveBufferSize               = 8192;
         private int         sendBufferSize                  = 8192;
         internal float      AckTimeoutSeconds               = 1.0f;
-        internal int        MaxResends                      = 4;
+        internal int        MaxResends                      = 5;
         internal int        OutOfOrderTolerance             = 100;
         internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
         internal float      KeepAliveIntervalSeconds        = 10.0f;
