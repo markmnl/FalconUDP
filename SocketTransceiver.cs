@@ -35,12 +35,19 @@ namespace FalconUDP
         {
             try
             {
+                try
+                {
 #if !MONO
-                socket.SetIPProtectionLevel(IPProtectionLevel.EdgeRestricted);
+                    socket.SetIPProtectionLevel(IPProtectionLevel.EdgeRestricted);
 #endif
 #if !LINUX
-                socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
+                    socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
 #endif
+                }
+                catch
+                {
+                    // we tried, but does fail for some and is not fatal e.g. http://steamcommunity.com/app/334560/discussions/0/405691147596493066/
+                }
                 socket.Bind(anyAddrEndPoint);
                 socket.Blocking = false;
                 socket.ReceiveBufferSize = localPeer.ReceiveBufferSize;
