@@ -40,9 +40,10 @@ namespace FalconUDP
 #if !MONO
                     socket.SetIPProtectionLevel(IPProtectionLevel.EdgeRestricted);
 #endif
-#if !LINUX
-                    socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
-#endif
+                    if (CurrentPlatform.OS != OS.Linux) 
+                    {
+                        socket.IOControl(-1744830452, new byte[] { 0 }, new byte[] { 0 }); // http://stackoverflow.com/questions/10332630/connection-reset-on-receiving-packet-in-udp-server
+                    }
                 }
                 catch
                 {

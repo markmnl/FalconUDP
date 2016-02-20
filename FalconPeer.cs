@@ -1285,10 +1285,11 @@ namespace FalconUDP
 
                             uint mask = FalconHelper.GetNetMaskFromNumOfBits(24); // class C
 #pragma warning disable 0618
-#if !LINUX
-                            if (addrInfo.IPv4Mask != null)
-                                mask = (uint)addrInfo.IPv4Mask.Address;
-#endif
+                            if (CurrentPlatform.OS != OS.Linux) 
+                            {
+                                if (addrInfo.IPv4Mask != null)
+                                    mask = (uint)addrInfo.IPv4Mask.Address;
+                            }
                             uint ip = (uint)addrInfo.Address.Address;
                             uint broadcast = ip | ~mask;
                             broadcastEndPoints.Add(new IPEndPoint(new IPAddress((long)broadcast), Port));
