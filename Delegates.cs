@@ -27,7 +27,7 @@ namespace FalconUDP
     /// Delegate for the <see cref="FalconPeer.PeerDiscovered"/> event.
     /// </summary>
     /// <param name="ipEndPoint">IPEndPoint of the remote FalconUDP peer just discovered</param>
-    public delegate void PeerDiscovered(IPEndPoint ipEndPoint);
+    public delegate void PeerDiscovered(IPEndPoint ipEndPoint, Packet packet);
 
     /// <summary>
     /// Delegate for the <see cref="FalconPeer.PongReceivedFromPeer"/> event.
@@ -51,13 +51,18 @@ namespace FalconUDP
     /// <param name="line">Line to be logged.</param>
     public delegate void LogCallback(LogLevel lvl, string line);
 #endif
+    /// <summary>
+    /// Callback to collect any additional information required to send as a result
+    /// of a DiscoveryRequest.
+    /// </summary>
+    public delegate void DiscoveryRequest (out Packet packet);
 
     /// <summary>
     /// Callback to call once discovery operation initated by 
     /// <see cref="FalconPeer.DiscoverFalconPeersAsync(TimeSpan, int, Guid?, DiscoveryCallback, int)"/> has completed.
     /// </summary>
     /// <param name="discoveredPeers">Array of all IPEndPoints that replied to discovery request.</param>
-    public delegate void DiscoveryCallback(IPEndPoint[] discoveredPeers);
+    public delegate void DiscoveryCallback(IPEndPoint[] discoveredPeers, Packet[] discoveredPeersPackets);
 
     /// <summary>
     /// Callback passed to 

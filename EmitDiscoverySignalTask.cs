@@ -13,6 +13,7 @@ namespace FalconUDP
     {
         private readonly List<IPEndPoint> endPointsToSendTo;
         private readonly List<IPEndPoint> endPointsReceivedReplyFrom;
+        private readonly List<Packet> packetsReceivedReplyFrom;
         private readonly byte[] signal;
         private bool listenForReply; // it is possible to emit discovery signals without bothering about a reply, e.g. to aid another peer joining us in an attempt to traverse NAT 
         private DiscoveryCallback callback;
@@ -31,6 +32,7 @@ namespace FalconUDP
         {
             endPointsToSendTo = new List<IPEndPoint>();
             endPointsReceivedReplyFrom = new List<IPEndPoint>();
+            packetsReceivedReplyFrom = new List<Packet> ();
             signal = new byte[Const.DISCOVER_PACKET_WITH_TOKEN_HEADER.Length + Const.DISCOVERY_TOKEN_SIZE];
         }
 
@@ -65,7 +67,7 @@ namespace FalconUDP
                 {
                     if (callback != null)
                     {
-                        callback(endPointsReceivedReplyFrom.ToArray());
+                        callback(endPointsReceivedReplyFrom.ToArray(), packetsReceivedReplyFrom.ToArray ());
                     }
                     this.TaskEnded = true;
                 }
@@ -118,22 +120,27 @@ namespace FalconUDP
             this.endPointsToSendTo.Clear();
             this.endPointsToSendTo.AddRange(endPointsToSendTo);
             this.endPointsReceivedReplyFrom.Clear();
+            this.packetsReceivedReplyFrom.Clear ();
         }
 
-        internal void AddDiscoveryReply(IPEndPoint endPointReceivedFrom)
+		internal void AddDiscoveryReply(IPEndPoint endPointReceivedFrom, byte[] payload)
         {
             // check we haven't already discovered this peer
             if (endPointsReceivedReplyFrom.Exists(ep => ep.FastEquals(endPointReceivedFrom)))
                 return;
 
+            var packet = this.falconPeer.BorrowPacketFromPool ();
+            packet.WriteBytes (payload);
+            packet.ResetAndMakeReadOnly (0);
             // raise PeerDiscovered event
-            falconPeer.RaisePeerDiscovered(endPointReceivedFrom);
+            falconPeer.RaisePeerDiscovered(endPointReceivedFrom, packet);
 
             // add to list of end points received reply from
+            packetsReceivedReplyFrom.Add (packet);
             endPointsReceivedReplyFrom.Add(endPointReceivedFrom);
             if (endPointsReceivedReplyFrom.Count == maxNumberPeersToDiscover)
             {
-                callback(endPointsReceivedReplyFrom.ToArray());
+                callback(endPointsReceivedReplyFrom.ToArray(), packetsReceivedReplyFrom.ToArray ());
                 callback = null; // prevent possible subsequent Tick() calling the callback again
                 TaskEnded = true;
             }

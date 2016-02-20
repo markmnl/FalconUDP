@@ -102,6 +102,8 @@ namespace FalconUDP
         internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }  
         internal static int MaxPayloadSize { get { return MaxDatagramSize - Const.FALCON_PACKET_HEADER_SIZE; } }
 
+
+        public event DiscoveryRequest DiscoveryRequest;
         /// <summary>
         /// Event raised when another FalconUDP peer joined.
         /// </summary>
@@ -1010,7 +1012,15 @@ namespace FalconUDP
                             if (reply)
                             {
                                 Log(LogLevel.Info, String.Format("Received Discovery Request from: {0}, sending discovery reply...", fromIPEndPoint));
-                                SendToUnknownPeer(fromIPEndPoint, PacketType.DiscoverReply, SendOptions.None, null);
+                                byte[] payload = null;
+                                if (DiscoveryRequest != null) {
+                                    Packet packet = null;
+                                    DiscoveryRequest (out packet);
+                                    if (packet != null) {
+                                        payload = packet.ToBytes ();
+                                    }
+                                }
+                                SendToUnknownPeer(fromIPEndPoint, PacketType.DiscoverReply, SendOptions.None, payload);
                             }
                             else
                             {
@@ -1027,7 +1037,9 @@ namespace FalconUDP
                             {
                                 if (task.IsAwaitingDiscoveryReply && task.IsForDiscoveryReply(fromIPEndPoint))
                                 {
-                                    task.AddDiscoveryReply(fromIPEndPoint);
+                                    var data = new byte[count];
+                                    Buffer.BlockCopy (buffer, index, data, 0, count);
+                                    task.AddDiscoveryReply(fromIPEndPoint, data);
                                     Log(LogLevel.Info, String.Format("Received Discovery Reply from: {0}", fromIPEndPoint));
                                     break;
                                 }
@@ -1067,7 +1079,7 @@ namespace FalconUDP
             }
         }
 
-        private void PunchThroughDiscoveryCallback(IPEndPoint[] endPoints)
+        private void PunchThroughDiscoveryCallback(IPEndPoint[] endPoints, Packet[] packets)
         {
             if (punchThroughCallback == null)
                 return;
@@ -1178,11 +1190,11 @@ namespace FalconUDP
                 pongReceived(rp.Id, rtt);
         }
 
-        internal void RaisePeerDiscovered(IPEndPoint ep)
+		internal void RaisePeerDiscovered(IPEndPoint ep, Packet packet)
         {
             PeerDiscovered peerDiscovered = PeerDiscovered;
             if (peerDiscovered != null)
-                peerDiscovered(ep);
+                peerDiscovered(ep, packet);
         }
 
         internal void RemovePingAwaitingPongDetail(PingDetail pingDetail)
