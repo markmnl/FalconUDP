@@ -85,6 +85,7 @@ namespace FalconUDP
         private TimeSpan addUPnPEllapsedAtStart;
         private bool upnpMappingAdded;
         private UPnPInternetGatewayDevice upnpDevice;
+        private bool isAddingUPnPRule; // flag set to prevent processing duplicate responses
 
 
 #if DEBUG
@@ -793,9 +794,10 @@ namespace FalconUDP
         {
             Log(LogLevel.Info, "EndAddUPnPMapping, result: " + result.ToString());
             upnpMappingAdded = result == AddUPnPMappingResult.Success;
+            isAddingUPnPRule = false;
             AddUPnPPortMappingCallback callback = addUPnPMappingCallback;
             addUPnPMappingCallback = null;
-            addUPnPMappingCallback(result);
+            callback(result);
         }
         
         private void ProcessUPnPBroadcastResponse(IPEndPoint fromIPEndPoint, byte[] buffer, int size)
@@ -806,6 +808,10 @@ namespace FalconUDP
                 return;
             if (addUPnPMappingCallback == null)
                 return;
+            if (isAddingUPnPRule)
+                return;
+
+            isAddingUPnPRule = true;
 
             // parse response for location of xml containing services
             string resp = Encoding.ASCII.GetString(buffer, 0, size);
@@ -814,13 +820,12 @@ namespace FalconUDP
             if (!(resp.Contains("upnp:rootdevice") && resp.Contains("location:")))
                 return;
             string location = resp.Substring(resp.IndexOf("location:") + 9);
-            location = location.Substring(0, resp.IndexOf("\r"));
-            Uri locationUri = new Uri(location);
+            location = location.Substring(0, location.IndexOf("\r"));
 
             // Try create UPnPInternetGatewayDevice which attmpts to download service url from 
             // location specefied in this discovery response..
             //
-            UPnPInternetGatewayDevice.BeginCreate(locationUri, device => 
+            UPnPInternetGatewayDevice.BeginCreate(location, device => 
             {
                 if (addUPnPMappingCallback == null)
                     return;

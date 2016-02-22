@@ -11,9 +11,9 @@ namespace FalconUDP
     {
         private string controlUrl;
 
-        public UPnPInternetGatewayDevice(Uri serviceUri)
+        public UPnPInternetGatewayDevice(string serviceUri)
         {
-            this.controlUrl = serviceUri.AbsoluteUri;
+            this.controlUrl = serviceUri;
         }
         
         private static string GetUPnPProtocolString(ProtocolType type)
@@ -25,9 +25,9 @@ namespace FalconUDP
             throw new ArgumentException(type.ToString());
         }
         
-        public static void BeginCreate(Uri locationUri, Action<UPnPInternetGatewayDevice> callback)
+        public static void BeginCreate(string locationUri, Action<UPnPInternetGatewayDevice> callback)
         {
-            Uri controlUri = null;
+            string controlUri = null;
             
             Task.Factory.StartNew(() =>
             {
@@ -55,9 +55,9 @@ namespace FalconUDP
                     string url = serviceNode.Value;
                     
                     if (url.StartsWith("http")) // i.e. absolute
-                        controlUri = new Uri(url);
+                        controlUri = url;
                     else
-                        controlUri = new Uri(locationUri, url);
+                        controlUri = locationUri + url;
                 }
 
             }).ContinueWith(completedTask => 
