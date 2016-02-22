@@ -91,7 +91,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AckDetail.cs" />
-    <Compile Include="AddUPnPMappingOperation.cs" />
     <Compile Include="Const.cs" />
     <Compile Include="DelayedDatagram.cs" />
     <Compile Include="Delegates.cs" />

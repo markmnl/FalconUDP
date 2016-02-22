@@ -3,7 +3,8 @@ TODO
 - include packet size and version no. in join request so incompatiable falcon peers cannot join eachother
 - peer who is not keepalive master does not get latency updates - should KeepAlive master tell them latency they have for peer?
 - consider determining addresses to broadcast to at time of discovery not at startup (could have changed, though it does take time to calc this)
-- pool RemotePeers and they should refernce pools on FalconPeer rather than having their own
+- in addition to above problem more generally local addresses cache should be refreshed when network changes have occured
+- quick disconnect when network disconnected
 
 One day
 -------

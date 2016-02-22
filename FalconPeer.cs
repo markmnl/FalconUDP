@@ -37,23 +37,23 @@ namespace FalconUDP
         // instead of properties for members accessed frequently outside of this class internally 
         // to prevent the method call (perhaps that is too pedantic).
         //
-        private byte latencySampleLength = 2;
-        private ushort resendRatioSampleLength = 24;
-        private int receiveBufferSize = 8192;
-        private int sendBufferSize = 8192;
-        private TimeSpan addUPnPMappingTimeout = TimeSpan.FromSeconds(5.0);
-        internal float AckTimeoutSeconds = 1.0f;
-        internal int        MaxResends                      = 5; // NOTE: badly named this is actually max sends including first send
-        internal int OutOfOrderTolerance = 100;
-        internal int MaxNeededOrindalSeq = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
-        internal float KeepAliveIntervalSeconds = 10.0f;
-        internal float KeepAliveProbeAfterSeconds = 0.0f; // Calculated, see UpdateProbeKeepAliveIfNoKeepAlive
-        internal float AutoFlushIntervalSeconds = 0.5f;
-        internal float PingTimeoutSeconds = 3.0f;
-        internal float SimulateLatencySeconds = 0.0f;
-        internal float SimulateJitterSeconds = 0.0f;
-        internal float quickDisconnectTimeout = 0.0f; // Calculated, see UpdateQuickDiconnectTimeout()
-        internal double SimulatePacketLossProbability = 0.0;
+        private byte        latencySampleLength         = 2;
+        private ushort      resendRatioSampleLength     = 24;
+        private int         receiveBufferSize           = 8192;
+        private int         sendBufferSize              = 8192;
+        private TimeSpan    addUPnPMappingTimeout       = TimeSpan.FromSeconds(5.0);
+        internal float      AckTimeoutSeconds           = 1.0f;
+        internal int        MaxResends                  = 5; // NOTE: badly named this is actually max sends including first send
+        internal int        OutOfOrderTolerance         = 100;
+        internal int        MaxNeededOrindalSeq         = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
+        internal float      KeepAliveIntervalSeconds    = 10.0f;
+        internal float      KeepAliveProbeAfterSeconds  = 0.0f; // Calculated, see UpdateProbeKeepAliveIfNoKeepAlive
+        internal float      AutoFlushIntervalSeconds    = 0.5f;
+        internal float      PingTimeoutSeconds          = 3.0f;
+        internal float      SimulateLatencySeconds      = 0.0f;
+        internal float      SimulateJitterSeconds       = 0.0f;
+        internal float      quickDisconnectTimeout      = 0.0f; // Calculated, see UpdateQuickDiconnectTimeout()
+        internal double     SimulatePacketLossProbability = 0.0;
 
         private readonly ProcessReceivedPacket processReceivedPacketDelegate;
         private readonly byte[] receiveBuffer;
@@ -817,7 +817,9 @@ namespace FalconUDP
             location = location.Substring(0, resp.IndexOf("\r"));
             Uri locationUri = new Uri(location);
 
-            // try create UPnPInternetGatewayDevice which attmpts to download service url from location
+            // Try create UPnPInternetGatewayDevice which attmpts to download service url from 
+            // location specefied in this discovery response..
+            //
             UPnPInternetGatewayDevice.BeginCreate(locationUri, device => 
             {
                 if (addUPnPMappingCallback == null)
@@ -2066,10 +2068,11 @@ namespace FalconUDP
         /// use the hole punching techinque in conjuction with a 3rd party server that the peers must 
         /// communicate with first and get eachothers IP addresses for use with these methods.<break></break>
         /// <break></break>
-        /// A combination of both techniques gives a higher success rate. Another technique I have not explored is Port Control Protocl (PCP).
+        /// A combination of both techniques gives a higher success rate. Another technique I have 
+        /// not explored is Port Control Protocl (PCP).
         /// </remarks>
-        /// <param name="callback"></param>
-        /// <param name="timeout"></param>
+        /// <param name="callback">Delegate to callback once the operation completes</param>
+        /// <param name="timeout">Timeout to give up adding the port mapping if not completed within.</param>
         public void TryAddUPnPPortMapping(AddUPnPPortMappingCallback callback, TimeSpan timeout)
         {
             CheckStarted();
