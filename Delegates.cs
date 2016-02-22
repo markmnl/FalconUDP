@@ -77,4 +77,11 @@ namespace FalconUDP
     /// <remarks>Packet will be in a read-only state and must not be held onto to be used later (it
     ///  will be returned to the packet pool once the method this delegate points to completes.</remarks>
     public delegate void ProcessReceivedPacket(Packet packet);
+
+    /// <summary>
+    /// Callbask supplied to <see cref="FalconPeer.TryAddUPnPPortMapping(AddUPnPPortMappingCallback)"/> 
+    /// called back once operation completes.
+    /// </summary>
+    /// <param name="result">TODO</param>
+    public delegate void AddUPnPPortMappingCallback(AddUPnPMappingResult result);
 }

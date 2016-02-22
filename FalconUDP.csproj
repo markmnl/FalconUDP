@@ -87,9 +87,11 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.XML" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AckDetail.cs" />
+    <Compile Include="AddUPnPMappingOperation.cs" />
     <Compile Include="Const.cs" />
     <Compile Include="DelayedDatagram.cs" />
     <Compile Include="Delegates.cs" />
@@ -119,6 +121,7 @@
     <Compile Include="Statistics.cs" />
     <Compile Include="GenericObjectPool.cs" />
     <Compile Include="TransceiverFactory.cs" />
+    <Compile Include="UPnPInternetGatewayDevice.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Protocol.txt" />

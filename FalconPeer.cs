@@ -37,23 +37,24 @@ namespace FalconUDP
         // instead of properties for members accessed frequently outside of this class internally 
         // to prevent the method call (perhaps that is too pedantic).
         //
-        private byte        latencySampleLength             = 2;
-        private ushort      resendRatioSampleLength         = 24;
-        private int         receiveBufferSize               = 8192;
-        private int         sendBufferSize                  = 8192;
-        internal float      AckTimeoutSeconds               = 1.0f;
-        internal int        MaxResends                      = 5;
-        internal int        OutOfOrderTolerance             = 100;
-        internal int        MaxNeededOrindalSeq             = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
-        internal float      KeepAliveIntervalSeconds        = 10.0f;
-        internal float      KeepAliveProbeAfterSeconds      = 0.0f; // Calculated, see UpdateProbeKeepAliveIfNoKeepAlive
-        internal float      AutoFlushIntervalSeconds        = 0.5f;
-        internal float      PingTimeoutSeconds              = 3.0f;
-        internal float      SimulateLatencySeconds          = 0.0f;
-        internal float      SimulateJitterSeconds           = 0.0f;
-        internal float      quickDisconnectTimeout          = 0.0f; // Calculated, see UpdateQuickDiconnectTimeout()
-        internal double     SimulatePacketLossProbability   = 0.0;
-        
+        private byte latencySampleLength = 2;
+        private ushort resendRatioSampleLength = 24;
+        private int receiveBufferSize = 8192;
+        private int sendBufferSize = 8192;
+        private TimeSpan addUPnPMappingTimeout = TimeSpan.FromSeconds(3.6);
+        internal float AckTimeoutSeconds = 1.0f;
+        internal int MaxResends = 5;
+        internal int OutOfOrderTolerance = 100;
+        internal int MaxNeededOrindalSeq = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
+        internal float KeepAliveIntervalSeconds = 10.0f;
+        internal float KeepAliveProbeAfterSeconds = 0.0f; // Calculated, see UpdateProbeKeepAliveIfNoKeepAlive
+        internal float AutoFlushIntervalSeconds = 0.5f;
+        internal float PingTimeoutSeconds = 3.0f;
+        internal float SimulateLatencySeconds = 0.0f;
+        internal float SimulateJitterSeconds = 0.0f;
+        internal float quickDisconnectTimeout = 0.0f; // Calculated, see UpdateQuickDiconnectTimeout()
+        internal double SimulatePacketLossProbability = 0.0;
+
         private readonly ProcessReceivedPacket processReceivedPacketDelegate;
         private readonly byte[] receiveBuffer;
         private readonly Dictionary<IPEndPoint, RemotePeer> peersByIp;   // same RemotePeers as peersById
@@ -61,14 +62,14 @@ namespace FalconUDP
         private readonly List<AwaitingAcceptDetail> awaitingAcceptDetails;
         private readonly List<Packet> readPacketsList;
         private readonly List<RemotePeer> remotePeersToRemove;
-        private readonly Queue<Tuple<IPEndPoint,byte[]>> dummyDatagramsToProcess   ;
+        private readonly Queue<Tuple<IPEndPoint, byte[]>> dummyDatagramsToProcess;
         private readonly GenericObjectPool<EmitDiscoverySignalTask> emitDiscoverySignalTaskPool;
         private readonly GenericObjectPool<PingDetail> pingPool;
         private readonly List<EmitDiscoverySignalTask> discoveryTasks;
         private readonly List<Guid> onlyReplyToDiscoveryRequestsWithToken;
         private readonly RemotePeer unknownPeer;                         // peer re-used to send unsolicited messages to
         private readonly DatagramPool sendDatagramsPool;
-        
+
         private int port;
         private IPEndPoint anyAddrEndPoint;
         private int peerIdCount;
@@ -80,8 +81,12 @@ namespace FalconUDP
         private float ellapsedSecondsAtLastUpdate;
         private bool replyToAnyDiscoveryRequests;                       // i.e. reply unconditionally with or without a token
         private List<IPEndPoint> broadcastEndPoints;
+        private AddUPnPPortMappingCallback addUPnPMappingCallback;
+        private TimeSpan addUPnPEllapsedAtStart;
+        private bool upnpMappingAdded;
+        private UPnPInternetGatewayDevice upnpDevice;
 
-    
+
 #if DEBUG
         private LogLevel logLvl;
         private LogCallback logger;
@@ -97,9 +102,9 @@ namespace FalconUDP
         internal readonly FalconPoolSizes PoolSizes;
         internal static readonly Encoding TextEncoding = Encoding.UTF8;
         internal IFalconTransceiver Transceiver;
-        
+
         internal bool IsCollectingStatistics { get { return Statistics != null; } }
-        internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }  
+        internal bool HasPingsAwaitingPong { get { return PingsAwaitingPong.Count > 0; } }
         internal static int MaxPayloadSize { get { return MaxDatagramSize - Const.FALCON_PACKET_HEADER_SIZE; } }
 
         /// <summary>
@@ -140,10 +145,10 @@ namespace FalconUDP
         /// <summary>
         /// Port this FalconPeer is or will be listening on.
         /// </summary>
-        public int Port 
+        public int Port
         {
             get { return port; }
-            private set 
+            private set
             {
                 port = value;
 #if NETFX_CORE
@@ -250,13 +255,13 @@ namespace FalconUDP
         /// used in the <see cref="QualityOfService.ResendRatio"/> calculation.
         /// </summary>
         /// <remarks>Default 24.</remarks>
-        public ushort ResendRatioSampleSize 
+        public ushort ResendRatioSampleSize
         {
             get { return resendRatioSampleLength; }
-            set 
+            set
             {
                 CheckNotStarted();
-                if(value < 1)
+                if (value < 1)
                     throw new ArgumentOutOfRangeException("value", "cannot be less than 1");
                 resendRatioSampleLength = value;
             }
@@ -278,7 +283,7 @@ namespace FalconUDP
         /// while the joinee peer (not the KeepAlive master) will send one (probe) to see if the 
         /// KeepAlive master is still alive!</para>
         /// </remarks>
-        public TimeSpan KeepAliveInterval 
+        public TimeSpan KeepAliveInterval
         {
             get { return TimeSpan.FromSeconds(KeepAliveIntervalSeconds); }
             set
@@ -301,7 +306,7 @@ namespace FalconUDP
         /// 
         /// Note: this is called in a call to Update() so will not flush send queues 
         /// automatically, i.e. Update() still has to be called.</remarks>
-        public TimeSpan AutoFlushInterval 
+        public TimeSpan AutoFlushInterval
         {
             get { return TimeSpan.FromSeconds(AutoFlushIntervalSeconds); }
             set
@@ -318,7 +323,7 @@ namespace FalconUDP
         /// Size of the receive buffer in bytes for the single Socket this peer will use.
         /// </summary>
         /// <remarks>Default is 8192 (i.e. 8 KB)</remarks>
-        public int ReceiveBufferSize 
+        public int ReceiveBufferSize
         {
             get { return receiveBufferSize; }
             set
@@ -350,7 +355,7 @@ namespace FalconUDP
         /// Time span after which to stop listening for a reply Pong to a Ping this peer sent.
         /// </summary>
         /// <remarks>Defaults to 2 seconds.</remarks>
-        public TimeSpan PingTimeout 
+        public TimeSpan PingTimeout
         {
             get { return TimeSpan.FromSeconds(PingTimeoutSeconds); }
             set
@@ -362,15 +367,15 @@ namespace FalconUDP
                 PingTimeoutSeconds = seconds;
             }
         }
-        
+
         /// <summary>
         /// Get or sets period to delay outgoing sends from when they otherwise would be sent.
         /// </summary>
         /// <remarks>Set to 0 (the default) to disable delaying.</remarks>
-        public TimeSpan SimulateDelayTimeSpan 
+        public TimeSpan SimulateDelayTimeSpan
         {
             get { return TimeSpan.FromSeconds(SimulateLatencySeconds); }
-            set 
+            set
             {
                 float seconds = (float)value.TotalSeconds;
                 if (seconds < 0.0f)
@@ -385,15 +390,15 @@ namespace FalconUDP
         /// </summary>
         /// <remarks>Set to 0 (the default) to disable. <see cref="SimulateDelayTimeSpan"/> must 
         /// be set before this and this value cannot be greater than <see cref="SimulateDelayTimeSpan"/>.</remarks>
-        public TimeSpan SimulateDelayJitterTimeSpan 
-        { 
-            get {return TimeSpan.FromSeconds(SimulateJitterSeconds);}
-            set 
+        public TimeSpan SimulateDelayJitterTimeSpan
+        {
+            get { return TimeSpan.FromSeconds(SimulateJitterSeconds); }
+            set
             {
                 float seconds = (float)value.TotalSeconds;
                 if (seconds < 0.0f)
                     throw new ArgumentOutOfRangeException("value", "cannot be less than 0");
-                if(seconds > SimulateLatencySeconds)
+                if (seconds > SimulateLatencySeconds)
                     throw new ArgumentOutOfRangeException("value", "cannot be greater than SimulateDelayTimeSpan");
                 SimulateJitterSeconds = seconds;
             }
@@ -403,7 +408,7 @@ namespace FalconUDP
         /// Get or sets probability outgoing sends will be silently dropped to simulate poor 
         /// network conditions. 0.0 no sends will be dropped, 1.0 all sends will be dropped.
         /// </summary>
-        public double SimulatePacketLossChance 
+        public double SimulatePacketLossChance
         {
             get { return SimulatePacketLossProbability; }
             set
@@ -461,7 +466,7 @@ namespace FalconUDP
             this.readPacketsList = new List<Packet>();
             this.stopped = true;
             this.remotePeersToRemove = new List<RemotePeer>();
-            this.dummyDatagramsToProcess = new Queue<Tuple<IPEndPoint,byte[]>>();
+            this.dummyDatagramsToProcess = new Queue<Tuple<IPEndPoint, byte[]>>();
             this.Stopwatch = new Stopwatch();
 
             // pools
@@ -502,7 +507,7 @@ namespace FalconUDP
             UpdateProbeKeepAliveIfNoKeepAlive();
             UpdateQuickDisconnectTimeout();
         }
-                
+
         private void CheckStarted()
         {
             if (stopped)
@@ -525,9 +530,9 @@ namespace FalconUDP
             //
             //      KeepAliveInterval + 3 x re-sends + a bit
             //
-            KeepAliveProbeAfterSeconds = KeepAliveIntervalSeconds + 
-                AckTimeoutSeconds + 
-                AckTimeoutSeconds * 2 + 
+            KeepAliveProbeAfterSeconds = KeepAliveIntervalSeconds +
+                AckTimeoutSeconds +
+                AckTimeoutSeconds * 2 +
                 AckTimeoutSeconds * 3 +
                 0.5f;
         }
@@ -539,7 +544,7 @@ namespace FalconUDP
             // not have responded).
 
             float total = 0.0f;
-            for(int i = 1; i <= MaxResends; i++)
+            for (int i = 1; i <= MaxResends; i++)
             {
                 total += Math.Min(AckTimeoutSeconds * i, MaxAckTimeoutSeconds);
             }
@@ -599,9 +604,9 @@ namespace FalconUDP
             while (Transceiver.BytesAvaliable > 0)
             {
                 IPEndPoint fromIPEndPoint = anyAddrEndPoint;
-     
+
                 int size = Transceiver.Read(receiveBuffer, ref fromIPEndPoint);
-            
+
                 Log(LogLevel.Debug, String.Format("Received {0} bytes from: {1}", size, (IPEndPoint)fromIPEndPoint));
 
                 if (size == 0) // i.e. failure
@@ -615,7 +620,20 @@ namespace FalconUDP
                         Statistics.AddBytesReceived(size);
                     }
 
-                    ProcessReceivedDatagram((IPEndPoint)fromIPEndPoint, receiveBuffer, size);
+                    // detect if we are waiting for an UPnP response this is it
+                    if (addUPnPMappingCallback != null
+                        && size > 4
+                        && receiveBuffer[0] == 'H'
+                        && receiveBuffer[1] == 'T'
+                        && receiveBuffer[2] == 'T'
+                        && receiveBuffer[3] == 'P')
+                    {
+                        ProcessUPnPBroadcastResponse((IPEndPoint)fromIPEndPoint, receiveBuffer, size);
+                    }
+                    else
+                    {
+                        ProcessReceivedDatagram((IPEndPoint)fromIPEndPoint, receiveBuffer, size);
+                    }
                 }
             }
 
@@ -770,6 +788,65 @@ namespace FalconUDP
             SendToUnknownPeer(detail.EndPoint, PacketType.JoinRequest, SendOptions.None, detail.JoinData);
         }
 
+        // ASSUMPTION: caller checked operation is in progress by checking callback is not null
+        private void EndAddUPnPMapping(AddUPnPMappingResult result)
+        {
+            Log(LogLevel.Info, "EndAddUPnPMapping, result: " + result.ToString());
+            upnpMappingAdded = result == AddUPnPMappingResult.Success;
+            AddUPnPPortMappingCallback callback = addUPnPMappingCallback;
+            addUPnPMappingCallback = null;
+            addUPnPMappingCallback(result);
+        }
+        
+        private void ProcessUPnPBroadcastResponse(IPEndPoint fromIPEndPoint, byte[] buffer, int size)
+        {
+            // An actual response for reference: HTTP/1.1 200 OK\r\nCACHE-CONTROL:max-age=1800\r\nEXT:\r\nLOCATION:http://10.0.0.138:80/upnp/IGD.xml\r\nSERVER:Thomson TG 782T 8.6.P.3 UPnP/1.0 (00-24-17-D1-37-43)\r\nST:upnp:rootdevice\r\nUSN:uuid:UPnP_Thomson TG782T-1_00-24-17-D1-37-43::upnp:rootdevice\r\n\r\n
+
+            if (size < 5)
+                return;
+            if (addUPnPMappingCallback == null)
+                return;
+
+            // parse response for location of xml containing services
+            string resp = Encoding.ASCII.GetString(buffer, 0, size);
+            resp = resp.ToLower();
+            Log(LogLevel.Info, "Processing UPnP broadcase response: " + resp);
+            if (!(resp.Contains("upnp:rootdevice") && resp.Contains("location:")))
+                return;
+            string location = resp.Substring(resp.IndexOf("location:") + 9);
+            location = location.Substring(0, resp.IndexOf("\r"));
+            Uri locationUri = new Uri(location);
+
+            // try create UPnPDevice which attmpts to download service url from location
+            UPnPInternetGatewayDevice.BeginCreate(locationUri, device => 
+            {
+                if (addUPnPMappingCallback == null)
+                    return;
+
+                if (upnpDevice == null)
+                {
+                    EndAddUPnPMapping(AddUPnPMappingResult.FailedOther);
+                }
+                else
+                {
+                    upnpDevice = device;
+
+                    // add forwarding rules for our the local addresse(s)
+                    foreach (var addr in LocalAddresses)
+                    {
+                        if (IPAddress.IsLoopback(addr))
+                            continue;
+                        if (upnpDevice.TryAddForwardingRule(System.Net.Sockets.ProtocolType.Udp, addr, (ushort)Port, "FalconUDP" + Port.ToString()))
+                        {
+                            upnpMappingAdded = true;
+                        }
+                    }
+                    EndAddUPnPMapping(upnpMappingAdded ? AddUPnPMappingResult.Success : AddUPnPMappingResult.FailedOther);
+                }
+            });
+
+        }
+
         private void ProcessReceivedDatagram(IPEndPoint fromIPEndPoint, byte[] buffer, int size)
         {
             // check size
@@ -800,12 +877,12 @@ namespace FalconUDP
 
 
             // parse header
-            byte packetDetail   = buffer[0];
-            SendOptions opts    = (SendOptions)(byte)(packetDetail & Const.SEND_OPTS_MASK);
-            PacketType type     = (PacketType)(byte)(packetDetail & Const.PACKET_TYPE_MASK);
-            bool isAckPacket    = type == PacketType.ACK;
-            ushort seq          = BitConverter.ToUInt16(buffer, 1);
-            ushort payloadSize  = BitConverter.ToUInt16(buffer, 3);
+            byte packetDetail = buffer[0];
+            SendOptions opts = (SendOptions)(byte)(packetDetail & Const.SEND_OPTS_MASK);
+            PacketType type = (PacketType)(byte)(packetDetail & Const.PACKET_TYPE_MASK);
+            bool isAckPacket = type == PacketType.ACK;
+            ushort seq = BitConverter.ToUInt16(buffer, 1);
+            ushort payloadSize = BitConverter.ToUInt16(buffer, 3);
 
             // check the header makes sense (anyone could send us UDP datagrams)
             if (!(opts == SendOptions.None || opts == SendOptions.InOrder || opts == SendOptions.Reliable || opts == SendOptions.ReliableInOrder)
@@ -859,9 +936,9 @@ namespace FalconUDP
                     if (count >= Const.ADDITIONAL_PACKET_HEADER_SIZE)
                     {
                         // parse additional packet header
-                        packetDetail    = buffer[index];
-                        type            = (PacketType)(packetDetail & Const.PACKET_TYPE_MASK);
-                        isAckPacket     = type == PacketType.ACK;
+                        packetDetail = buffer[index];
+                        type = (PacketType)(packetDetail & Const.PACKET_TYPE_MASK);
+                        isAckPacket = type == PacketType.ACK;
                         if (isAckPacket)
                         {
                             opts = (SendOptions)(packetDetail & Const.SEND_OPTS_MASK);
@@ -1136,7 +1213,7 @@ namespace FalconUDP
         {
             dummyDatagramsToProcess.Enqueue(Tuple.Create(fromIPEndPoint, datagram));
         }
-        
+
         [Conditional("DEBUG")]
         internal void Log(LogLevel lvl, string msg)
         {
@@ -1201,6 +1278,15 @@ namespace FalconUDP
                     kv.Value.EnqueueSend(PacketType.Bye, SendOptions.None, null);
                 }
                 SendEnquedPackets();
+            }
+
+            // remote UPnP mapping if one added
+            if (upnpDevice != null && upnpMappingAdded)
+            {
+                if (upnpDevice.TryDeleteForwardingRule(System.Net.Sockets.ProtocolType.Udp, (ushort)port))
+                {
+                    upnpMappingAdded = false;
+                }
             }
 
             Transceiver.Stop();
@@ -1837,7 +1923,7 @@ namespace FalconUDP
             return ipEndPoints;
         }
 
-        
+
         /// <summary>
         /// Start collection <see cref="Statistics"/> or resets statistics if already started.
         /// </summary>
@@ -1873,13 +1959,23 @@ namespace FalconUDP
             // NOTE: Stopwatch with a frequency of 2338439 will only loop after 16935 days 14 mins 
             //       and 9 seconds!
 
-            float ellapsedSeconds = (float)Stopwatch.Elapsed.TotalSeconds;
+            TimeSpan ellapsed = Stopwatch.Elapsed;
+            float ellapsedSeconds = (float)ellapsed.TotalSeconds;
             float dt = ellapsedSeconds - ellapsedSecondsAtLastUpdate;
             ellapsedSecondsAtLastUpdate = ellapsedSeconds;
 
             // quick disconnect
             if (dt > quickDisconnectTimeout)
                 RemoveAllPeers();
+
+            // add UPnP mapping operation
+            if (addUPnPMappingCallback != null)
+            {
+                if (ellapsed - addUPnPEllapsedAtStart > addUPnPMappingTimeout)
+                {
+                    EndAddUPnPMapping(AddUPnPMappingResult.FailedTimedOut);
+                }
+            }
 
             Update(dt);
         }
@@ -1893,7 +1989,7 @@ namespace FalconUDP
             CheckStarted();
             return Stopwatch.Elapsed;
         }
-        
+
         /// <summary>
         /// Gets <see cref="QualityOfService"/> for <paramref name="peerId"/>.
         /// </summary>
@@ -1947,6 +2043,64 @@ namespace FalconUDP
         public static bool GetIsNetworkAvaliable()
         {
             return NetworkInterface.GetIsNetworkAvailable();
+        }
+
+        /// <summary>
+        /// Uses Internet Gateway Device Protocol to attempt to configure port forwarding on 
+        /// connected UPnP enabled router with NAT.<break></break>  
+        /// <break></break>
+        /// This FalconPeer instance must already be started and the UPnP port mapping request 
+        /// will be for the port this peer is listening on.<break></break>
+        /// <break></break>
+        /// The mapping will be deleted, if it was succesfully added, when this FalconPeer stops.
+        /// </summary>
+        /// <remarks> 
+        /// UPnP Internet Gateway Device Protocol port mapping is not the be all end all solution 
+        /// to NAT traversal, indeed many routers do not have it enabled by default if they support 
+        /// it at all. Futhermore it does not support scenarios where you are behind multiple NATs 
+        /// or there are multiple peers requesting the same port to be forwarded behind the same 
+        /// NAT.<break></break>  
+        /// <break></break>
+        /// A better more widely successful tenchnique is the one best described in RFC 5128 (https://tools.ietf.org/html/rfc5128#page-11)
+        /// often called "UDP hole punching". <see cref="PunchThroughToAsync(IEnumerable{IPEndPoint}, TimeSpan, int, Guid?, PunchThroughCallback)"/> and <see cref="AssistPunchThroughFromAsync(IPEndPoint, TimeSpan, int, Guid?)"/>
+        /// use the hole punching techinque in conjuction with a 3rd party server that the peers must 
+        /// communicate with first and get eachothers IP addresses for use with these methods.<break></break>
+        /// <break></break>
+        /// A combination of both techniques gives a higher success rate. Another technique I have not explored is Port Control Protocl (PCP).
+        /// </remarks>
+        /// <param name="callback"></param>
+        /// <param name="timeout"></param>
+        public void TryAddUPnPPortMapping(AddUPnPPortMappingCallback callback, TimeSpan timeout)
+        {
+            CheckStarted();
+            if (callback == null)
+                throw new ArgumentNullException("callback");
+            if (addUPnPMappingCallback != null)
+                throw new InvalidOperationException("Operation already in-progress");
+
+            addUPnPMappingTimeout = timeout;
+            addUPnPMappingCallback = callback;
+            addUPnPEllapsedAtStart = Stopwatch.Elapsed;
+            Transceiver.Send(Const.UPNP_DISCOVER_REQUEST, 0, Const.UPNP_DISCOVER_REQUEST.Length, Const.UPNP_DISCOVER_ENDPOINT, false);
+        }
+
+        /// <summary>
+        /// Overload for <see cref="TryAddUPnPPortMapping(AddUPnPPortMappingCallback, TimeSpan)"/>.
+        /// Timeout used is 5 seconds.
+        /// </summary>
+        /// <param name="callback">Delegate to callback once operation completes.</param>
+        public void TryAddUPnPPortMapping(AddUPnPPortMappingCallback callback)
+        {
+            TryAddUPnPPortMapping(callback, TimeSpan.FromSeconds(5.0));
+        }
+
+        /// <summary>
+        /// Overload for <see cref="TryAddUPnPPortMapping(AddUPnPPortMappingCallback)"/> when callback not needed.
+        /// Timeout used is 5 seconds.
+        /// </summary>
+        public void TryAddUPnPPortMapping()
+        {
+            TryAddUPnPPortMapping(result => {  });
         }
     }
 }

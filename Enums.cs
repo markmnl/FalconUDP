@@ -78,4 +78,23 @@ namespace FalconUDP
         Bye,
         KeepAlive
     }
+
+    /// <summary>
+    /// Result of attempting to add forwarding rule to first UPnP Internet Gateway device discovered on connected network
+    /// </summary>
+    public enum AddUPnPMappingResult
+    {
+        /// <summary>
+        /// Rule successfull added
+        /// </summary>
+        Success,
+        /// <summary>
+        /// Rule was not added within time (it may still be added)
+        /// </summary>
+        FailedTimedOut,
+        /// <summary>
+        /// Failed to add rule becuase compliant UPnP device not found or other reason
+        /// </summary>
+        FailedOther
+    }
 }
