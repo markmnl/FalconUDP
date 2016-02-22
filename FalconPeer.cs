@@ -41,9 +41,9 @@ namespace FalconUDP
         private ushort resendRatioSampleLength = 24;
         private int receiveBufferSize = 8192;
         private int sendBufferSize = 8192;
-        private TimeSpan addUPnPMappingTimeout = TimeSpan.FromSeconds(3.6);
+        private TimeSpan addUPnPMappingTimeout = TimeSpan.FromSeconds(5.0);
         internal float AckTimeoutSeconds = 1.0f;
-        internal int MaxResends = 5;
+        internal int        MaxResends                      = 5; // NOTE: badly named this is actually max sends including first send
         internal int OutOfOrderTolerance = 100;
         internal int MaxNeededOrindalSeq = UInt16.MaxValue + 100; // must be UInt16.MaxValue + OutOfOrderTolerance
         internal float KeepAliveIntervalSeconds = 10.0f;
@@ -620,7 +620,7 @@ namespace FalconUDP
                         Statistics.AddBytesReceived(size);
                     }
 
-                    // detect if we are waiting for an UPnP response this is it
+                    // detect if we are waiting for an UPnP response and this is it
                     if (addUPnPMappingCallback != null
                         && size > 4
                         && receiveBuffer[0] == 'H'
@@ -817,7 +817,7 @@ namespace FalconUDP
             location = location.Substring(0, resp.IndexOf("\r"));
             Uri locationUri = new Uri(location);
 
-            // try create UPnPDevice which attmpts to download service url from location
+            // try create UPnPInternetGatewayDevice which attmpts to download service url from location
             UPnPInternetGatewayDevice.BeginCreate(locationUri, device => 
             {
                 if (addUPnPMappingCallback == null)
