@@ -9,11 +9,13 @@ namespace FalconUDP
 {
     internal class UPnPInternetGatewayDevice
     {
+        private string serviceName;
         private string controlUrl;
 
-        public UPnPInternetGatewayDevice(string serviceUri)
+        public UPnPInternetGatewayDevice(string serviceName, string absoluteControlUri)
         {
-            this.controlUrl = serviceUri;
+            this.serviceName = serviceName;
+            this.controlUrl = absoluteControlUri;
         }
         
         private static string GetUPnPProtocolString(ProtocolType type)
@@ -28,6 +30,7 @@ namespace FalconUDP
         public static void BeginCreate(string locationUri, Action<UPnPInternetGatewayDevice> callback)
         {
             string controlUri = null;
+            string serviceName = null;
             
             Task.Factory.StartNew(() =>
             {
@@ -47,17 +50,30 @@ namespace FalconUDP
                     if (!deviceTypeNode.Value.Contains("InternetGatewayDevice"))
                         return;
 
-                    // get the controlURL of WANIPConnection or WANPPPConnection
-                    XmlNode serviceNode = doc.SelectSingleNode("//tns:service[tns:serviceType=\"urn:schemas-upnp-org:service:WANIPConnection:1\" or tns:serviceType=\"urn:schemas-upnp-org:service:WANPPPConnection:1\"]/tns:controlURL/text()", namespaceManager);
-                    if (serviceNode == null)
-                        return;
+                    // get the controlURL of WANIPConnection or WANPPPConnection 
+                    XmlNode controlUrlElement = doc.SelectSingleNode("//tns:service[tns:serviceType='urn:schemas-upnp-org:service:WANIPConnection:1']/tns:controlURL/text()", namespaceManager);
+                    serviceName = "WANIPConnection:1";
+                    if (controlUrlElement == null)
+                    {
+                        controlUrlElement = doc.SelectSingleNode("//tns:service[tns:serviceType='urn:schemas-upnp-org:service:WANPPPConnection:1']/tns:controlURL/text()", namespaceManager);
+                        serviceName = "WANPPPConnection:1";
+                        if (controlUrlElement == null)
+                        {
+                            return;
+                        }
+                    }
 
-                    string url = serviceNode.Value;
-                    
-                    if (url.StartsWith("http")) // i.e. absolute
+                    string url = controlUrlElement.Value;
+
+                    if (url.StartsWith("http")) // i.e. already absolute
+                    {
                         controlUri = url;
+                    }
                     else
-                        controlUri = locationUri + url;
+                    {
+                        locationUri = locationUri.TrimEnd('/');
+                        controlUri = locationUri + (url.StartsWith("/") ? url : "/" + url);
+                    }
                 }
 
             }).ContinueWith(completedTask => 
@@ -68,13 +84,13 @@ namespace FalconUDP
                 }
                 else
                 {
-                    UPnPInternetGatewayDevice device = new UPnPInternetGatewayDevice(controlUri);
+                    UPnPInternetGatewayDevice device = new UPnPInternetGatewayDevice(serviceName, controlUri);
                     callback(device);
                 }
             });
         }
 
-        private XmlDocument SOAPRequest(string soapBody, string function)
+        private bool SOAPRequest(string soapBody, string function)
         {
             try
             {
@@ -85,25 +101,24 @@ namespace FalconUDP
                 "</s:Body>" +
                 "</s:Envelope>";
 
-                WebRequest webRequest = HttpWebRequest.Create(controlUrl);
+                HttpWebRequest webRequest = (HttpWebRequest)HttpWebRequest.Create(controlUrl);
                 webRequest.Method = "POST";
                 byte[] body = Encoding.UTF8.GetBytes(request);
-                webRequest.Headers.Add("SOAPACTION", "\"urn:schemas-upnp-org:service:WANIPConnection:1#" + function + "\"");
+                webRequest.Headers.Add("SOAPACTION", "\"urn:schemas-upnp-org:service:" + serviceName + "#" + function + "\"");
                 webRequest.ContentType = "text/xml; charset=\"utf-8\"";
                 webRequest.ContentLength = body.Length;
                 webRequest.GetRequestStream().Write(body, 0, body.Length);
 
-                XmlDocument doc = new XmlDocument();
-                using (var webResponse = webRequest.GetResponse())
-                using (var stream = webResponse.GetResponseStream())
+                using (var webResponse = (HttpWebResponse)webRequest.GetResponse())
                 {
-                    doc.Load(stream);
+                    return webResponse.StatusCode == HttpStatusCode.OK;
+                    // NOTE: Failure can be for a number or reasons, one I have encountered is 
+                    //       the the device did not support the service such as AddPortMapping.
                 }
-                return doc;
             }
             catch
             {
-                return null;
+                return false;
             }
         }
         
@@ -111,35 +126,31 @@ namespace FalconUDP
         {
             string protocolString = GetUPnPProtocolString(protocol);
             string portString = port.ToString();
-            string request = String.Format(@"<u:AddPortMapping xmlns:u='urn:schemas-upnp-org:service:WANIPConnection:1\'>
-  <NewRemoteHost></NewRemoteHost>
-  <NewExternalPort>{0}</NewExternalPort>
-  <NewProtocol>{1}</NewProtocol>
-  <NewInternalPort>{2}</NewInternalPort>
-  <NewInternalClient>{3}</NewInternalClient>
+            string request =  String.Format("<u:AddPortMapping xmlns:u=\"urn:schemas-upnp-org:service:{0}\">", serviceName) + 
+String.Format(@"<NewRemoteHost></NewRemoteHost>
+  <NewExternalPort>{1}</NewExternalPort>
+  <NewProtocol>{2}</NewProtocol>
+  <NewInternalPort>{3}</NewInternalPort>
+  <NewInternalClient>{4}</NewInternalClient>
   <NewEnabled>1</NewEnabled>
-  <NewPortMappingDescription>{4}</NewPortMappingDescription>
+  <NewPortMappingDescription>{5}</NewPortMappingDescription>
   <NewLeaseDuration>0</NewLeaseDuration>
-</u:AddPortMapping>", portString, protocolString, portString, addr, description);
+</u:AddPortMapping>", serviceName, portString, protocolString, portString, addr, description);
 
-            XmlDocument result = SOAPRequest(request, "AddPortMapping");
-
-            return result != null; // TODO and parse?
+            return SOAPRequest(request, "AddPortMapping");
         }
 
         public bool TryDeleteForwardingRule(ProtocolType protocol, ushort port)
         {
             string protocolString = GetUPnPProtocolString(protocol);
             string portString = port.ToString();
-            string request = String.Format(@"<u:DeletePortMapping xmlns:u='urn:schemas-upnp-org:service:WANIPConnection:1\'>
-  <NewRemoteHost></NewRemoteHost>
-  <NewExternalPort>{0}</NewExternalPort>
-  <NewProtocol>{1}</NewProtocol>
-</u:DeletePortMapping>", portString, protocolString);
+            string request = String.Format("<u:DeletePortMapping xmlns:u=\"urn:schemas-upnp-org:service:{0}\">", serviceName) +
+String.Format(@"<NewRemoteHost></NewRemoteHost>
+  <NewExternalPort>{1}</NewExternalPort>
+  <NewProtocol>{2}</NewProtocol>
+</u:DeletePortMapping>", serviceName, portString, protocolString);
             
-            XmlDocument result = SOAPRequest(request, "DeletePortMapping");
-
-            return result != null; // TODO and parse?
+            return SOAPRequest(request, "DeletePortMapping");
         }
     }
 }

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Threading.Tasks;
 #if NETFX_CORE
 using Windows.Networking.Connectivity;
 using Windows.Networking;
@@ -175,7 +176,7 @@ namespace FalconUDP
         /// <summary>
         /// Time after which to to re-send a reliable message if not ACKnowledged within.
         /// </summary>
-        /// <remarks>Default 1.2 seconds.</remarks>
+        /// <remarks>Default 1 second.</remarks>
         public TimeSpan AckTimeout
         {
             get
@@ -810,45 +811,71 @@ namespace FalconUDP
                 return;
             if (isAddingUPnPRule)
                 return;
+            
+            // check the response is for the rootdevice and contains location
+            string resp = Encoding.ASCII.GetString(buffer, 0, size);
+            string respLower = resp.ToLower();
+            Log(LogLevel.Info, "Processing UPnP broadcase response: " + resp);
+            if (!(respLower.Contains("upnp:rootdevice") && respLower.Contains("location:")))
+                return;
 
+            // set flag to prevent processing duplicate responses
             isAddingUPnPRule = true;
 
             // parse response for location of xml containing services
-            string resp = Encoding.ASCII.GetString(buffer, 0, size);
-            resp = resp.ToLower();
-            Log(LogLevel.Info, "Processing UPnP broadcase response: " + resp);
-            if (!(resp.Contains("upnp:rootdevice") && resp.Contains("location:")))
-                return;
-            string location = resp.Substring(resp.IndexOf("location:") + 9);
+            string location = resp.Substring(respLower.IndexOf("location:") + 9);
             location = location.Substring(0, location.IndexOf("\r"));
 
-            // Try create UPnPInternetGatewayDevice which attmpts to download service url from 
-            // location specefied in this discovery response..
+            // Try create UPnPInternetGatewayDevice which attempts to download xml to get control 
+            // URL from location specefied in this discovery response..
             //
             UPnPInternetGatewayDevice.BeginCreate(location, device => 
             {
-                if (addUPnPMappingCallback == null)
+                if (addUPnPMappingCallback == null) // could have timed-out
                     return;
 
-                if (upnpDevice == null)
+                if (device == null)
                 {
                     EndAddUPnPMapping(AddUPnPMappingResult.FailedOther);
                 }
                 else
                 {
                     upnpDevice = device;
-
-                    // add forwarding rules for our the local addresse(s)
-                    foreach (var addr in LocalAddresses)
+                    
+                    // Get local address to add the forwarding rule for. Prioritise on first 
+                    // private address as that is more likely the one that needs forwarding.
+                    //
+                    if (LocalAddresses.Count == 0)
                     {
-                        if (IPAddress.IsLoopback(addr))
-                            continue;
-                        if (upnpDevice.TryAddForwardingRule(System.Net.Sockets.ProtocolType.Udp, addr, (ushort)Port, "FalconUDP" + Port.ToString()))
-                        {
-                            upnpMappingAdded = true;
-                        }
+                        EndAddUPnPMapping(AddUPnPMappingResult.FailedNoActiveLocalAddress);
+                        return;
                     }
-                    EndAddUPnPMapping(upnpMappingAdded ? AddUPnPMappingResult.Success : AddUPnPMappingResult.FailedOther);
+                    IPAddress address = null;
+                    foreach (IPAddress addr in LocalAddresses)
+                    {
+                        address = addr;
+                        if (GetIsIPAddressPrivate(addr))
+                            break;
+                    }
+
+                    // add in background as comms can block for a while
+                    bool success = false;
+                    Task.Factory.StartNew(() => 
+                    {
+                        Log(LogLevel.Info, "Adding UPnP forward rule for: " + address.ToString());
+                        success = upnpDevice.TryAddForwardingRule(System.Net.Sockets.ProtocolType.Udp, address, (ushort)port, "FalconUDP" + port.ToString());
+
+                    }).ContinueWith(completedTask => 
+                    {
+                        if (completedTask.Exception != null) // IMPORTANT Exception must be accessed otherwise thrown on finalize
+                        {
+                            EndAddUPnPMapping(AddUPnPMappingResult.FailedOther);
+                        }
+                        else
+                        {
+                            EndAddUPnPMapping(success ? AddUPnPMappingResult.Success : AddUPnPMappingResult.FailedOther);
+                        }
+                    });
                 }
             });
 
@@ -1360,34 +1387,24 @@ namespace FalconUDP
 #else
             try
             {
-                NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
-                foreach (NetworkInterface nic in nics)
+                List<UnicastIPAddressInformation> localAddressInfos = GetActiveIPv4AdressInfos();
+                foreach (UnicastIPAddressInformation addrInfo in localAddressInfos)
                 {
-                    if (nic.OperationalStatus != OperationalStatus.Up)
-                        continue;
+                    // local addr
+                    LocalAddresses.Add(addrInfo.Address);
 
-                    IPInterfaceProperties props = nic.GetIPProperties();
-                    foreach (UnicastIPAddressInformation addrInfo in props.UnicastAddresses)
-                    {
-                        if (addrInfo.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) // i.e. IPv4
-                        {
-                            // local addr
-                            LocalAddresses.Add(addrInfo.Address);
+                    // broadcast addr
 
-                            // broadcast addr
-
-                            uint mask = FalconHelper.GetNetMaskFromNumOfBits(24); // class C
+                    uint mask = FalconHelper.GetNetMaskFromNumOfBits(24); // class C
 #pragma warning disable 0618
 #if !LINUX
-                            if (addrInfo.IPv4Mask != null)
-                                mask = (uint)addrInfo.IPv4Mask.Address;
+                    if (addrInfo.IPv4Mask != null)
+                        mask = (uint)addrInfo.IPv4Mask.Address;
 #endif
-                            uint ip = (uint)addrInfo.Address.Address;
-                            uint broadcast = ip | ~mask;
-                            broadcastEndPoints.Add(new IPEndPoint(new IPAddress((long)broadcast), Port));
+                    uint ip = (uint)addrInfo.Address.Address;
+                    uint broadcast = ip | ~mask;
+                    broadcastEndPoints.Add(new IPEndPoint(new IPAddress((long)broadcast), Port));
 #pragma warning restore 0618
-                        }
-                    }
                 }
             }
             catch (NetworkInformationException niex)
@@ -1891,15 +1908,31 @@ namespace FalconUDP
 
 
         /// <summary>
-        /// Helper method to get all active IPv4 network interfaces.
+        /// Helper method to get all active local IPv4 end points.
         /// </summary>
-        /// <returns>Returns list of <see cref="IPEndPoint"/> that are operational, non-loopback, 
-        /// IPv4 and have sent and received at least one byte, with the same port as this 
-        /// FalconPeer.</returns>
+        /// <returns>Returns list of <see cref="IPEndPoint"/> with <see cref="IPAddress"/>s from <
+        /// see cref="GetLocalAdrresses"/> and the same port as this FalconPeer.</returns>
         public List<IPEndPoint> GetLocalIPEndPoints()
         {
-            List<IPEndPoint> ipEndPoints = new List<IPEndPoint>();
+            List<IPAddress> ips = GetLocalAdrresses();
+            List<IPEndPoint> eps = new List<IPEndPoint>(ips.Count);
+            foreach (IPAddress ip in ips)
+            {
+                eps.Add(new IPEndPoint(ip, port));
+            }
+            return eps;
+        }
+
+        /// <summary>
+        /// Helper method to get all active local IPv4 addresses.
+        /// </summary>
+        /// <returns>
+        /// Returns list of <see cref="IPAddress"/>s from acitive address information returned from <see cref="GetActiveIPv4AdressInfos"/>.
+        /// </returns>
+        public static List<IPAddress> GetLocalAdrresses()
+        {
 #if NETFX_CORE
+            List<IPAddress> ips = new List<IPAddress>();
             foreach (HostName localHostInfo in NetworkInformation.GetHostNames())
             {
                 if (localHostInfo.Type == HostNameType.Ipv4 && localHostInfo.IPInformation != null)
@@ -1908,26 +1941,42 @@ namespace FalconUDP
                 }
             }
 #else
+            List<UnicastIPAddressInformation> addresseInfos = GetActiveIPv4AdressInfos();
+            List<IPAddress> ips = new List<IPAddress>(addresseInfos.Count);
+            foreach (UnicastIPAddressInformation ipAddr in addresseInfos)
+            {
+                ips.Add(ipAddr.Address);
+            }
+#endif  
+            return ips;
+        }
+
+        /// <summary>
+        /// Helper method to get all active local IPv4 address information.
+        /// </summary>
+        /// <returns>
+        /// Returns list of IPv4 <see cref="UnicastIPAddressInformation"/> for network interfaces that 
+        /// are operational and non-loopback.
+        /// </returns>
+        public static List<UnicastIPAddressInformation> GetActiveIPv4AdressInfos()
+        {
+            List<UnicastIPAddressInformation> addrInfos = new List<UnicastIPAddressInformation>();
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
-                if (nic.OperationalStatus == OperationalStatus.Up && nic.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                if (nic.OperationalStatus == OperationalStatus.Up 
+                    && nic.NetworkInterfaceType != NetworkInterfaceType.Loopback)
                 {
-                    IPv4InterfaceStatistics stats = nic.GetIPv4Statistics();
-                    if (stats.BytesSent > 0 && stats.BytesReceived > 0)
+                    IPInterfaceProperties props = nic.GetIPProperties();
+                    foreach (UnicastIPAddressInformation info in props.UnicastAddresses)
                     {
-                        IPInterfaceProperties props = nic.GetIPProperties();
-                        foreach (UnicastIPAddressInformation info in props.UnicastAddresses)
+                        if (info.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
                         {
-                            if (info.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                            {
-                                ipEndPoints.Add(new IPEndPoint(info.Address, Port));
-                            }
+                            addrInfos.Add(info);
                         }
                     }
                 }
             }
-#endif
-            return ipEndPoints;
+            return addrInfos;
         }
 
 
@@ -2026,7 +2075,7 @@ namespace FalconUDP
         public static bool GetIsIPAddressPrivate(IPAddress ip)
         {
             if (ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
-                throw new NotImplementedException("only IPv4 addresses implemented");
+                return false; //throw new NotImplementedException("only IPv4 addresses implemented");
 
             byte[] bytes = ip.GetAddressBytes(); // TODO garbage :-|
 

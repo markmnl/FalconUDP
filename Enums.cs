@@ -93,6 +93,10 @@ namespace FalconUDP
         /// </summary>
         FailedTimedOut,
         /// <summary>
+        /// Failed to add rule becuase no active local address was found to forward to
+        /// </summary>
+        FailedNoActiveLocalAddress,
+        /// <summary>
         /// Failed to add rule becuase compliant UPnP device not found or other reason
         /// </summary>
         FailedOther
