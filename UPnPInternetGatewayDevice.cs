@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -123,6 +122,7 @@ namespace FalconUDP
             }
             catch
             {
+                // NOTE: GetResponse() throws exception for error responses
                 return false;
             }
         }
