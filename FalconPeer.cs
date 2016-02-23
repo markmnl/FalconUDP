@@ -790,11 +790,11 @@ namespace FalconUDP
             SendToUnknownPeer(detail.EndPoint, PacketType.JoinRequest, SendOptions.None, detail.JoinData);
         }
 
-        // ASSUMPTION: caller checked operation is in progress by checking callback is not null
         private void EndAddUPnPMapping(AddUPnPMappingResult result)
         {
+            if (addUPnPMappingCallback == null) // i.e. operation no longer in progress becuase timed-out
+                return;
             Log(LogLevel.Info, "EndAddUPnPMapping, result: " + result.ToString());
-            upnpMappingAdded = result == AddUPnPMappingResult.Success;
             isAddingUPnPRule = false;
             AddUPnPPortMappingCallback callback = addUPnPMappingCallback;
             addUPnPMappingCallback = null;
@@ -803,7 +803,9 @@ namespace FalconUDP
         
         private void ProcessUPnPBroadcastResponse(IPEndPoint fromIPEndPoint, byte[] buffer, int size)
         {
-            // An actual response for reference: HTTP/1.1 200 OK\r\nCACHE-CONTROL:max-age=1800\r\nEXT:\r\nLOCATION:http://10.0.0.138:80/upnp/IGD.xml\r\nSERVER:Thomson TG 782T 8.6.P.3 UPnP/1.0 (00-24-17-D1-37-43)\r\nST:upnp:rootdevice\r\nUSN:uuid:UPnP_Thomson TG782T-1_00-24-17-D1-37-43::upnp:rootdevice\r\n\r\n
+            // Actual responses for reference (please add any you see)
+            // HTTP/1.1 200 OK\r\nCACHE-CONTROL:max-age=1800\r\nEXT:\r\nLOCATION:http://10.0.0.138:80/upnp/IGD.xml\r\nSERVER:Thomson TG 782T 8.6.P.3 UPnP/1.0 (00-24-17-D1-37-43)\r\nST:upnp:rootdevice\r\nUSN:uuid:UPnP_Thomson TG782T-1_00-24-17-D1-37-43::upnp:rootdevice\r\n\r\n
+            // HTTP/1.1 200 OK\r\nCACHE-CONTROL: max-age=1800\r\nDATE: Tue, 23 Feb 2016 11:55:23 GMT\r\nEXT:\r\nLOCATION: http://192.168.1.1:49152/InternetGatewayDevice.xml\r\nSERVER: Linux, UPnP/1.0, DSL-2890AL Ver AU_1.02.08\r\nST: upnp:rootdevice\r\nUSN: uuid:54092FB5-AF63-8E8C-2AA6-9CD6432F8B72::upnp:rootdevice\r\n\r\n
 
             if (size < 5)
                 return;
@@ -825,6 +827,7 @@ namespace FalconUDP
             // parse response for location of xml containing services
             string location = resp.Substring(respLower.IndexOf("location:") + 9);
             location = location.Substring(0, location.IndexOf("\r"));
+            location = location.Trim();
 
             // Try create UPnPInternetGatewayDevice which attempts to download xml to get control 
             // URL from location specefied in this discovery response..
@@ -859,11 +862,10 @@ namespace FalconUDP
                     }
 
                     // add in background as comms can block for a while
-                    bool success = false;
                     Task.Factory.StartNew(() => 
                     {
                         Log(LogLevel.Info, "Adding UPnP forward rule for: " + address.ToString());
-                        success = upnpDevice.TryAddForwardingRule(System.Net.Sockets.ProtocolType.Udp, address, (ushort)port, "FalconUDP" + port.ToString());
+                        upnpMappingAdded = upnpDevice.TryAddForwardingRule(System.Net.Sockets.ProtocolType.Udp, address, (ushort)port, "FalconUDP" + port.ToString());
 
                     }).ContinueWith(completedTask => 
                     {
@@ -873,7 +875,7 @@ namespace FalconUDP
                         }
                         else
                         {
-                            EndAddUPnPMapping(success ? AddUPnPMappingResult.Success : AddUPnPMappingResult.FailedOther);
+                            EndAddUPnPMapping(upnpMappingAdded ? AddUPnPMappingResult.Success : AddUPnPMappingResult.FailedOther);
                         }
                     });
                 }

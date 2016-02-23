@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -34,45 +35,45 @@ namespace FalconUDP
             
             Task.Factory.StartNew(() =>
             {
-                var request = WebRequest.Create(locationUri);
+                var request = HttpWebRequest.Create(locationUri);
 
-                using (var webResponse = request.GetResponse())
-                using (var stream = webResponse.GetResponseStream())
+                using (var webResponse = (HttpWebResponse)request.GetResponse())
                 {
-                    XmlDocument doc = new XmlDocument();
-                    doc.Load(stream);
-
-                    XmlNamespaceManager namespaceManager = new XmlNamespaceManager(doc.NameTable);
-                    namespaceManager.AddNamespace("tns", "urn:schemas-upnp-org:device-1-0");
-
-                    // we are looking for a InternetGatewayDevice
-                    XmlNode deviceTypeNode = doc.SelectSingleNode("//tns:device/tns:deviceType/text()", namespaceManager);
-                    if (!deviceTypeNode.Value.Contains("InternetGatewayDevice"))
-                        return;
-
-                    // get the controlURL of WANIPConnection or WANPPPConnection 
-                    XmlNode controlUrlElement = doc.SelectSingleNode("//tns:service[tns:serviceType='urn:schemas-upnp-org:service:WANIPConnection:1']/tns:controlURL/text()", namespaceManager);
-                    serviceName = "WANIPConnection:1";
-                    if (controlUrlElement == null)
+                    using (var stream = webResponse.GetResponseStream())
                     {
-                        controlUrlElement = doc.SelectSingleNode("//tns:service[tns:serviceType='urn:schemas-upnp-org:service:WANPPPConnection:1']/tns:controlURL/text()", namespaceManager);
-                        serviceName = "WANPPPConnection:1";
+                        XmlDocument doc = new XmlDocument();
+                        doc.Load(stream);
+                        XmlNamespaceManager namespaceManager = new XmlNamespaceManager(doc.NameTable);
+                        namespaceManager.AddNamespace("tns", "urn:schemas-upnp-org:device-1-0");
+
+                        // we are looking for a InternetGatewayDevice
+                        XmlNode deviceTypeNode = doc.SelectSingleNode("//tns:device/tns:deviceType/text()", namespaceManager);
+                        if (!deviceTypeNode.Value.Contains("InternetGatewayDevice"))
+                            return;
+
+                        // get the controlURL of WANIPConnection or WANPPPConnection 
+                        XmlNode controlUrlElement = doc.SelectSingleNode("//tns:service[tns:serviceType='urn:schemas-upnp-org:service:WANIPConnection:1']/tns:controlURL/text()", namespaceManager);
+                        serviceName = "WANIPConnection:1";
                         if (controlUrlElement == null)
                         {
-                            return;
+                            controlUrlElement = doc.SelectSingleNode("//tns:service[tns:serviceType='urn:schemas-upnp-org:service:WANPPPConnection:1']/tns:controlURL/text()", namespaceManager);
+                            serviceName = "WANPPPConnection:1";
+                            if (controlUrlElement == null)
+                            {
+                                return;
+                            }
                         }
-                    }
 
-                    string url = controlUrlElement.Value;
-
-                    if (url.StartsWith("http")) // i.e. already absolute
-                    {
-                        controlUri = url;
-                    }
-                    else
-                    {
-                        locationUri = locationUri.TrimEnd('/');
-                        controlUri = locationUri + (url.StartsWith("/") ? url : "/" + url);
+                        string url = controlUrlElement.Value;
+                        if (url.StartsWith("http")) // i.e. already absolute
+                        {
+                            controlUri = url;
+                        }
+                        else
+                        {
+                            string baseUri = new Uri(locationUri).GetLeftPart(UriPartial.Authority);
+                            controlUri = baseUri + (url.StartsWith("/") ? url : "/" + url);
+                        }
                     }
                 }
 
@@ -90,30 +91,34 @@ namespace FalconUDP
             });
         }
 
-        private bool SOAPRequest(string soapBody, string function)
+        private bool SendCommand(string requestBody, string function)
         {
             try
             {
                 string request = "<?xml version=\"1.0\"?>" +
                 "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">" +
                 "<s:Body>" +
-                soapBody +
+                requestBody +
                 "</s:Body>" +
                 "</s:Envelope>";
 
+                byte[] body = Encoding.UTF8.GetBytes(request);
+
                 HttpWebRequest webRequest = (HttpWebRequest)HttpWebRequest.Create(controlUrl);
                 webRequest.Method = "POST";
-                byte[] body = Encoding.UTF8.GetBytes(request);
                 webRequest.Headers.Add("SOAPACTION", "\"urn:schemas-upnp-org:service:" + serviceName + "#" + function + "\"");
                 webRequest.ContentType = "text/xml; charset=\"utf-8\"";
-                webRequest.ContentLength = body.Length;
-                webRequest.GetRequestStream().Write(body, 0, body.Length);
 
+                using(var requestStream = webRequest.GetRequestStream())
+                {
+                    requestStream.Write(body, 0, body.Length);
+                }
+                
                 using (var webResponse = (HttpWebResponse)webRequest.GetResponse())
                 {
                     return webResponse.StatusCode == HttpStatusCode.OK;
                     // NOTE: Failure can be for a number or reasons, one I have encountered is 
-                    //       the the device did not support the service such as AddPortMapping.
+                    //       is the mapping was already added.
                 }
             }
             catch
@@ -137,7 +142,7 @@ String.Format(@"<NewRemoteHost></NewRemoteHost>
   <NewLeaseDuration>0</NewLeaseDuration>
 </u:AddPortMapping>", serviceName, portString, protocolString, portString, addr, description);
 
-            return SOAPRequest(request, "AddPortMapping");
+            return SendCommand(request, "AddPortMapping");
         }
 
         public bool TryDeleteForwardingRule(ProtocolType protocol, ushort port)
@@ -150,7 +155,7 @@ String.Format(@"<NewRemoteHost></NewRemoteHost>
   <NewProtocol>{2}</NewProtocol>
 </u:DeletePortMapping>", serviceName, portString, protocolString);
             
-            return SOAPRequest(request, "DeletePortMapping");
+            return SendCommand(request, "DeletePortMapping");
         }
     }
 }
