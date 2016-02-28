@@ -46,8 +46,22 @@ namespace FalconUDP
         {
             while (socket.IsBound)
             {
-                int size = socket.ReceiveFrom(lastDatagramBuffer, ref placeHolderEndPoint);
+                int size = 0;
+                try
+                {
+                    size = socket.ReceiveFrom(lastDatagramBuffer, ref placeHolderEndPoint);
+                }
+                catch (SocketException ex)
+                {
+                    localPeer.Log(LogLevel.Error, "SocketException ReceiveFrom " + ex.Message);
+                    continue;
+                }
 
+                if (size == 0)
+                    continue;
+                if (size > FalconPeer.MaxDatagramSize)
+                    continue;
+                
                 lock (receivedDatagramsBuffer)
                 {
                     var detail = new DatagramDetail();
@@ -56,7 +70,7 @@ namespace FalconUDP
                     detail.IP = (IPEndPoint)placeHolderEndPoint;
                     receivedDatagramDetails.Enqueue(detail);
 
-                    if (size > 0)
+                    if (size > 0 && ((receivedDatagramsIndex + size) < receivedDatagramsBuffer.Length))
                     {
                         Buffer.BlockCopy(lastDatagramBuffer, 0, receivedDatagramsBuffer, receivedDatagramsIndex, size);
                         Interlocked.Exchange(ref receivedDatagramsIndex, (receivedDatagramsIndex + size));
