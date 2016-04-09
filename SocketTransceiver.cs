@@ -37,7 +37,7 @@ namespace FalconUDP
             {
                 try
                 {
-#if !MONO
+#if !(MONO || WINDOWS_UWP)
                     socket.SetIPProtectionLevel(IPProtectionLevel.EdgeRestricted);
 #endif
 #if !LINUX
@@ -80,7 +80,11 @@ namespace FalconUDP
         {
             try
             {
+#if WINDOWS_UWP
+                socket.Dispose();
+#else
                 socket.Close();
+#endif
             }
             catch { }
         }
@@ -96,7 +100,14 @@ namespace FalconUDP
             }
             catch (SocketException se)
             {
-                localPeer.Log(LogLevel.Error, String.Format("Socket Exception {0} {1}, while receiving from {2}.", se.ErrorCode, se.Message, ipFrom));
+                localPeer.Log(LogLevel.Error, String.Format("Socket Exception {0} {1}, while receiving from {2}."
+#if WINDOWS_UWP
+                    , se.SocketErrorCode
+#else
+                    , se.ErrorCode
+#endif
+                    , se.Message
+                    , ipFrom));
             }
             return size;
         }
@@ -118,7 +129,14 @@ namespace FalconUDP
             }
             catch (SocketException se)
             {
-                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0}: {1}, sending to peer: {2}", se.ErrorCode.ToString(), se.Message, ip));
+                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0}: {1}, sending to peer: {2}"
+#if WINDOWS_UWP
+                    , se.SocketErrorCode
+#else
+                    , se.ErrorCode
+#endif
+                    , se.Message
+                    , ip));
                 return false;
             }
 

@@ -6,9 +6,14 @@ TODO
 - in addition to above problem more generally local addresses cache should be refreshed when network changes have occured
 - quick disconnect when network disconnected
 
+Universal
+---------
+- best way to get local addresses?
+- UPnP
+
+
 One day
 -------
 - IPv6 and other underlying protocols support
-- WinRT port
 - Optimistic Reliable congestion controlled delivery
 

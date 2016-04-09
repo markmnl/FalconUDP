@@ -29,6 +29,10 @@ namespace FalconUDP
         
         public static void BeginCreate(string locationUri, Action<UPnPInternetGatewayDevice> callback)
         {
+#if WINDOWS_UWP
+            return;
+#else
+
             string controlUri = null;
             string serviceName = null;
             
@@ -88,10 +92,15 @@ namespace FalconUDP
                     callback(device);
                 }
             });
+#endif
         }
 
         private bool SendCommand(string requestBody, string function)
         {
+#if WINDOWS_UWP
+            return false;
+#else
+
             try
             {
                 string request = "<?xml version=\"1.0\"?>" +
@@ -125,10 +134,14 @@ namespace FalconUDP
                 // NOTE: GetResponse() throws exception for error responses
                 return false;
             }
+#endif
         }
         
         public bool TryAddForwardingRule(ProtocolType protocol, IPAddress addr, ushort port, string description)
         {
+#if WINDOWS_UWP
+            return false;
+#else
             string protocolString = GetUPnPProtocolString(protocol);
             string portString = port.ToString();
             string request =  String.Format("<u:AddPortMapping xmlns:u=\"urn:schemas-upnp-org:service:{0}\">", serviceName) + 
@@ -143,10 +156,14 @@ String.Format(@"<NewRemoteHost></NewRemoteHost>
 </u:AddPortMapping>", serviceName, portString, protocolString, portString, addr, description);
 
             return SendCommand(request, "AddPortMapping");
+#endif
         }
 
         public bool TryDeleteForwardingRule(ProtocolType protocol, ushort port)
         {
+#if WINDOWS_UWP
+            return false;
+#else
             string protocolString = GetUPnPProtocolString(protocol);
             string portString = port.ToString();
             string request = String.Format("<u:DeletePortMapping xmlns:u=\"urn:schemas-upnp-org:service:{0}\">", serviceName) +
@@ -156,6 +173,7 @@ String.Format(@"<NewRemoteHost></NewRemoteHost>
 </u:DeletePortMapping>", serviceName, portString, protocolString);
             
             return SendCommand(request, "DeletePortMapping");
+#endif
         }
     }
 }

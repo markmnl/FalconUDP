@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Net;
 using System.Text;
+#if WINDOWS_UWP
+
+#endif
 
 namespace FalconUDP
 {
@@ -661,15 +664,14 @@ namespace FalconUDP
         /// <param name="ipEndPoint"><see cref="IPEndPoint"/> to write.</param>
         public void WriteIPEndPoint(IPEndPoint ipEndPoint)
         {
-#if NETFX_CORE
-            WriteInt64(ipEndPoint.AddressAsLong);
-            WriteUInt16((ushort)ipEndPoint.Port);
+#if WINDOWS_UWP
+            WriteInt64(ipEndPoint.Address.GetAddressAsLong());
 #else
 #pragma warning disable 0618
             WriteInt64(ipEndPoint.Address.Address);
 #pragma warning restore 0618
-            WriteUInt16((ushort)ipEndPoint.Port);
 #endif
+            WriteUInt16((ushort)ipEndPoint.Port);
         }
 
         /// <summary>

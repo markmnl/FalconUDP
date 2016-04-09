@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("FalconUDP")]
-[assembly: AssemblyCopyright("©2013 - 2015 Gnomic Studios")]
+[assembly: AssemblyCopyright("©2013 - 2016 Gnomic Studios")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -33,11 +33,5 @@ using System.Runtime.InteropServices;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
-
-#if NETFX_CORE
-[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("FalconUDPTests.RT")]
-[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("FalconUDPTests.UWP")]
-#else
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("FalconUDPTests")]
-#endif
 

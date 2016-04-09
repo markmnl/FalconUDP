@@ -6,7 +6,7 @@ namespace FalconUDP
 
         internal static IFalconTransceiver Create(FalconPeer localPeer)
         {
-#if NETFX_CORE
+#if NETFX_CORE && !WINDOWS_UWP
             return new DatagramSocketTransceiver(localPeer);
 #elif PS4
             return new AutonomousTransciever(localPeer);

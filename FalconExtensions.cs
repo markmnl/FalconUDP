@@ -6,7 +6,7 @@ namespace FalconUDP
     {
         internal static bool FastEquals(this IPEndPoint ip1, IPEndPoint ip2)
         {
-#if NETFX_CORE
+#if NETFX_CORE || WINDOWS_UWP
             return ip1.Equals(ip2);
 #else
 #pragma warning disable 0618

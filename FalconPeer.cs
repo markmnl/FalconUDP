@@ -5,7 +5,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
-#if NETFX_CORE
+#if NETFX_CORE || WINDOWS_UWP
 using Windows.Networking.Connectivity;
 using Windows.Networking;
 #endif
@@ -498,7 +498,7 @@ namespace FalconUDP
             }
             else
             {
-#if !NETFX_CORE
+#if !WINDOWS_UWP
                 Debug.AutoFlush = true;
 #endif
             }
@@ -1362,17 +1362,17 @@ namespace FalconUDP
 #if PS4
             // PS4 auto calcs correct broadcast
             broadcastEndPoints.Add(new IPEndPoint(new IPAddress(new byte[] { 255, 255, 255, 255 }), this.port));
-#elif NETFX_CORE
+#elif WINDOWS_UWP
             foreach (HostName localHostInfo in NetworkInformation.GetHostNames())
             {
                 if (localHostInfo.Type != HostNameType.Ipv4)
                     continue;
-
-                LocalAddresses.Add(localHostInfo);
                 
-                uint ip;
-                if (IPEndPoint.TryParseIPv4Address(localHostInfo.RawName, out ip))
+                IPAddress ip;
+                if (IPAddress.TryParse(localHostInfo.RawName, out ip))
                 {
+                    LocalAddresses.Add(ip);
+
                     uint mask = FalconHelper.GetNetMaskFromNumOfBits(24); // class C
                     if (localHostInfo.IPInformation != null 
                         && localHostInfo.IPInformation.PrefixLength.HasValue
@@ -1381,8 +1381,11 @@ namespace FalconUDP
                         var prefix = localHostInfo.IPInformation.PrefixLength.Value;
                         mask = FalconHelper.GetNetMaskFromNumOfBits(prefix);
                     }
-                    var broadcast = ip | ~mask;
-                    broadcastEndPoints.Add(new IPEndPoint(broadcast, (ushort)this.port));
+                    if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    {
+                        var broadcast = BitConverter.ToUInt32(ip.GetAddressBytes(), 0) | ~mask;
+                        broadcastEndPoints.Add(new IPEndPoint(broadcast, (ushort)this.port));
+                    }
                 }
             
             }
@@ -1933,13 +1936,17 @@ namespace FalconUDP
         /// </returns>
         public static List<IPAddress> GetLocalAdrresses()
         {
-#if NETFX_CORE
+#if NETFX_CORE || WINDOWS_UWP
             List<IPAddress> ips = new List<IPAddress>();
             foreach (HostName localHostInfo in NetworkInformation.GetHostNames())
             {
                 if (localHostInfo.Type == HostNameType.Ipv4 && localHostInfo.IPInformation != null)
                 {
-                    ipEndPoints.Add(new IPEndPoint(localHostInfo.RawName, this.port.ToString()));
+                    IPAddress ip;
+                    if (IPAddress.TryParse(localHostInfo.RawName, out ip))
+                    {
+                        ips.Add(ip);
+                    }
                 }
             }
 #else
@@ -1953,6 +1960,7 @@ namespace FalconUDP
             return ips;
         }
 
+#if !WINDOWS_UWP
         /// <summary>
         /// Helper method to get all active local IPv4 address information.
         /// </summary>
@@ -1980,6 +1988,7 @@ namespace FalconUDP
             }
             return addrInfos;
         }
+#endif
 
 
         /// <summary>
