@@ -1,18 +1,18 @@
-﻿using System;
+﻿#if WINDOWS_UWP
+using Windows.System.Threading;
+using Microsoft.VisualStudio.TestPlatform.UnitTestFramework;
+#else
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+#endif
+using FalconUDP;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
-using FalconUDP;
-#if NETFX_CORE
-using Microsoft.VisualStudio.TestPlatform.UnitTestFramework;
-using Windows.System.Threading;
-#else
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Threading;
 using System.Threading.Tasks;
-#endif
 
 namespace FalconUDPTests
 {
@@ -344,9 +344,8 @@ namespace FalconUDPTests
             {
                 host.EnqueueSendToAll(SendOptions.ReliableInOrder, GetPingPacket(host));
             }
-
 #if NETFX_CORE
-            TaskHelper.Sleep(5000);
+            Task.Delay(MAX_REPLY_WAIT_TIME).Wait();
 #else
             Thread.Sleep(MAX_REPLY_WAIT_TIME);
 #endif
@@ -529,7 +528,7 @@ namespace FalconUDPTests
             var otherPeers = ConnectXNumOfPeers(peer1, NUM_OF_PEERS - 1, null);
 
 #if NETFX_CORE
-            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+            Task.Delay(MAX_REPLY_WAIT_TIME).Wait();
 #else
             Thread.Sleep(MAX_REPLY_WAIT_TIME);  // allow AcceptJoin's ACK to get through
 #endif
@@ -547,7 +546,7 @@ namespace FalconUDPTests
             int timeToWait = (int)((peer1.KeepAliveInterval.TotalMilliseconds * 2) + 36000);
             timeToWait += TICK_RATE * peer1.MaxMessageResends;
 #if NETFX_CORE
-            TaskHelper.Sleep(timeToWait);
+            Task.Delay(timeToWait).Wait();
 #else
             Thread.Sleep(timeToWait);
 #endif
@@ -568,7 +567,7 @@ namespace FalconUDPTests
                 ConnectToLocalPeer(peer2, peer1, null);
 
 #if NETFX_CORE
-                TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+                Task.Delay(MAX_REPLY_WAIT_TIME).Wait();
 #else
                 Thread.Sleep(MAX_REPLY_WAIT_TIME);  // allow AcceptJoin's ACK to get through
 #endif
@@ -655,7 +654,7 @@ namespace FalconUDPTests
 
             // wait for final ACK to get through
 #if NETFX_CORE
-            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+            Task.Delay(MAX_REPLY_WAIT_TIME).Wait();
 #else
             Thread.Sleep(MAX_REPLY_WAIT_TIME);
 #endif
@@ -757,12 +756,8 @@ namespace FalconUDPTests
                         pongReceived = true;
                     }
                 };
-
-#if NETFX_CORE
-            peer2.PingEndPoint(new IPEndPoint("127.0.0.1", peer1.Port));
-#else
+            
             peer2.PingEndPoint(new IPEndPoint(IPAddress.Loopback, peer1.Port));
-#endif
 
             waitHandel.WaitOne(MAX_REPLY_WAIT_TIME);
 
@@ -821,7 +816,7 @@ namespace FalconUDPTests
 
             // allow AcceptJoin's ACK to get through
 #if NETFX_CORE
-            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+            Task.Delay(MAX_REPLY_WAIT_TIME).Wait();
 #else
             Thread.Sleep(MAX_REPLY_WAIT_TIME);
 #endif
@@ -833,7 +828,7 @@ namespace FalconUDPTests
             peer2.Stop(false);
 
 #if NETFX_CORE
-            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME / 2);
+            Task.Delay(MAX_REPLY_WAIT_TIME).Wait();
 #else
             Thread.Sleep(MAX_REPLY_WAIT_TIME / 2);
 #endif
@@ -843,7 +838,7 @@ namespace FalconUDPTests
             ConnectToLocalPeer(peer2, peer1, null, null);
 
 #if NETFX_CORE
-            TaskHelper.Sleep(MAX_REPLY_WAIT_TIME);
+            Task.Delay(MAX_REPLY_WAIT_TIME).Wait();
 #else
             Thread.Sleep(MAX_REPLY_WAIT_TIME);
 #endif
@@ -888,7 +883,11 @@ namespace FalconUDPTests
                 activePeers.Add(peer1);
             }
 
+#if NETFX_CORE
+            Task.Delay(MAX_REPLY_WAIT_TIME).Wait();
+#else
             Thread.Sleep(TICK_RATE * 3);
+#endif
 
             lock (lockObject)
             {
