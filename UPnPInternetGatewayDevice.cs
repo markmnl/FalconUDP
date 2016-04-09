@@ -82,7 +82,7 @@ namespace FalconUDP
 
             }).ContinueWith(completedTask => 
             {
-                if (completedTask.Exception != null) // IMPORTANT Exception must be accessed otherwise thrown on finalize
+                if (completedTask.Exception != null || controlUri == null) // IMPORTANT Exception must be accessed otherwise thrown on finalize
                 {
                     callback(null);
                 }
