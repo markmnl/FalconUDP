@@ -8,7 +8,7 @@ namespace FalconUDP
         {
 #if NETFX_CORE
             return new DatagramSocketTransceiver(localPeer);
-#elif PS4
+#elif CONSOLE
             return new AutonomousTransciever(localPeer);
 #else
             return new SocketTransceiver(localPeer);

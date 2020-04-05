@@ -1359,7 +1359,7 @@ namespace FalconUDP
             LocalAddresses.Clear();
             broadcastEndPoints = new List<IPEndPoint>();
 
-#if PS4
+#if CONSOLE // TODO are PS4 and SWITCH different?
             // PS4 auto calcs correct broadcast
             broadcastEndPoints.Add(new IPEndPoint(new IPAddress(new byte[] { 255, 255, 255, 255 }), this.port));
 #elif NETFX_CORE
@@ -1415,7 +1415,7 @@ namespace FalconUDP
             }
 #endif
 
-#if !PS4
+#if !CONSOLE // TODO are PS4 and SWITCH different
             if (LocalAddresses.Count == 0)
                 return new FalconOperationResult(false, "No operational IPv4 network interface found.");
 #endif
