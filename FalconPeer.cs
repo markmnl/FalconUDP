@@ -1912,8 +1912,8 @@ namespace FalconUDP
         /// <summary>
         /// Helper method to get all active local IPv4 end points.
         /// </summary>
-        /// <returns>Returns list of <see cref="IPEndPoint"/> with <see cref="IPAddress"/>s from <
-        /// see cref="GetLocalAdrresses"/> and the same port as this FalconPeer.</returns>
+        /// <returns>Returns list of <see cref="IPEndPoint"/> with <see cref="IPAddress"/>s from
+        /// <see cref="GetLocalAdrresses"/> and the same port as this FalconPeer.</returns>
         public List<IPEndPoint> GetLocalIPEndPoints()
         {
             List<IPAddress> ips = GetLocalAdrresses();
