@@ -787,6 +787,7 @@ namespace FalconUDP
 
         private void TryJoinPeerAsync(AwaitingAcceptDetail detail)
         {
+            Log(LogLevel.Info, String.Format("TryJoinPeerAsync peer: {0}, sending join request...", detail.EndPoint));
             SendToUnknownPeer(detail.EndPoint, PacketType.JoinRequest, SendOptions.None, detail.JoinData);
         }
 
@@ -2093,15 +2094,6 @@ namespace FalconUDP
             return false;
         }
 #endif
-
-        /// <summary>
-        /// Helper method returns <see cref="System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()"/>.
-        /// </summary>
-        /// <returns><see cref="System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()"/></returns>
-        public static bool GetIsNetworkAvaliable()
-        {
-            return NetworkInterface.GetIsNetworkAvailable();
-        }
 
         /// <summary>
         /// Uses Internet Gateway Device Protocol to attempt to configure port forwarding on 
