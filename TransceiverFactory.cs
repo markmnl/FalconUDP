@@ -1,17 +1,23 @@
 ﻿
 namespace FalconUDP
 {
-    internal static class TransceiverFactory
+    public static class TransceiverFactory
     {
+        public static bool UseAutonomousTranceiver = false;
 
         internal static IFalconTransceiver Create(FalconPeer localPeer)
         {
 #if NETFX_CORE
             return new DatagramSocketTransceiver(localPeer);
-#elif CONSOLE
-            return new AutonomousTransciever(localPeer);
 #else
-            return new SocketTransceiver(localPeer);
+            if (UseAutonomousTranceiver)
+            {
+                return new AutonomousTransciever(localPeer);
+            }
+            else
+            {
+                return new SocketTransceiver(localPeer);
+            }
 #endif
         }
     }
