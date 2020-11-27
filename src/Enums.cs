@@ -45,7 +45,7 @@ namespace FalconUDP
         /// </summary>
         /// <remarks>If remote peer has already processed a later packet this packet will be 
         /// dropped. However even if received after a later packets, if the remote peer has not 
-        /// processed later packets yet: packets will be ordered correctly for when peer does read 
+        /// processed later packets yet: packets will be ordered correctly when application does read 
         /// them.
         /// </remarks>
         InOrder = 32, // 0010 0000
@@ -60,7 +60,7 @@ namespace FalconUDP
         ReliableInOrder = 48, // 0011 0000
         /// <summary>No reliability or sequentiality guarantees.</summary>
         /// <remarks>As with all packets: duplicates and way out-of-order packets will not be 
-        /// proccessed by a FalconUDP recipient, see <see cref="SendOptions"/>.</remarks>
+        /// proccessed by a FalconUDP recipient.</remarks>
         None = 64, // 0100 0000
     }
 

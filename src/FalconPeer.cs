@@ -23,7 +23,7 @@ namespace FalconUDP
         /// </summary>
         /// <remarks>
         /// Try to stay under MTU which is most likely 1500 but we could be encapsulated https://cway.cisco.com/tools/ipsec-overhead-calc/ipsec-overhead-calc.html, 
-        /// that said actual datagram size sent will only as big as neccessary so be kind and allow 
+        /// that said actual datagram size sent will only be as big as neccessary, so be kind and allow 
         /// the expected upper limit with a potential cost of fragmentation.
         /// </remarks>
         public const int MaxDatagramSize = 1500;
