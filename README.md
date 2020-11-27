@@ -90,7 +90,7 @@ Payload size = Undefined
 
 ### NOTE:
 
- * All numbers in FalconUDP headers are unsigned integers stored in Little-Endian byte order.
+* All numbers in FalconUDP headers are unsigned integers stored in Little-Endian byte order.
 
 * Additional packets are only appended in a Falcon packet if they fit wholley within 
 without packet exceeding MAX_PACKET_SIZE.
