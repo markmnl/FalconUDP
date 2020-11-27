@@ -80,22 +80,22 @@ packet can start with an ACK or have them after any application packet within (t
 can "piggy-back" on existing outgoing datagrams without triggering a new one).
 
 What each FalconUDP header value means in an ACK:
-   
+
+```   
 PacketType   = Will always be ACK
 Sequence No. = Sequence ACK is for
 SendOptions  = Channel ACK is for (however can be sent on any channel)
 Payload size = Undefined
-       
+```    
 
 ### NOTE:
 
-   
-All numbers in FalconUDP headers are unsigned integers stored in Little-Endian byte order.
+ * All numbers in FalconUDP headers are unsigned integers stored in Little-Endian byte order.
 
-Additional packets are only appended in a Falcon packet if they fit wholley within 
+* Additional packets are only appended in a Falcon packet if they fit wholley within 
 without packet exceeding MAX_PACKET_SIZE.
 
-Additional packets have to have the same SendOptions as byte [1] in the Falcon header.
+* Additional packets have to have the same SendOptions as byte [1] in the Falcon header.
 
 ## TODO
 - include packet size and version no. in join request so incompatiable falcon peers cannot join eachother
