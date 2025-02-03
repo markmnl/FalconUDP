@@ -460,6 +460,7 @@ namespace FalconUDP
             this.anyAddrEndPoint = new IPEndPoint(IPAddress.Any, port);
             this.LocalAddresses = new HashSet<IPAddress>();
 #endif
+            this.broadcastEndPoints = new List<IPEndPoint>();
             this.peerIdCount = 0;
             this.awaitingAcceptDetails = new List<AwaitingAcceptDetail>();
             this.acceptJoinRequests = false;
@@ -1357,13 +1358,13 @@ namespace FalconUDP
             this.Transceiver = TransceiverFactory.Create(this);
 
             // Get local IPv4 address and while doing so broadcast addresses to use for discovery.
-            LocalAddresses.Clear();
-            broadcastEndPoints = new List<IPEndPoint>();
 
-#if CONSOLE // TODO are PS4 and SWITCH different?
-            // PS4 auto calcs correct broadcast
-            broadcastEndPoints.Add(new IPEndPoint(new IPAddress(new byte[] { 255, 255, 255, 255 }), this.port));
-#elif NETFX_CORE
+#if !CONSOLE
+            // Consoles set up the broadcast endpoints and local address externally. See SetLocalAddressesWithBroadcastMasks
+            
+            LocalAddresses.Clear();
+            broadcastEndPoints.Clear();
+#if NETFX_CORE
             foreach (HostName localHostInfo in NetworkInformation.GetHostNames())
             {
                 if (localHostInfo.Type != HostNameType.Ipv4)
@@ -1383,7 +1384,7 @@ namespace FalconUDP
                         mask = FalconHelper.GetNetMaskFromNumOfBits(prefix);
                     }
                     var broadcast = ip | ~mask;
-                    broadcastEndPoints.Add(new IPEndPoint(broadcast, (ushort)this.port));
+                    broadcastEndPoints.Add(new IPEndPoint(broadcast, (ushort)port));
                 }
             
             }
@@ -1416,7 +1417,6 @@ namespace FalconUDP
             }
 #endif
 
-#if !CONSOLE // TODO are PS4 and SWITCH different
             if (LocalAddresses.Count == 0)
                 return new FalconOperationResult(false, "No operational IPv4 network interface found.");
 #endif
@@ -1433,6 +1433,26 @@ namespace FalconUDP
             stopped = false;
 
             return FalconOperationResult.SuccessResult;
+        }
+
+        public void SetLocalAddressesWithBroadcastMasks(IPAddress[] localAddresses, uint[] subnetMasks)
+        {
+            // Clear existing
+            LocalAddresses.Clear();
+            broadcastEndPoints.Clear();
+
+            for (int i = 0; i < localAddresses.Length; i++)
+            {
+                // Add local IP
+                var ip = localAddresses[i];
+                LocalAddresses.Add(ip);
+
+                // Compute broadcast endpoint from masked local IP with port
+                uint broadcast = (uint)ip.Address & subnetMasks[i];
+                broadcastEndPoints.Add(new IPEndPoint(new IPAddress(broadcast), this.Port));
+                Log(LogLevel.Info, string.Format("SetLocalAddressesWithBroadcastMasks adding ip: {0}, mask: {1}, result: {2}", ip, new IPAddress(subnetMasks[i]), new IPAddress(broadcast)));
+            }
+
         }
 
         /// <summary>

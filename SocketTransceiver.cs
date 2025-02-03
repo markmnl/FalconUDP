@@ -96,8 +96,13 @@ namespace FalconUDP
             }
             catch (SocketException se)
             {
-                localPeer.Log(LogLevel.Error, String.Format("Socket Exception {0} {1}, while receiving from {2}.", se.ErrorCode, se.Message, ipFrom));
+                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0}: {1}, receiving from peer: {2}", se.ErrorCode.ToString(), se.Message, placeHolderEndPoint));
             }
+            catch (Exception ex)
+            {
+                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0}, receiving from peer: {1}", ex.Message, placeHolderEndPoint));
+            }
+
             return size;
         }
 
@@ -119,6 +124,11 @@ namespace FalconUDP
             catch (SocketException se)
             {
                 localPeer.Log(LogLevel.Error, String.Format("Socket Error {0}: {1}, sending to peer: {2}", se.ErrorCode.ToString(), se.Message, ip));
+                return false;
+            }
+            catch (Exception ex)
+            {
+                localPeer.Log(LogLevel.Error, String.Format("Socket Error {0}, sending to peer: {1}", ex.Message, ip));
                 return false;
             }
 
